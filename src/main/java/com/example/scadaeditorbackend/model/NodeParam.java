@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import jakarta.persistence.*;
+import org.springframework.data.redis.core.RedisHash;
 
 @Entity
 @Table(name = "param")

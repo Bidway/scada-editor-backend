@@ -32,10 +32,5 @@ public interface NodeRepository extends JpaRepository<Node, Long> {
 
     Node getNodeByIdNode(String idNode);
 
-//    @Transactional // И здесь тоже
-//    @Modifying
-//    @Query("DELETE FROM Node n WHERE n.idNode = :idNode")
-//    void deleteNodeByIdNode(@Param("idNode") String idNode);
-
 }
 

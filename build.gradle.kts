@@ -19,25 +19,33 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter")
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
+
+    implementation("org.springframework.boot:spring-boot-starter-cache")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
-    // Spring Boot Starters
+    // Spring Boot
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter") {
-        exclude(group = "com.sun", module = "tools")
-    }
+    implementation("org.springframework.boot:spring-boot-starter")
+
+    // Lombok
     implementation("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok")
-
     implementation("org.mapstruct:mapstruct:1.6.3")
-    // Database
+
+    // Database + Hibernate
     runtimeOnly("org.postgresql:postgresql")
+//    implementation("org.hibernate.orm:hibernate-core:7.1.7.Final")
+    implementation("org.postgresql:postgresql:42.7.8")
 
+    implementation("io.jsonwebtoken:jjwt-api:0.11.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 }
-
 tasks.withType<Test> {
     useJUnitPlatform()
 }
