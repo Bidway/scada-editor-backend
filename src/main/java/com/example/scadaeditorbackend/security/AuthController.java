@@ -32,7 +32,7 @@ public class AuthController {
 
         String token = jwtService.generateToken(u.getLogin(), u.getId());
 
-        return ResponseEntity.ok(new RegisterResponse(token, "Registered successfully"));
+        return ResponseEntity.ok(new TokenResponse(token, "Registered successfully"));
     }
 
     @PostMapping("/login")
@@ -46,13 +46,12 @@ public class AuthController {
 
         String token = jwtService.generateToken(u.getLogin(), u.getId());
 
-        return ResponseEntity.ok(new TokenResponse(token));
+        return ResponseEntity.ok(new TokenResponse(token,"Logged in successfully"));
     }
 }
 
 record RegisterDto(String login, String password) {}
 record LoginDto(String login, String password) {}
-record RegisterResponse(String token, String message) {}
-record TokenResponse(String token) {}
+record TokenResponse(String token, String message) {}
 
 
