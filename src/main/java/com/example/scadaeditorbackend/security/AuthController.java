@@ -30,7 +30,9 @@ public class AuthController {
         User u = new User(dto.login(), encoder.encode(dto.password()));
         repo.save(u);
 
-        return ResponseEntity.ok("Registered");
+        String token = jwtService.generateToken(u.getLogin(), u.getId());
+
+        return ResponseEntity.ok(new RegisterResponse(token, "Registered successfully"));
     }
 
     @PostMapping("/login")
@@ -50,6 +52,7 @@ public class AuthController {
 
 record RegisterDto(String login, String password) {}
 record LoginDto(String login, String password) {}
+record RegisterResponse(String token, String message) {}
 record TokenResponse(String token) {}
 
 
