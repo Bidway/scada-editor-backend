@@ -1,8 +1,9 @@
 package com.example.scadaeditorbackend.service.imlp;
 
-import com.example.scadaeditorbackend.dto.CreateParamDTO;
+import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
-import com.example.scadaeditorbackend.dto.ParamDTO;
+import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
+import com.example.scadaeditorbackend.mapper.NodeMapper;
 import com.example.scadaeditorbackend.model.Description;
 import com.example.scadaeditorbackend.model.Node;
 import com.example.scadaeditorbackend.model.NodeParam;
@@ -25,6 +26,7 @@ public class ParamServiceImpl implements ParamService {
     private final ParamRepository paramRepository;
     private final DescriptionRepository descriptionRepository;
     private final NodeRepository nodeRepository;
+    private final NodeMapper nodeMapper;
 
     @Override
     public void deleteParamById(Long id) {
@@ -32,7 +34,7 @@ public class ParamServiceImpl implements ParamService {
     }
 
     @Override
-    public ParamDTO createParam(CreateParamDTO createParamDTO) {
+    public ParamDto createParam(CreateParamDto createParamDTO) {
         Description description = descriptionRepository.findByName(createParamDTO.getName());
         Node node = nodeRepository.getNodeByIdNode(createParamDTO.getIdNode());
         NodeParam nodeParam = new NodeParam();
@@ -40,12 +42,7 @@ public class ParamServiceImpl implements ParamService {
         nodeParam.setNode(node);
         nodeParam.setValue(createParamDTO.getValue());
         NodeParam savedParam = paramRepository.save(nodeParam);
-        ParamDTO dto = new ParamDTO();
-        dto.setId(savedParam.getId());
-        dto.setIdNode(savedParam.getNode().getIdNode());
-        dto.setName(description.getName());
-        dto.setType(description.getType());
-        dto.setValue(savedParam.getValue());
+        ParamDto dto = nodeMapper.toDto(savedParam, description);
         return dto;
     }
 

@@ -1,8 +1,8 @@
 package com.example.scadaeditorbackend.controller;
 
-import com.example.scadaeditorbackend.dto.CreateParamDTO;
+import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
-import com.example.scadaeditorbackend.dto.ParamDTO;
+import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
 import com.example.scadaeditorbackend.service.ParamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,8 +22,8 @@ public class ParamController {
         return ResponseEntity.noContent().build();
     }
     @PostMapping("")
-    public ResponseEntity<ParamDTO> createParam(@RequestBody CreateParamDTO createParamDTO) {
-        ParamDTO response = paramService.createParam(createParamDTO);
+    public ResponseEntity<ParamDto> createParam(@RequestBody CreateParamDto createParamDTO) {
+        ParamDto response = paramService.createParam(createParamDTO);
         return ResponseEntity.ok(response);
     }
 

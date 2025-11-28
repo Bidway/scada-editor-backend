@@ -1,17 +1,15 @@
 package com.example.scadaeditorbackend.service;
 
-import com.example.scadaeditorbackend.dto.*;
-import com.example.scadaeditorbackend.model.Node;
-import org.springframework.http.ResponseEntity;
-
-import java.util.List;
+import com.example.scadaeditorbackend.dto.nodeDto.CreateNodeDto;
+import com.example.scadaeditorbackend.dto.nodeDto.CreateNodeResponse;
+import com.example.scadaeditorbackend.dto.nodeDto.NodeResponse;
 
 
 public interface NodeService {
 
     void deleteNode(Long id);
     void deleteNodeByIdNode(String idNode);
-    CreateNodeResponse createNode(CreateNodeDTO createNodeDTO);
+    CreateNodeResponse createNode(CreateNodeDto createNodeDTO);
     NodeResponse getFullHierarchy(String site, String project);
 
 }

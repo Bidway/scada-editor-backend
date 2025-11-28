@@ -1,5 +1,8 @@
-package com.example.scadaeditorbackend.security;
+package com.example.scadaeditorbackend.controller;
 
+import com.example.scadaeditorbackend.model.User;
+import com.example.scadaeditorbackend.repository.UserRepository;
+import com.example.scadaeditorbackend.security.JwtService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;

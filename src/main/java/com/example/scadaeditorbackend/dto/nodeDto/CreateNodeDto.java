@@ -1,12 +1,12 @@
-package com.example.scadaeditorbackend.dto;
+package com.example.scadaeditorbackend.dto.nodeDto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 @Data
-public class NodeDTO {
-    @JsonProperty("key")
-    private String idNode;
+public class CreateNodeDto {
+    @JsonProperty("type")
+    private String type;
     @JsonProperty("title")
     private String name;
     @JsonProperty("isLeaf")

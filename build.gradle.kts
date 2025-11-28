@@ -36,7 +36,7 @@ dependencies {
     implementation("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok")
     implementation("org.mapstruct:mapstruct:1.6.3")
-
+    annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
     // Database + Hibernate
     runtimeOnly("org.postgresql:postgresql")
 //    implementation("org.hibernate.orm:hibernate-core:7.1.7.Final")

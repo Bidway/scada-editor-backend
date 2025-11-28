@@ -1,5 +1,6 @@
 package com.example.scadaeditorbackend.security;
 
+import com.example.scadaeditorbackend.repository.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
