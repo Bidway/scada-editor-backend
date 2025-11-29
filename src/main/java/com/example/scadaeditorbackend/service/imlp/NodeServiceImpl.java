@@ -111,6 +111,7 @@ public class NodeServiceImpl implements NodeService {
         });
         return response;
     }
+
     // Универсальный метод для поиска дочерних узлов
     private List<Node> findByParentIds(List<Node> parents) {
         if (parents.isEmpty()) return Collections.emptyList();
