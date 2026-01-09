@@ -1,13 +1,11 @@
-package com.example.scadaeditorbackend.lock;
+package com.example.scadaeditorbackend.controller;
 
-import com.example.scadaeditorbackend.dto.nodeDto.NodeDto;
 import com.example.scadaeditorbackend.security.CurrentUserService;
-import com.example.scadaeditorbackend.security.SecurityUser;
+import com.example.scadaeditorbackend.service.LockService;
+import com.example.scadaeditorbackend.service.imlp.LockServiceImpl;
 import com.example.scadaeditorbackend.service.NodeService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -20,7 +18,7 @@ public class LockController {
     private final NodeService nodeService;
     private final CurrentUserService currentUserService;
 
-    public LockController(LockService lockService, NodeService itemService, CurrentUserService currentUserService) {
+    public LockController(LockServiceImpl lockService, NodeService itemService, CurrentUserService currentUserService) {
         this.lockService = lockService;
         this.nodeService = itemService;
         this.currentUserService = currentUserService;

@@ -1,6 +1,7 @@
-package com.example.scadaeditorbackend.lock;
+package com.example.scadaeditorbackend.service.imlp;
 
 import com.example.scadaeditorbackend.security.SecurityUser;
+import com.example.scadaeditorbackend.service.LockService;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -10,12 +11,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class LockService {
+public class LockServiceImpl implements LockService {
 
     private final RedisTemplate<String, String> redis;
     private static final long LOCK_TTL_SECONDS = 300;
 
-    public LockService(RedisTemplate<String, String> redis) {
+    public LockServiceImpl(RedisTemplate<String, String> redis) {
         this.redis = redis;
     }
 
@@ -40,12 +41,14 @@ public class LockService {
         Long userId = user.getId();
         List<String> successIdNodes = new ArrayList<>();
         idNodes.forEach(idNode ->{
+            if(redis.opsForValue().get(idNode)==null)
+            {
+                successIdNodes.add(idNode);
+            } else
             if(redis.opsForValue().get(idNode).equals(userId.toString())){
                 redis.delete(idNode);
                 successIdNodes.add(idNode);
-            } else
-            if(redis.opsForValue().get(idNode) == null)
-                successIdNodes.add(idNode);
+            }
         });
         return successIdNodes;
     }

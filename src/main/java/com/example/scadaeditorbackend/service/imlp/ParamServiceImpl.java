@@ -13,6 +13,7 @@ import com.example.scadaeditorbackend.repository.ParamRepository;
 import com.example.scadaeditorbackend.service.ParamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -27,6 +28,7 @@ public class ParamServiceImpl implements ParamService {
     private final DescriptionRepository descriptionRepository;
     private final NodeRepository nodeRepository;
     private final NodeMapper nodeMapper;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     public void deleteParamById(Long id) {
@@ -66,6 +68,13 @@ public class ParamServiceImpl implements ParamService {
         });
 
         paramRepository.saveAll(nodeParams);
+
+        nodeParams.forEach(param -> {
+            messagingTemplate.convertAndSend(
+                    "/topic/params",
+                    new KeyValue(param.getId(), param.getValue())
+            );
+        });
 
         return ResponseEntity.ok().build();
     }

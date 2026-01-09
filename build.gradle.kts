@@ -28,12 +28,17 @@ dependencies {
 
     // Spring Boot
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.mockito:mockito-core")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers")
+
+
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter")
+//    implementation("org.springframework.boot:spring-boot-starter")
 
     // Lombok
-    implementation("org.projectlombok:lombok:1.18.42")
+    implementation("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     implementation("org.mapstruct:mapstruct:1.6.3")
     annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
@@ -47,6 +52,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
 }
 tasks.withType<Test> {
     useJUnitPlatform()
