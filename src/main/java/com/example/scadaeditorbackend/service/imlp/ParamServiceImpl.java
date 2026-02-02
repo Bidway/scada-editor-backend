@@ -1,5 +1,6 @@
 package com.example.scadaeditorbackend.service.imlp;
 
+import com.example.scadaeditorbackend.dto.WsEvent;
 import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
 import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
@@ -74,8 +75,8 @@ public class ParamServiceImpl implements ParamService {
         nodeParams.forEach(param -> {
             log.info("WS SEND paramId={}, value={}", param.getId(), param.getValue());
             messagingTemplate.convertAndSend(
-                    "/topic/params",
-                    new KeyValue(param.getId(), param.getValue())
+                    "/topic/device-tree/1/1",
+                    new WsEvent<>("PARAM_UPDATED", new KeyValue(param.getId(), param.getValue()))
             );
         });
 

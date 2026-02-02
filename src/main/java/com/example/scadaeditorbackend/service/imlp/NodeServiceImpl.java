@@ -10,9 +10,11 @@ import com.example.scadaeditorbackend.mapper.NodeMapper;
 import com.example.scadaeditorbackend.model.Description;
 import com.example.scadaeditorbackend.model.Node;
 import com.example.scadaeditorbackend.model.NodeParam;
+import com.example.scadaeditorbackend.model.template.Template;
 import com.example.scadaeditorbackend.repository.DescriptionRepository;
 import com.example.scadaeditorbackend.repository.NodeRepository;
 import com.example.scadaeditorbackend.repository.ParamRepository;
+import com.example.scadaeditorbackend.repository.TemplateRepository;
 import com.example.scadaeditorbackend.service.NodeService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ public class NodeServiceImpl implements NodeService {
     private final NodeRepository nodeRepository;
     private final DescriptionRepository descriptionRepository;
     private final ParamRepository paramRepository;
+    private final TemplateRepository templateRepository;
     private final NodeMapper nodeMapper;
 
     @Override
@@ -54,9 +57,12 @@ public class NodeServiceImpl implements NodeService {
         savedNode.updateIdNode();
         boolean isParent = "cha".equals(createNodeDTO.getType());
         response.setNodeDTO(nodeMapper.toDto(savedNode, isParent));
-
-
-        List<Long> paramIds = NodeTemplates.getTemplateParams(createNodeDTO.getType());
+        List<Long> paramIds = new ArrayList<>();
+        templateRepository.findByNameWithParams(createNodeDTO.getType()).getTemplateParams()
+                .stream().forEach(param ->
+                paramIds.add(param.getDescriptionId())
+        );
+//        List<Long> paramIds = NodeTemplates.getTemplateParams(createNodeDTO.getType());
         List<Description> descriptions = descriptionRepository.findAll();
 
         if (paramIds != null) {
