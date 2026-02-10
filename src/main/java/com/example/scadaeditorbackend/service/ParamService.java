@@ -11,4 +11,5 @@ public interface ParamService {
     void deleteParamById(Long id);
     ParamDto createParam(CreateParamDto createParamDTO);
     ResponseEntity<Void> updateNodeParams(List<KeyValue> keyValues);
+    ResponseEntity<Void> undoUpdateNodeParam(Long idCommandLog);
 }

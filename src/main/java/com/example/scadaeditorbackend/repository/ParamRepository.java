@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ParamRepository extends JpaRepository<NodeParam, Long> {
@@ -14,4 +15,5 @@ public interface ParamRepository extends JpaRepository<NodeParam, Long> {
     List<NodeParam> findParamsByNodeIds(@Param("nodeIds") List<String> nodeIds);
 
     List<NodeParam> findAllByIdIn(List<Long> ids);
+    Optional<NodeParam> findById(Long id);
 }

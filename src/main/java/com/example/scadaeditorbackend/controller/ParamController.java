@@ -31,4 +31,8 @@ public class ParamController {
     public ResponseEntity updateNodeParams(@RequestBody List<KeyValue> keyValues) {
         return ResponseEntity.ok(paramService.updateNodeParams(keyValues));
     }
+    @PatchMapping("/undo")
+    public ResponseEntity undoUpdateNodeParams(@RequestBody Long idCommandLog) {
+        return ResponseEntity.ok(paramService.undoUpdateNodeParam(idCommandLog));
+    }
 }
