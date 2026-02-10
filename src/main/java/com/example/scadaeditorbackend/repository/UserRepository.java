@@ -1,6 +1,6 @@
-package com.example.scadaeditorbackend.security;
+package com.example.scadaeditorbackend.repository;
 
-import com.example.scadaeditorbackend.model.Node;
+import com.example.scadaeditorbackend.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

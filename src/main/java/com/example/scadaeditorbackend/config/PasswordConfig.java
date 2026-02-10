@@ -1,4 +1,4 @@
-package com.example.scadaeditorbackend.security;
+package com.example.scadaeditorbackend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,4 +1,4 @@
-package com.example.scadaeditorbackend.security;
+package com.example.scadaeditorbackend.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
