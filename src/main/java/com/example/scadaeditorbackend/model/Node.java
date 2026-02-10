@@ -45,6 +45,5 @@ public class Node {
     @PostPersist
     public void updateIdNode() {
         this.idNode = this.nodeType + this.id;
-        // Если нужно сразу сохранить в БД, потребуется EntityManager
     }
 }

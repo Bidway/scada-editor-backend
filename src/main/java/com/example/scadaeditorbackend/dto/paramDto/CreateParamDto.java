@@ -1,10 +1,10 @@
-package com.example.scadaeditorbackend.dto;
+package com.example.scadaeditorbackend.dto.paramDto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 @Data
-public class CreateParamDTO {
+public class CreateParamDto {
 
     @JsonProperty("parentKey")
     String idNode;

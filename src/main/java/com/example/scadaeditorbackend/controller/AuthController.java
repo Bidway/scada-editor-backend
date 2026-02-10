@@ -1,5 +1,11 @@
-package com.example.scadaeditorbackend.security;
+package com.example.scadaeditorbackend.controller;
 
+import com.example.scadaeditorbackend.dto.authDto.LoginDto;
+import com.example.scadaeditorbackend.dto.authDto.RegisterDto;
+import com.example.scadaeditorbackend.dto.authDto.TokenResponse;
+import com.example.scadaeditorbackend.model.User;
+import com.example.scadaeditorbackend.repository.UserRepository;
+import com.example.scadaeditorbackend.security.JwtService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,7 +36,9 @@ public class AuthController {
         User u = new User(dto.login(), encoder.encode(dto.password()));
         repo.save(u);
 
-        return ResponseEntity.ok("Registered");
+        String token = jwtService.generateToken(u.getLogin(), u.getId());
+
+        return ResponseEntity.ok(new TokenResponse(token, "Registered successfully"));
     }
 
     @PostMapping("/login")
@@ -44,12 +52,9 @@ public class AuthController {
 
         String token = jwtService.generateToken(u.getLogin(), u.getId());
 
-        return ResponseEntity.ok(new TokenResponse(token));
+        return ResponseEntity.ok(new TokenResponse(token,"Logged in successfully"));
     }
 }
 
-record RegisterDto(String login, String password) {}
-record LoginDto(String login, String password) {}
-record TokenResponse(String token) {}
 
 

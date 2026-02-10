@@ -43,13 +43,14 @@ public class JwtFilter extends OncePerRequestFilter {
 
         Claims claims = jwtService.extractClaims(token);
         String username = claims.getSubject();
+        Long userId = claims.get("userId", Long.class);
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
         UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken(
                         userDetails,
-                        null,
+                        userId,
                         userDetails.getAuthorities()
                 );
 

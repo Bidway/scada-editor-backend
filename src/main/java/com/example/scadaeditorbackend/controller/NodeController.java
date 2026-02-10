@@ -1,12 +1,12 @@
 package com.example.scadaeditorbackend.controller;
 
-import com.example.scadaeditorbackend.dto.*;
+import com.example.scadaeditorbackend.dto.nodeDto.CreateNodeDto;
+import com.example.scadaeditorbackend.dto.nodeDto.CreateNodeResponse;
+import com.example.scadaeditorbackend.dto.nodeDto.NodeResponse;
 import com.example.scadaeditorbackend.service.NodeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/node")
@@ -21,7 +21,7 @@ public class NodeController {
     }
 
     @PostMapping("")
-    public ResponseEntity<CreateNodeResponse> createNode(@RequestBody CreateNodeDTO createNodeDTO) {
+    public ResponseEntity<CreateNodeResponse> createNode(@RequestBody CreateNodeDto createNodeDTO) {
         CreateNodeResponse response = nodeService.createNode(createNodeDTO);
         return ResponseEntity.ok(response);
     }

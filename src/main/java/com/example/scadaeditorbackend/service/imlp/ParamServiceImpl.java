@@ -1,17 +1,25 @@
 package com.example.scadaeditorbackend.service.imlp;
 
-import com.example.scadaeditorbackend.dto.CreateParamDTO;
+import com.example.scadaeditorbackend.command.*;
+import com.example.scadaeditorbackend.dto.WsEvent;
+import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
-import com.example.scadaeditorbackend.dto.ParamDTO;
+import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
+import com.example.scadaeditorbackend.mapper.NodeMapper;
 import com.example.scadaeditorbackend.model.Description;
 import com.example.scadaeditorbackend.model.Node;
 import com.example.scadaeditorbackend.model.NodeParam;
+import com.example.scadaeditorbackend.repository.CommandLogRepository;
 import com.example.scadaeditorbackend.repository.DescriptionRepository;
 import com.example.scadaeditorbackend.repository.NodeRepository;
 import com.example.scadaeditorbackend.repository.ParamRepository;
 import com.example.scadaeditorbackend.service.ParamService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -21,10 +29,16 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ParamServiceImpl implements ParamService {
     private final ParamRepository paramRepository;
     private final DescriptionRepository descriptionRepository;
     private final NodeRepository nodeRepository;
+    private final NodeMapper nodeMapper;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final ObjectMapper objectMapper;
+    private final CommandManager commandManager;
+    private final CommandLogRepository commandLogRepository;
 
     @Override
     public void deleteParamById(Long id) {
@@ -32,7 +46,7 @@ public class ParamServiceImpl implements ParamService {
     }
 
     @Override
-    public ParamDTO createParam(CreateParamDTO createParamDTO) {
+    public ParamDto createParam(CreateParamDto createParamDTO) {
         Description description = descriptionRepository.findByName(createParamDTO.getName());
         Node node = nodeRepository.getNodeByIdNode(createParamDTO.getIdNode());
         NodeParam nodeParam = new NodeParam();
@@ -40,36 +54,40 @@ public class ParamServiceImpl implements ParamService {
         nodeParam.setNode(node);
         nodeParam.setValue(createParamDTO.getValue());
         NodeParam savedParam = paramRepository.save(nodeParam);
-        ParamDTO dto = new ParamDTO();
-        dto.setId(savedParam.getId());
-        dto.setIdNode(savedParam.getNode().getIdNode());
-        dto.setName(description.getName());
-        dto.setType(description.getType());
-        dto.setValue(savedParam.getValue());
+        ParamDto dto = nodeMapper.toDto(savedParam, description);
         return dto;
     }
 
     @Override
+    @Transactional
     public ResponseEntity<Void> updateNodeParams(List<KeyValue> keyValues) {
-        List<Long> ids = keyValues.stream().map(KeyValue::getKey).collect(Collectors.toList());
-        List<NodeParam> nodeParams = paramRepository.findAllByIdIn(ids);
 
-        Set<Long> missingIds = new HashSet<>(ids);
-        nodeParams.forEach(param -> missingIds.remove(param.getId()));
-
-        if (!missingIds.isEmpty()) {
-            return ResponseEntity.badRequest().build();
+        for(KeyValue kv : keyValues){
+            Command cmd = new UpdateNodeParamCommand(
+                    paramRepository,
+                    messagingTemplate,
+                    objectMapper,
+                    1L,
+                    kv.getKey(),
+                    kv.getValue()
+            );
+            commandManager.execute(cmd);
         }
+        return ResponseEntity.ok().build();
+    }
 
-        nodeParams.forEach(param -> {
-            keyValues.stream()
-                    .filter(kv -> kv.getKey().equals(param.getId()))
-                    .findFirst()
-                    .ifPresent(kv -> param.setValue(kv.getValue()));
-        });
+    @Override
+    @Transactional
+    public ResponseEntity<Void> undoUpdateNodeParam(Long idCommandLog) {
 
-        paramRepository.saveAll(nodeParams);
-
+            UndoHandler undo = new UpdateNodeParamUndoHandler(
+                    paramRepository,
+                    objectMapper,
+                    1L
+            );
+            CommandLog commandLog = commandLogRepository.findById(idCommandLog)
+                    .orElseThrow(() -> new IllegalArgumentException("CommandLog not found: " + idCommandLog));;
+            commandManager.executeUndo(undo,commandLog);
         return ResponseEntity.ok().build();
     }
 }
