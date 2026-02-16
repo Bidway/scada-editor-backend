@@ -1,4 +1,4 @@
-package com.example.scadaeditorbackend.command;
+package com.example.scadaeditorbackend.command.config;
 
 public interface UndoHandler {
 

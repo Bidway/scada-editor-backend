@@ -1,4 +1,4 @@
-package com.example.scadaeditorbackend.command;
+package com.example.scadaeditorbackend.command.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
@@ -22,6 +22,7 @@ public class CommandLog {
     private Long entityId;
     private String commandType;
 
+
     @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
     private JsonNode payload;
@@ -32,21 +33,20 @@ public class CommandLog {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // static factory
     public static CommandLog from(CommandResult r) {
         CommandLog log = new CommandLog();
-        log.userId = r.userId();
-        log.entityType = r.entityType();
-        log.entityId = r.entityId();
-        log.commandType = r.commandType();
-        log.payload = r.payload();
-        log.undoPayload = r.undoPayload();
+        log.userId = r.getUserId();
+        log.entityType = r.getEntityType();
+        log.entityId = r.getEntityId();
+        log.commandType = r.getCommandType();
+        log.payload = r.getPayload();
+        log.undoPayload = r.getUndoPayload();
         return log;
     }
 
     public CommandResult toResult() {
         return new CommandResult(
-                userId, entityType, entityId, commandType, payload, undoPayload
+                userId, entityType, entityId, commandType, payload, undoPayload, null
         );
     }
 }

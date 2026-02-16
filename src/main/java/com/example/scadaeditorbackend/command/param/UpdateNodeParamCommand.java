@@ -1,5 +1,7 @@
-package com.example.scadaeditorbackend.command;
+package com.example.scadaeditorbackend.command.param;
 
+import com.example.scadaeditorbackend.command.config.Command;
+import com.example.scadaeditorbackend.command.config.CommandResult;
 import com.example.scadaeditorbackend.dto.KeyValue;
 import com.example.scadaeditorbackend.dto.WsEvent;
 import com.example.scadaeditorbackend.model.NodeParam;
@@ -51,7 +53,8 @@ public class UpdateNodeParamCommand implements Command {
                 paramId,
                 "UPDATE_NODEPARAM",
                 mapper.valueToTree(Map.of("newValue", newValue)),
-                mapper.valueToTree(Map.of("oldValue", oldValue))
+                mapper.valueToTree(Map.of("oldValue", oldValue)),
+                null
         );
 
     }

@@ -1,4 +1,4 @@
-package com.example.scadaeditorbackend.command;
+package com.example.scadaeditorbackend.command.config;
 
 import com.example.scadaeditorbackend.repository.CommandLogRepository;
 import jakarta.transaction.Transactional;
@@ -12,13 +12,14 @@ public class CommandManager {
         this.commandRepository = commandRepository;
     }
     @Transactional
-    public void execute(Command command){
-        CommandResult result = command.execute();
+    public <T> T execute(Command<T> command){
+        CommandResult<T> result = command.execute();
         if(result != null)
         commandRepository.save(CommandLog.from(result));
+        return result != null ? result.getResult() : null;
     }
     @Transactional
-    public void executeUndo(UndoHandler handler,CommandLog source){
+    public void executeUndo(UndoHandler handler, CommandLog source){
         CommandResult result = handler.undo(source);
         if(result != null)
             commandRepository.save(CommandLog.from(result));

@@ -1,12 +1,15 @@
-package com.example.scadaeditorbackend.command;
+package com.example.scadaeditorbackend.command.param;
 
+import com.example.scadaeditorbackend.command.config.CommandLog;
+import com.example.scadaeditorbackend.command.config.CommandResult;
+import com.example.scadaeditorbackend.command.config.UndoHandler;
 import com.example.scadaeditorbackend.model.NodeParam;
 import com.example.scadaeditorbackend.repository.ParamRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 
-public class UpdateNodeParamUndoHandler implements UndoHandler{
+public class UpdateNodeParamUndoHandler implements UndoHandler {
 
     private final ParamRepository paramRepository;
     private final ObjectMapper mapper;
@@ -39,7 +42,8 @@ public class UpdateNodeParamUndoHandler implements UndoHandler{
                 paramId,
                 "UNDO_UPDATE_NODEPARAM",
                 mapper.valueToTree(Map.of("newValue", newValue)),
-                mapper.valueToTree(Map.of("oldValue", oldValue))
+                mapper.valueToTree(Map.of("oldValue", oldValue)),
+                null
         );
     }
 

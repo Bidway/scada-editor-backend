@@ -1,7 +1,9 @@
 package com.example.scadaeditorbackend.service.imlp;
 
-import com.example.scadaeditorbackend.command.*;
-import com.example.scadaeditorbackend.dto.WsEvent;
+import com.example.scadaeditorbackend.command.config.*;
+import com.example.scadaeditorbackend.command.param.CreateNodeParamCommand;
+import com.example.scadaeditorbackend.command.param.UpdateNodeParamCommand;
+import com.example.scadaeditorbackend.command.param.UpdateNodeParamUndoHandler;
 import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
 import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
@@ -22,10 +24,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -47,14 +47,16 @@ public class ParamServiceImpl implements ParamService {
 
     @Override
     public ParamDto createParam(CreateParamDto createParamDTO) {
-        Description description = descriptionRepository.findByName(createParamDTO.getName());
-        Node node = nodeRepository.getNodeByIdNode(createParamDTO.getIdNode());
-        NodeParam nodeParam = new NodeParam();
-        nodeParam.setIdType(description.getId());
-        nodeParam.setNode(node);
-        nodeParam.setValue(createParamDTO.getValue());
-        NodeParam savedParam = paramRepository.save(nodeParam);
-        ParamDto dto = nodeMapper.toDto(savedParam, description);
+        Command<ParamDto> cmd = new CreateNodeParamCommand(
+                1,
+                objectMapper,
+                descriptionRepository,
+                nodeRepository,
+                paramRepository,
+                createParamDTO,
+                nodeMapper
+        );
+        ParamDto dto = commandManager.execute(cmd);
         return dto;
     }
 
