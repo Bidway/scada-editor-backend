@@ -13,4 +13,5 @@ public interface DescriptionRepository extends JpaRepository<Description, Long> 
     List<Description> findAll();
 
     Description findByName(String name);
+    Description findById(long id);
 }

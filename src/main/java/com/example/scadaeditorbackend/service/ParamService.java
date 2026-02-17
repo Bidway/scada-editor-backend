@@ -2,6 +2,7 @@ package com.example.scadaeditorbackend.service;
 
 import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
+import com.example.scadaeditorbackend.dto.paramDto.DescriptionRespose;
 import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
 import org.springframework.http.ResponseEntity;
 
@@ -12,4 +13,5 @@ public interface ParamService {
     ParamDto createParam(CreateParamDto createParamDTO);
     ResponseEntity<Void> updateNodeParams(List<KeyValue> keyValues);
     ResponseEntity<Void> undoUpdateNodeParam(Long idCommandLog);
+    DescriptionRespose getDescriptions();
 }

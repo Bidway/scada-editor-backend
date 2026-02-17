@@ -2,6 +2,7 @@ package com.example.scadaeditorbackend.controller;
 
 import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
+import com.example.scadaeditorbackend.dto.paramDto.DescriptionRespose;
 import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
 import com.example.scadaeditorbackend.service.ParamService;
 import lombok.RequiredArgsConstructor;
@@ -34,5 +35,9 @@ public class ParamController {
     @PatchMapping("/undo")
     public ResponseEntity undoUpdateNodeParams(@RequestBody Long idCommandLog) {
         return ResponseEntity.ok(paramService.undoUpdateNodeParam(idCommandLog));
+    }
+    @GetMapping("/description")
+    public ResponseEntity<DescriptionRespose> getDescriptions(){
+        return ResponseEntity.ok(paramService.getDescriptions());
     }
 }

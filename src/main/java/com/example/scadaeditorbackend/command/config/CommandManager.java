@@ -14,7 +14,7 @@ public class CommandManager {
     @Transactional
     public <T> T execute(Command<T> command){
         CommandResult<T> result = command.execute();
-        if(result != null)
+        if(result != null && result.getUserId()!=null)
         commandRepository.save(CommandLog.from(result));
         return result != null ? result.getResult() : null;
     }

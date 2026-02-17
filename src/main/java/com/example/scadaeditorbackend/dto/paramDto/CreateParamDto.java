@@ -8,6 +8,6 @@ public class CreateParamDto {
 
     @JsonProperty("parentKey")
     String idNode;
-    String name;
+    long id;
     String value;
 }

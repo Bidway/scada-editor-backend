@@ -2,10 +2,12 @@ package com.example.scadaeditorbackend.service.imlp;
 
 import com.example.scadaeditorbackend.command.config.*;
 import com.example.scadaeditorbackend.command.param.CreateNodeParamCommand;
+import com.example.scadaeditorbackend.command.param.GetDescriptionsCommand;
 import com.example.scadaeditorbackend.command.param.UpdateNodeParamCommand;
 import com.example.scadaeditorbackend.command.param.UpdateNodeParamUndoHandler;
 import com.example.scadaeditorbackend.dto.paramDto.CreateParamDto;
 import com.example.scadaeditorbackend.dto.KeyValue;
+import com.example.scadaeditorbackend.dto.paramDto.DescriptionRespose;
 import com.example.scadaeditorbackend.dto.paramDto.ParamDto;
 import com.example.scadaeditorbackend.mapper.NodeMapper;
 import com.example.scadaeditorbackend.model.Description;
@@ -91,5 +93,14 @@ public class ParamServiceImpl implements ParamService {
                     .orElseThrow(() -> new IllegalArgumentException("CommandLog not found: " + idCommandLog));;
             commandManager.executeUndo(undo,commandLog);
         return ResponseEntity.ok().build();
+    }
+
+    @Override
+    public DescriptionRespose getDescriptions() {
+        Command<DescriptionRespose> cmd = new GetDescriptionsCommand(
+                descriptionRepository
+        );
+        DescriptionRespose respose = commandManager.execute(cmd);
+        return respose;
     }
 }

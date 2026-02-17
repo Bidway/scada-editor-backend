@@ -36,7 +36,7 @@ public class CreateNodeParamCommand implements Command<ParamDto> {
 
     @Override
     public CommandResult<ParamDto> execute() {
-        Description description = descriptionRepository.findByName(dto.getName());
+        Description description = descriptionRepository.findById(dto.getId());
         Node node = nodeRepository.getNodeByIdNode(dto.getIdNode());
         NodeParam nodeParam = new NodeParam();
         nodeParam.setIdType(description.getId());
