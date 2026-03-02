@@ -10,11 +10,12 @@ import java.util.List;
 
 @Data
 public class ComponentCreateDto {
-    private Long key;
+    private String key;
     private String name;
     private List<ComponentCreateDto> children = new ArrayList<>();
     private Long version;
     private String type;
-    private Long parent_key;
+    private String parent_key;
+    private Long parent_id;
     private JsonNode image;
 }

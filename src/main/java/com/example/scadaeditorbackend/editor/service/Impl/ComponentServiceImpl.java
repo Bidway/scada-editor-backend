@@ -5,6 +5,7 @@ import com.example.scadaeditorbackend.editor.command.component.CreateComponentCo
 import com.example.scadaeditorbackend.editor.command.component.DeleteComponentCommand;
 import com.example.scadaeditorbackend.editor.command.component.UpdateComponentCommand;
 import com.example.scadaeditorbackend.editor.dto.ComponentCreateDto;
+import com.example.scadaeditorbackend.editor.dto.ComponentResponseDto;
 import com.example.scadaeditorbackend.editor.model.Component;
 import com.example.scadaeditorbackend.editor.repository.ComponentRepository;
 import com.example.scadaeditorbackend.editor.service.ComponentService;
@@ -23,10 +24,9 @@ public class ComponentServiceImpl implements ComponentService {
     private final CommandManager commandManager;
 
     @Override
-    public Component create(ComponentCreateDto component) {
-
+    public List<ComponentResponseDto> create(List<ComponentCreateDto> components) {
         CreateComponentCommand command =
-                new CreateComponentCommand(repository, component, mapper);
+                new CreateComponentCommand(repository, components, mapper);
         return commandManager.execute(command);
     }
 
