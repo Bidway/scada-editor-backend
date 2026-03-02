@@ -14,7 +14,7 @@ public interface ComponentService {
 
     List<ComponentResponseDto> create(List<ComponentCreateDto> component);
 
-    SceneCreateResponseDto createScene(SceneCreateDto scene)
+    SceneCreateResponseDto createScene(SceneCreateDto scene);
 
     Component update(Long id, Component component);
 

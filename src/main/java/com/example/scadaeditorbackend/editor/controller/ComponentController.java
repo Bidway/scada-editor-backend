@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/components/scene")
+@RequestMapping("/api/components")
 @RequiredArgsConstructor
 public class ComponentController {
 
@@ -22,7 +22,7 @@ public class ComponentController {
     public List<ComponentResponseDto> create(@RequestBody List<ComponentCreateDto> components) {
         return service.create(components);
     }
-    @PostMapping
+    @PostMapping("/scene")
     public SceneCreateResponseDto createScene(@RequestBody SceneCreateDto scene) {
         return service.createScene(scene);
     }
