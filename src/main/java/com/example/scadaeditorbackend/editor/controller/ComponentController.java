@@ -2,6 +2,8 @@ package com.example.scadaeditorbackend.editor.controller;
 
 import com.example.scadaeditorbackend.editor.dto.ComponentCreateDto;
 import com.example.scadaeditorbackend.editor.dto.ComponentResponseDto;
+import com.example.scadaeditorbackend.editor.dto.SceneCreateDto;
+import com.example.scadaeditorbackend.editor.dto.SceneCreateResponseDto;
 import com.example.scadaeditorbackend.editor.model.Component;
 import com.example.scadaeditorbackend.editor.service.ComponentService;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/components")
+@RequestMapping("/api/components/scene")
 @RequiredArgsConstructor
 public class ComponentController {
 
@@ -19,6 +21,10 @@ public class ComponentController {
     @PostMapping
     public List<ComponentResponseDto> create(@RequestBody List<ComponentCreateDto> components) {
         return service.create(components);
+    }
+    @PostMapping
+    public SceneCreateResponseDto createScene(@RequestBody SceneCreateDto scene) {
+        return service.createScene(scene);
     }
 
     @PutMapping("/{id}")

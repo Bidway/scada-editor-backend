@@ -2,10 +2,13 @@ package com.example.scadaeditorbackend.editor.service.Impl;
 
 import com.example.scadaeditorbackend.config.command.CommandManager;
 import com.example.scadaeditorbackend.editor.command.component.CreateComponentCommand;
+import com.example.scadaeditorbackend.editor.command.component.CreateSceneCommand;
 import com.example.scadaeditorbackend.editor.command.component.DeleteComponentCommand;
 import com.example.scadaeditorbackend.editor.command.component.UpdateComponentCommand;
 import com.example.scadaeditorbackend.editor.dto.ComponentCreateDto;
 import com.example.scadaeditorbackend.editor.dto.ComponentResponseDto;
+import com.example.scadaeditorbackend.editor.dto.SceneCreateDto;
+import com.example.scadaeditorbackend.editor.dto.SceneCreateResponseDto;
 import com.example.scadaeditorbackend.editor.model.Component;
 import com.example.scadaeditorbackend.editor.repository.ComponentRepository;
 import com.example.scadaeditorbackend.editor.service.ComponentService;
@@ -27,6 +30,12 @@ public class ComponentServiceImpl implements ComponentService {
     public List<ComponentResponseDto> create(List<ComponentCreateDto> components) {
         CreateComponentCommand command =
                 new CreateComponentCommand(repository, components, mapper);
+        return commandManager.execute(command);
+    }
+    @Override
+    public SceneCreateResponseDto createScene(SceneCreateDto scene) {
+        CreateSceneCommand command =
+                new CreateSceneCommand(repository, scene, mapper);
         return commandManager.execute(command);
     }
 
