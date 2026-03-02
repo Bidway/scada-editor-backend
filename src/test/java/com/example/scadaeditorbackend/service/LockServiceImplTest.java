@@ -1,7 +1,8 @@
 package com.example.scadaeditorbackend.service;
 
-import com.example.scadaeditorbackend.model.User;
+import com.example.scadaeditorbackend.channelbase.model.User;
 import com.example.scadaeditorbackend.security.SecurityUser;
+import com.example.scadaeditorbackend.channelbase.service.LockService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

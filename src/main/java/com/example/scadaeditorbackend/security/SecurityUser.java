@@ -1,6 +1,6 @@
 package com.example.scadaeditorbackend.security;
 
-import com.example.scadaeditorbackend.model.User;
+import com.example.scadaeditorbackend.channelbase.model.User;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
