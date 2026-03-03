@@ -1,9 +1,6 @@
 package com.example.scadaeditorbackend.editor.controller;
 
-import com.example.scadaeditorbackend.editor.dto.ComponentCreateDto;
-import com.example.scadaeditorbackend.editor.dto.ComponentResponseDto;
-import com.example.scadaeditorbackend.editor.dto.SceneCreateDto;
-import com.example.scadaeditorbackend.editor.dto.SceneCreateResponseDto;
+import com.example.scadaeditorbackend.editor.dto.*;
 import com.example.scadaeditorbackend.editor.model.Component;
 import com.example.scadaeditorbackend.editor.service.ComponentService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +22,10 @@ public class ComponentController {
     @PostMapping("/scene")
     public SceneCreateResponseDto createScene(@RequestBody SceneCreateDto scene) {
         return service.createScene(scene);
+    }
+    @GetMapping("/scenes")
+    public List<ScenesResponseDto> getScenes(){
+        return service.getScenes();
     }
 
     @PutMapping("/{id}")

@@ -5,10 +5,8 @@ import com.example.scadaeditorbackend.editor.command.component.CreateComponentCo
 import com.example.scadaeditorbackend.editor.command.component.CreateSceneCommand;
 import com.example.scadaeditorbackend.editor.command.component.DeleteComponentCommand;
 import com.example.scadaeditorbackend.editor.command.component.UpdateComponentCommand;
-import com.example.scadaeditorbackend.editor.dto.ComponentCreateDto;
-import com.example.scadaeditorbackend.editor.dto.ComponentResponseDto;
-import com.example.scadaeditorbackend.editor.dto.SceneCreateDto;
-import com.example.scadaeditorbackend.editor.dto.SceneCreateResponseDto;
+import com.example.scadaeditorbackend.editor.dto.*;
+import com.example.scadaeditorbackend.editor.mapper.ComponentMapper;
 import com.example.scadaeditorbackend.editor.model.Component;
 import com.example.scadaeditorbackend.editor.repository.ComponentRepository;
 import com.example.scadaeditorbackend.editor.service.ComponentService;
@@ -25,18 +23,25 @@ public class ComponentServiceImpl implements ComponentService {
     private final ComponentRepository repository;
     private final ObjectMapper mapper;
     private final CommandManager commandManager;
+    private final ComponentMapper componentMapper;
 
     @Override
     public List<ComponentResponseDto> create(List<ComponentCreateDto> components) {
         CreateComponentCommand command =
-                new CreateComponentCommand(repository, components, mapper);
+                new CreateComponentCommand(repository, components, mapper, componentMapper);
         return commandManager.execute(command);
     }
     @Override
     public SceneCreateResponseDto createScene(SceneCreateDto scene) {
         CreateSceneCommand command =
-                new CreateSceneCommand(repository, scene, mapper);
+                new CreateSceneCommand(repository, scene, mapper,componentMapper);
         return commandManager.execute(command);
+    }
+
+    @Override
+    public List<ScenesResponseDto> getScenes() {
+
+        return componentMapper.toScenesDtoList(repository.findByType("scene"));
     }
 
     @Override

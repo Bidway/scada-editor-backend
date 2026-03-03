@@ -2,10 +2,7 @@ package com.example.scadaeditorbackend.editor.service;
 
 
 
-import com.example.scadaeditorbackend.editor.dto.ComponentCreateDto;
-import com.example.scadaeditorbackend.editor.dto.ComponentResponseDto;
-import com.example.scadaeditorbackend.editor.dto.SceneCreateDto;
-import com.example.scadaeditorbackend.editor.dto.SceneCreateResponseDto;
+import com.example.scadaeditorbackend.editor.dto.*;
 import com.example.scadaeditorbackend.editor.model.Component;
 
 import java.util.List;
@@ -15,6 +12,8 @@ public interface ComponentService {
     List<ComponentResponseDto> create(List<ComponentCreateDto> component);
 
     SceneCreateResponseDto createScene(SceneCreateDto scene);
+
+    List<ScenesResponseDto> getScenes();
 
     Component update(Long id, Component component);
 

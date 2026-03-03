@@ -4,6 +4,7 @@ import com.example.scadaeditorbackend.config.command.Command;
 import com.example.scadaeditorbackend.config.command.CommandResult;
 import com.example.scadaeditorbackend.editor.dto.ComponentCreateDto;
 import com.example.scadaeditorbackend.editor.dto.ComponentResponseDto;
+import com.example.scadaeditorbackend.editor.mapper.ComponentMapper;
 import com.example.scadaeditorbackend.editor.model.Component;
 import com.example.scadaeditorbackend.editor.repository.ComponentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+
 
 @RequiredArgsConstructor
 public class CreateComponentCommand implements Command<List<ComponentResponseDto>> {
@@ -19,6 +22,7 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
     private final ComponentRepository repository;
     private final List<ComponentCreateDto> dtos;
     private final ObjectMapper mapper;
+    private final ComponentMapper componentMapper;
 
     @Override
     public CommandResult<List<ComponentResponseDto>> execute() {
@@ -28,10 +32,7 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
                 .toList();
 
         List<Component> savedComponents = repository.saveAll(createdRoots);
-
-        List<ComponentResponseDto> response = savedComponents.stream()
-                .map(this::toDto)
-                .toList();
+        List<ComponentResponseDto> response = componentMapper.toDtoList(savedComponents);
 
         List<Long> allIds = savedComponents.stream()
                 .flatMap(this::flatten)
@@ -51,32 +52,7 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
                 response
         );
     }
-    private ComponentResponseDto toDto(Component entity) {
 
-        ComponentResponseDto dto = new ComponentResponseDto();
-        dto.setId(entity.getId());
-        dto.setName(entity.getName());
-        dto.setType(entity.getType());
-        dto.setVersion(entity.getVersion());
-        dto.setImage(entity.getImage());
-
-        if (entity.getParent() != null) {
-            dto.setParent_id(entity.getParent().getId());
-        }
-
-        List<ComponentResponseDto> children = entity.getChildren()
-                .stream()
-                .map(this::toDto)
-                .toList();
-
-        dto.setChildren(children);
-
-        return dto;
-    }
-    /**
-     * Маппинг root компоненты.
-     * У неё parent_id уже известен.
-     */
     private Component mapRootComponent(ComponentCreateDto dto) {
 
         Component parent = null;
@@ -110,13 +86,9 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
         return entity;
     }
 
-    /**
-     * Разворачиваем дерево в плоский список
-     * чтобы собрать id для undo
-     */
-    private java.util.stream.Stream<Component> flatten(Component component) {
-        return java.util.stream.Stream.concat(
-                java.util.stream.Stream.of(component),
+    private Stream<Component> flatten(Component component) {
+        return Stream.concat(
+                Stream.of(component),
                 component.getChildren().stream().flatMap(this::flatten)
         );
     }

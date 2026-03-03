@@ -1,5 +1,6 @@
 package com.example.scadaeditorbackend.editor.dto;
 
+import com.example.scadaeditorbackend.editor.model.Component;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
@@ -13,6 +14,6 @@ public class SceneCreateResponseDto {
     private String type;
     private String parent_key;
     private JsonNode image;
-    private List<Object> children;
+    private List<Component> children;
     private Long version;
 }
