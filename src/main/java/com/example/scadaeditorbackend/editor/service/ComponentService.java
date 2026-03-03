@@ -19,7 +19,7 @@ public interface ComponentService {
 
     void delete(Long id);
 
-    Component getById(Long id);
+    ComponentResponseDto getById(Long id);
 
     List<Component> getAll();
 }

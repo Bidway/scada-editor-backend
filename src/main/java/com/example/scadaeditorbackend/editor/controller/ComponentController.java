@@ -28,6 +28,7 @@ public class ComponentController {
         return service.getScenes();
     }
 
+
     @PutMapping("/{id}")
     public Component update(
             @PathVariable Long id,
@@ -41,7 +42,7 @@ public class ComponentController {
     }
 
     @GetMapping("/{id}")
-    public Component getById(@PathVariable Long id) {
+    public ComponentResponseDto getById(@PathVariable Long id) {
         return service.getById(id);
     }
 

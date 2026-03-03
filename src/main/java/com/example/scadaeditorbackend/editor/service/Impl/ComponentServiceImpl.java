@@ -62,9 +62,9 @@ public class ComponentServiceImpl implements ComponentService {
     }
 
     @Override
-    public Component getById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Component not found"));
+    public ComponentResponseDto getById(Long id) {
+        return componentMapper.toDto(repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Component not found")));
     }
 
     @Override
