@@ -1,0 +1,18 @@
+package com.example.editor.dto;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class ComponentResponseDto {
+
+    private Long id;
+    private String name;
+    private String type;
+    private Long version;
+    private Long parent_id;
+    private JsonNode image;
+    private List<ComponentResponseDto> children;
+}
