@@ -54,9 +54,20 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
     }
 
     private Component mapRootComponent(ComponentCreateDto dto) {
+        Component entity;
+
+        if (dto.getId() != null) {
+            // Обновляем существующий компонент
+            entity = repository.findById(dto.getId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Component not found: " + dto.getId()
+                    ));
+        } else {
+            // Создаем новый
+            entity = new Component();
+        }
 
         Component parent = null;
-
         if (dto.getParent_id() != null) {
             parent = repository.findById(dto.getParent_id())
                     .orElseThrow(() -> new IllegalStateException(
@@ -64,21 +75,34 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
                     ));
         }
 
-        return mapRecursive(dto, parent);
+        return mapRecursive(dto, entity, parent);
     }
 
-    private Component mapRecursive(ComponentCreateDto dto, Component parent) {
-
-        Component entity = new Component();
+    private Component mapRecursive(ComponentCreateDto dto, Component entity, Component parent) {
+        // Обновляем поля
         entity.setName(dto.getName());
         entity.setType(dto.getType());
         entity.setVersion(dto.getVersion());
         entity.setImage(dto.getImage());
         entity.setParent(parent);
 
+        // Обновляем/создаем детей
         List<Component> children = dto.getChildren()
                 .stream()
-                .map(childDto -> mapRecursive(childDto, entity))
+                .map(childDto -> {
+                    Component childEntity;
+                    if (childDto.getId() != null) {
+                        // Обновляем существующего ребенка
+                        childEntity = repository.findById(childDto.getId())
+                                .orElseThrow(() -> new IllegalStateException(
+                                        "Child component not found: " + childDto.getId()
+                                ));
+                    } else {
+                        // Новый ребенок
+                        childEntity = new Component();
+                    }
+                    return mapRecursive(childDto, childEntity, entity);
+                })
                 .toList();
 
         entity.setChildren(children);

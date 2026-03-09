@@ -9,6 +9,7 @@ import java.util.List;
 @Data
 public class ComponentCreateDto {
     private String key;
+    private Long id;
     private String name;
     private List<ComponentCreateDto> children = new ArrayList<>();
     private Long version;
