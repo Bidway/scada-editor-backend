@@ -22,14 +22,16 @@ public class LockController {
     }
 
     @PostMapping("/lock")
-    public ResponseEntity<?> lock(@RequestBody ArrayList<String> idNodes, Authentication auth) {
-        return ResponseEntity.ok(lockService.tryLock(idNodes, auth));
+    public ResponseEntity<?> lock(@RequestBody ArrayList<String> idNodes,
+                                  @RequestHeader("X-User-Id") Long userId) {
+        return ResponseEntity.ok(lockService.tryLock(idNodes, userId));
     }
 
     @PostMapping("/unlock")
-    public ResponseEntity<?> unlock(@RequestBody ArrayList<String> idNodes, Authentication auth) {
+    public ResponseEntity<?> unlock(@RequestBody ArrayList<String> idNodes,
+                                    @RequestHeader("X-User-Id") Long userId) {
 
-        return ResponseEntity.ok(lockService.unlock(idNodes, auth));
+        return ResponseEntity.ok(lockService.unlock(idNodes, userId));
     }
 
 //    @PutMapping("/{id}")
