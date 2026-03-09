@@ -19,10 +19,7 @@ public class LockServiceImpl implements LockService {
         this.redis = redis;
     }
 
-    public List<String> tryLock(List<String> idNodes, Authentication auth) {
-//        SecurityUser user = (SecurityUser) auth.getPrincipal();
-//        Long userId = user.getId();
-        Long userId = 1l;
+    public List<String> tryLock(List<String> idNodes, Long userId) {
         List<String> successIdNodes = new ArrayList<>();
         idNodes.forEach(idNode ->{
             if(redis.opsForValue().setIfAbsent(
@@ -36,10 +33,7 @@ public class LockServiceImpl implements LockService {
         return successIdNodes;
     }
 
-    public List<String> unlock(List<String> idNodes, Authentication auth) {
-//        SecurityUser user = (SecurityUser) auth.getPrincipal();
-//        Long userId = user.getId();
-        Long userId = 1l;
+    public List<String> unlock(List<String> idNodes, Long userId) {
         List<String> successIdNodes = new ArrayList<>();
         idNodes.forEach(idNode ->{
             if(redis.opsForValue().get(idNode)==null)
