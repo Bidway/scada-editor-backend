@@ -13,8 +13,10 @@ public class CommandManager {
     @Transactional
     public <T> T execute(Command<T> command){
         CommandResult<T> result = command.execute();
+        System.out.println("RESULT = " + result);
         if(result != null && result.getUserId()!=null)
         commandRepository.save(CommandLog.from(result));
+        System.out.println("RETURN = " + result.getResult());
         return result != null ? result.getResult() : null;
     }
     @Transactional

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
@@ -103,9 +104,10 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
                     }
                     return mapRecursive(childDto, childEntity, entity);
                 })
-                .toList();
+                .collect(Collectors.toList());;
 
-        entity.setChildren(children);
+        entity.getChildren().clear();
+        entity.getChildren().addAll(children);
 
         return entity;
     }
