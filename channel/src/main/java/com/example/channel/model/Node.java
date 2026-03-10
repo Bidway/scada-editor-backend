@@ -16,29 +16,29 @@ public class Node {
     @Column(name = "id_node", unique = true, nullable = false)
     private String idNode;
 
-    @Transient // Это поле не будет сохраняться в БД
-    private String nodeType; // "dev", "sub" или "cha"
+//    @Transient // Это поле не будет сохраняться в БД
+//    private String nodeType; // "dev", "sub" или "cha"
 
-    @Column(name = "name")
-    private String name;
+//    @Column(name = "name")
+//    private String name;
 
-    @Column(name = "parent_id")
-    private String parentId;
+//    @Column(name = "parent_id")
+//    private String parentId;
 
 //
 //    @OneToMany(mappedBy = "node", cascade = CascadeType.ALL, orphanRemoval = true)
 //    @JsonIgnore // Полностью исключаем из JSON
 //    private List<NodeParam> nodeParams = new ArrayList<>();
 
-    @PrePersist
-    public void generateIdNode() {
-        if (nodeType == null || (!nodeType.equals("dev") && !nodeType.equals("sub") && !nodeType.equals("cha"))) {
-            throw new IllegalArgumentException("Node type must be 'dev', 'sub' or 'cha'");
-        }
-    }
+//    @PrePersist
+//    public void generateIdNode() {
+//        if (nodeType == null || (!nodeType.equals("dev") && !nodeType.equals("sub") && !nodeType.equals("cha"))) {
+//            throw new IllegalArgumentException("Node type must be 'dev', 'sub' or 'cha'");
+//        }
+//    }
 
-    @PostPersist
-    public void updateIdNode() {
-        this.idNode = this.nodeType + this.id;
-    }
+//    @PostPersist
+//    public void updateIdNode() {
+//        this.idNode = this.nodeType + this.id;
+//    }
 }

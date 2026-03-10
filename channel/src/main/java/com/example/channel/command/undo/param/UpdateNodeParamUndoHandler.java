@@ -1,4 +1,4 @@
-package com.example.channel.command.param;
+package com.example.channel.command.undo.param;
 
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandResult;
@@ -6,19 +6,19 @@ import com.example.channel.config.command.UndoHandler;
 import com.example.channel.model.NodeParam;
 import com.example.channel.repository.ParamRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
+@Component
 public class UpdateNodeParamUndoHandler implements UndoHandler {
 
     private final ParamRepository paramRepository;
     private final ObjectMapper mapper;
-    private final long userId;
 
-    public UpdateNodeParamUndoHandler(ParamRepository paramRepository, ObjectMapper mapper, long userId) {
+    public UpdateNodeParamUndoHandler(ParamRepository paramRepository, ObjectMapper mapper) {
         this.paramRepository = paramRepository;
         this.mapper = mapper;
-        this.userId = userId;
     }
 
 
@@ -28,7 +28,7 @@ public class UpdateNodeParamUndoHandler implements UndoHandler {
     }
 
     @Override
-    public CommandResult undo(CommandLog source) {
+    public CommandResult undo(CommandLog source, Long userId) {
         String newValue = source.getUndoPayload().get("oldValue").asText();
         String oldValue = source.getPayload().get("newValue").asText();
         Long paramId = source.getEntityId();
@@ -38,9 +38,9 @@ public class UpdateNodeParamUndoHandler implements UndoHandler {
         paramRepository.save(nodeParam);
         return new CommandResult(
                 userId,
-                "param",
+                "NODEPARAM",
                 paramId,
-                "UNDO_UPDATE_NODEPARAM",
+                "UPDATE_NODEPARAM",
                 mapper.valueToTree(Map.of("newValue", newValue)),
                 mapper.valueToTree(Map.of("oldValue", oldValue)),
                 null

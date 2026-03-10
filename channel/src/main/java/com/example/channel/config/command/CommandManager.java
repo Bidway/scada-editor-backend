@@ -10,16 +10,24 @@ public class CommandManager {
     public CommandManager(CommandLogRepository commandRepository) {
         this.commandRepository = commandRepository;
     }
+//    @Transactional
+//    public <T> T execute(Command<T> command){
+//        CommandResult<T> result = command.execute();
+//        if(result != null && result.getUserId()!=null)
+//        commandRepository.save(CommandLog.from(result));
+//        return result != null ? result.getResult() : null;
+//    }
     @Transactional
-    public <T> T execute(Command<T> command){
-        CommandResult<T> result = command.execute();
-        if(result != null && result.getUserId()!=null)
-        commandRepository.save(CommandLog.from(result));
-        return result != null ? result.getResult() : null;
+    public <T> CommandResult<T> execute(Command<T> command) {
+        CommandResult<T> result = command.execute(); // <-- здесь мы получаем CommandResult<T>
+        if (result != null) {
+            commandRepository.save(CommandLog.from(result));
+        }
+        return result; // <-- возвращаем CommandResult<T>
     }
     @Transactional
-    public void executeUndo(UndoHandler handler, CommandLog source){
-        CommandResult result = handler.undo(source);
+    public void executeUndo(UndoHandler handler, CommandLog log,Long userId){
+        CommandResult result = handler.undo(log, userId);
         if(result != null)
             commandRepository.save(CommandLog.from(result));
     }

@@ -7,10 +7,10 @@ import lombok.Data;
 public class CreateNodeDto {
     @JsonProperty("type")
     private String type;
-    @JsonProperty("title")
-    private String name;
-    @JsonProperty("isLeaf")
-    private Boolean isParent;
+    @JsonProperty("idNode")
+    private String idNode;
+//    @JsonProperty("isLeaf")
+//    private Boolean isParent;
     @JsonProperty("parentKey")
     private String parentId;
 }

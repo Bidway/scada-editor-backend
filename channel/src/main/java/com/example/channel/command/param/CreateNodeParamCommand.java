@@ -11,11 +11,13 @@ import com.example.channel.model.NodeParam;
 import com.example.channel.repository.DescriptionRepository;
 import com.example.channel.repository.NodeRepository;
 import com.example.channel.repository.ParamRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 
 public class CreateNodeParamCommand implements Command<ParamDto> {
+
     private final long userId;
     private final ObjectMapper mapper;
     private final DescriptionRepository descriptionRepository;
@@ -24,7 +26,15 @@ public class CreateNodeParamCommand implements Command<ParamDto> {
     private final CreateParamDto dto;
     private final NodeMapper nodeMapper;
 
-    public CreateNodeParamCommand(long userId, ObjectMapper mapper, DescriptionRepository descriptionRepository, NodeRepository nodeRepository, ParamRepository paramRepository, CreateParamDto dto, NodeMapper nodeMapper) {
+    public CreateNodeParamCommand(
+            long userId,
+            ObjectMapper mapper,
+            DescriptionRepository descriptionRepository,
+            NodeRepository nodeRepository,
+            ParamRepository paramRepository,
+            CreateParamDto dto,
+            NodeMapper nodeMapper
+    ) {
         this.userId = userId;
         this.mapper = mapper;
         this.descriptionRepository = descriptionRepository;
@@ -36,25 +46,33 @@ public class CreateNodeParamCommand implements Command<ParamDto> {
 
     @Override
     public CommandResult<ParamDto> execute() {
+
         Description description = descriptionRepository.findById(dto.getId());
         Node node = nodeRepository.getNodeByIdNode(dto.getIdNode());
+
         NodeParam nodeParam = new NodeParam();
         nodeParam.setIdType(description.getId());
         nodeParam.setNode(node);
         nodeParam.setValue(dto.getValue());
+
         NodeParam savedParam = paramRepository.save(nodeParam);
-        ParamDto dto = nodeMapper.toDto(savedParam, description);
-        return new CommandResult(
+
+        ParamDto resultDto = nodeMapper.toDto(savedParam, description);
+
+        JsonNode payload = mapper.valueToTree(savedParam);
+
+        JsonNode undoPayload = mapper.valueToTree(
+                Map.of("paramId", savedParam.getId())
+        );
+
+        return new CommandResult<>(
                 userId,
-                "param",
+                "NODEPARAM",
                 savedParam.getId(),
                 "CREATE_NODEPARAM",
-                mapper.valueToTree(Map.of("id",savedParam.getId(),
-                        "nodeId", node.getId(),
-                        "typeId", description.getId(),
-                        "value", savedParam.getValue())),
-                mapper.valueToTree(Map.of("paramId", savedParam.getId())),
-                dto
+                payload,
+                undoPayload,
+                resultDto
         );
     }
 }

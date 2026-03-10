@@ -4,6 +4,6 @@ public interface UndoHandler {
 
     boolean supports(String commandType);
 
-    CommandResult undo(CommandLog source);
+    CommandResult undo(CommandLog log, Long userId);
 }
 
