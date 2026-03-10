@@ -13,13 +13,8 @@ import java.util.List;
 @Mapper(componentModel = "spring",
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface NodeMapper {
-    Node toEntity(NodeDto dto);
-
-    @Mapping(target = "nodeType", source = "type")
-    @Mapping(target = "idNode", constant = "temp")
+    @Mapping(target = "idNode", expression = "java(dto.getParentId() + \".\" + dto.getIdNode())")
     Node toEntity(CreateNodeDto dto);
-    @Mapping(target = "isParent", source = "isParent")
-    NodeDto toDto(Node entity, Boolean isParent);
 
 
     @Mapping(target = "name", ignore = true)
@@ -40,28 +35,22 @@ public interface NodeMapper {
         }
     }
 
-    @Mapping(target = "isParent", ignore = true) // вычисляем вручную
     @Mapping(target = "idNode", source = "idNode")
-    @Mapping(target = "name", source = "name")
-    @Mapping(target = "parentId", source = "parentId")
+    @Mapping(target = "parentId", expression = "java(getParentId(node.getIdNode()))")
     NodeDto toDto(Node node);
 
-    @AfterMapping
-    default void setIsParent(@MappingTarget NodeDto dto, Node node) {
-        if (node.getIdNode() != null && node.getIdNode().length() >= 3) {
-            dto.setIsParent(node.getIdNode().substring(0,3).equals("cha"));
-        } else {
-            dto.setIsParent(false);
+    default String getParentId(String idNode) {
+        if (idNode == null || !idNode.contains(".")) {
+            return null;
         }
+        return idNode.substring(0, idNode.lastIndexOf("."));
     }
+
     @Mapping(target = "id", source = "nodeParam.id")
     @Mapping(target = "idNode", source = "nodeParam.node.idNode")
     @Mapping(target = "value", source = "nodeParam.value")
     @Mapping(target = "name", source = "description.name")
     @Mapping(target = "type", source = "description.type")
     ParamDto toDto(NodeParam nodeParam,Description description);
-
-
-//    void updateEntityFromDto(NodeDto dto, @MappingTarget Node entity);
 
 }

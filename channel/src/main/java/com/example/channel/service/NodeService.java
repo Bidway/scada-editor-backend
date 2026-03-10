@@ -7,9 +7,8 @@ import com.example.channel.dto.nodeDto.NodeResponse;
 
 public interface NodeService {
 
-    void deleteNode(Long id);
-    void deleteNodeByIdNode(String idNode);
-    CreateNodeResponse createNode(CreateNodeDto createNodeDTO);
+    void deleteNodeByIdNode(String idNode, Long userId);
+    CreateNodeResponse createNode(CreateNodeDto createNodeDTO, Long userId);
     NodeResponse getFullHierarchy(String site, String project);
 
 }

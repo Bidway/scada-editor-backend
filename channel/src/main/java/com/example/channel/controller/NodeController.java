@@ -15,14 +15,16 @@ public class NodeController {
     private final NodeService nodeService;
 
     @DeleteMapping("/{idNode}")
-    public ResponseEntity<Void> deleteNode(@PathVariable String idNode) {
-        nodeService.deleteNodeByIdNode(idNode);
+    public ResponseEntity<Void> deleteNode(@PathVariable String idNode,
+                                           @RequestHeader("X-User-Id") Long userId) {
+        nodeService.deleteNodeByIdNode(idNode, userId);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("")
-    public ResponseEntity<CreateNodeResponse> createNode(@RequestBody CreateNodeDto createNodeDTO) {
-        CreateNodeResponse response = nodeService.createNode(createNodeDTO);
+    public ResponseEntity<CreateNodeResponse> createNode(@RequestBody CreateNodeDto createNodeDTO,
+                                                         @RequestHeader("X-User-Id") Long userId) {
+        CreateNodeResponse response = nodeService.createNode(createNodeDTO, userId);
         return ResponseEntity.ok(response);
     }
 

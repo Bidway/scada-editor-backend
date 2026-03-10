@@ -10,8 +10,10 @@ import java.util.List;
 
 public interface ParamService {
     void deleteParamById(Long id);
+
     ParamDto createParam(CreateParamDto createParamDTO);
-    ResponseEntity<Void> updateNodeParams(List<KeyValue> keyValues);
-    ResponseEntity<Void> undoUpdateNodeParam(Long idCommandLog);
+
+    ResponseEntity<Void> updateParams(List<KeyValue> keyValues);
+
     DescriptionRespose getDescriptions();
 }

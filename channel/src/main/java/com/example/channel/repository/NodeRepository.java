@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface NodeRepository extends JpaRepository<Node, Long> {
@@ -28,6 +29,13 @@ public interface NodeRepository extends JpaRepository<Node, Long> {
     void deleteNodeByIdNode(String idNode);
 
     Node getNodeByIdNode(String idNode);
+
+    Optional<Node> findByIdNode(String idNode);
+
+    // --- Находим все узлы, которые начинаются с rootPath ---
+    @Query("SELECT n FROM Node n WHERE n.idNode LIKE CONCAT(:rootPath, '.%') ORDER BY n.idNode")
+    List<Node> findByIdNodeStartingWith(@Param("rootPath") String rootPath);
+
 
 }
 

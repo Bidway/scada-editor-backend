@@ -1,5 +1,6 @@
 package com.example.channel.repository;
 
+import com.example.channel.model.Node;
 import com.example.channel.model.NodeParam;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,4 +17,6 @@ public interface ParamRepository extends JpaRepository<NodeParam, Long> {
 
     List<NodeParam> findAllByIdIn(List<Long> ids);
     Optional<NodeParam> findById(Long id);
+    Optional<List<NodeParam>> findByNode(Node node);
+
 }

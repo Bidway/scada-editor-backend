@@ -11,7 +11,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.Map;
 
-public class UpdateNodeParamCommand implements Command {
+public class UpdateNodeParamCommand implements Command<Void> {
 
     private final ParamRepository paramRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -42,14 +42,14 @@ public class UpdateNodeParamCommand implements Command {
         String oldValue = nodeParam.getValue();
         nodeParam.setValue(newValue);
         paramRepository.save(nodeParam);
-        messagingTemplate.convertAndSend(
-                "/topic/device-tree/1/1",
-                new WsEvent<>("PARAM_UPDATED", new KeyValue(nodeParam.getId(), nodeParam.getValue()))
-        );
+//        messagingTemplate.convertAndSend(
+//                "/topic/device-tree/1/1",
+//                new WsEvent<>("PARAM_UPDATED", new KeyValue(nodeParam.getId(), nodeParam.getValue()))
+//        );
 
         return new CommandResult(
                 userId,
-                "param",
+                "NODEPARAM",
                 paramId,
                 "UPDATE_NODEPARAM",
                 mapper.valueToTree(Map.of("newValue", newValue)),
