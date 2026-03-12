@@ -68,10 +68,11 @@ public class CreateNodeCommand implements Command<CreateNodeResponse> {
 
         List<Long> paramIds =
                 templateRepository.findByNameWithParams(dto.getType())
-                        .getTemplateParams()
-                        .stream()
-                        .map(p -> p.getDescriptionId())
-                        .toList();
+                        .map(t -> t.getTemplateParams()
+                                .stream()
+                                .map(p -> p.getDescriptionId())
+                                .toList())
+                        .orElse(List.of());
 
         List<Description> descriptions = descriptionRepository.findAll();
 

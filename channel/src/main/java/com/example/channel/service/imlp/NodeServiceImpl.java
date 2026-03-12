@@ -61,10 +61,11 @@ public class NodeServiceImpl implements NodeService {
 
         List<Long> paramIds = templateRepository
                 .findByNameWithParams(createNodeDTO.getType())
-                .getTemplateParams()
-                .stream()
-                .map(p -> p.getDescriptionId())
-                .toList();
+                .map(t -> t.getTemplateParams()
+                        .stream()
+                        .map(p -> p.getDescriptionId())
+                        .toList())
+                .orElse(List.of());
 
         List<Description> descriptions = descriptionRepository.findAll();
 
@@ -132,13 +133,38 @@ public class NodeServiceImpl implements NodeService {
     }
 
     @Override
-    public NodeResponse getFullHierarchy(String site, String project) {
+    public NodeResponse getFullHierarchy(String rootPath ) {
 
         NodeResponse response = new NodeResponse();
 
-        String rootPath = site + "." + project;
-
         List<Node> allNodes = nodeRepository.findByIdNodeStartingWith(rootPath);
+
+        List<String> nodesIds = allNodes.stream()
+                .map(Node::getIdNode)
+                .toList();
+
+        List<Description> descriptions = descriptionRepository.findAll();
+
+        List<NodeParam> allParams = paramRepository.findParamsByNodeIds(nodesIds);
+
+        allParams.forEach(param -> {
+            ParamDto dto = nodeMapper.toDto(param, descriptions);
+            response.getParams().add(dto);
+        });
+
+        allNodes.forEach(node -> {
+            NodeDto dto = nodeMapper.toDto(node);
+            response.getNodes().add(dto);
+        });
+
+        return response;
+    }
+    @Override
+    public NodeResponse getHierarchy(String rootPath ) {
+
+        NodeResponse response = new NodeResponse();
+
+        List<Node> allNodes = nodeRepository.findDirectChildren(rootPath);
 
         List<String> nodesIds = allNodes.stream()
                 .map(Node::getIdNode)
