@@ -36,9 +36,9 @@ public interface NodeMapper {
     }
 
     @Mapping(target = "idNode", source = "idNode")
-    @Mapping(target = "parentId", expression = "java(getParentId(node.getIdNode()))")
     NodeDto toDto(Node node);
 
+    @Named("getParentId")
     default String getParentId(String idNode) {
         if (idNode == null || !idNode.contains(".")) {
             return null;

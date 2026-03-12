@@ -11,6 +11,6 @@ public class NodeDto {
 //    private String name;
 //    @JsonProperty("isLeaf")
 //    private Boolean isParent;
-    @JsonProperty("parentKey")
-    private String parentId;
+//    @JsonProperty("parentKey")
+//    private String parentId;
 }
