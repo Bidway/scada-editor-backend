@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/channel/node")
 @RequiredArgsConstructor
@@ -37,6 +39,10 @@ public class NodeController {
     public ResponseEntity<NodeResponse> getHierarchy(
             @RequestParam String rootPath) {
         return ResponseEntity.ok(nodeService.getHierarchy(rootPath));
+    }
+    @GetMapping("/sites")
+    public List<String> getSites() {
+        return nodeService.getSites();
     }
 
 }
