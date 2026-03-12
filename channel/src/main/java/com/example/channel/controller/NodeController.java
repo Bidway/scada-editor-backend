@@ -28,11 +28,15 @@ public class NodeController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/all")
+    @GetMapping("/fullHierarchy")
     public ResponseEntity<NodeResponse> getFullHierarchy(
-            @RequestParam String site,
-            @RequestParam String project) {
-        return ResponseEntity.ok(nodeService.getFullHierarchy(site, project));
+            @RequestParam String rootPath) {
+        return ResponseEntity.ok(nodeService.getFullHierarchy(rootPath));
+    }
+    @GetMapping("/hierarchy")
+    public ResponseEntity<NodeResponse> getHierarchy(
+            @RequestParam String rootPath) {
+        return ResponseEntity.ok(nodeService.getHierarchy(rootPath));
     }
 
 }

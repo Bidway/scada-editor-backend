@@ -9,6 +9,7 @@ public interface NodeService {
 
     void deleteNodeByIdNode(String idNode, Long userId);
     CreateNodeResponse createNode(CreateNodeDto createNodeDTO, Long userId);
-    NodeResponse getFullHierarchy(String site, String project);
+    NodeResponse getFullHierarchy(String rootPath);
+    NodeResponse getHierarchy(String rootPath);
 
 }
