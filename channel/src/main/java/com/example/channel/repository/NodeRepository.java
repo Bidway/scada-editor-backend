@@ -40,5 +40,11 @@ public interface NodeRepository extends JpaRepository<Node, Long> {
     """)
     List<Node> findDirectChildren(@Param("rootPath") String rootPath);
 
+    @Query("""
+    SELECT n FROM Node n
+    WHERE (LENGTH(n.idNode) - LENGTH(REPLACE(n.idNode,'.',''))) = 0
+    ORDER BY n.idNode
+    """)
+    List<Node> findRootNodes();
 }
 

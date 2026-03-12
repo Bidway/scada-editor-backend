@@ -13,9 +13,28 @@ import java.util.List;
 @Mapper(componentModel = "spring",
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface NodeMapper {
-    @Mapping(target = "idNode", expression = "java(dto.getParentId() + \".\" + dto.getIdNode())")
+
+    @Mapping(target = "idNode", ignore = true)
     Node toEntity(CreateNodeDto dto);
 
+    @AfterMapping
+    default void setIdNode(CreateNodeDto dto, @MappingTarget Node node) {
+        if (dto.getParentId() == null || dto.getParentId().isBlank()) {
+            node.setIdNode(dto.getIdNode());
+        } else {
+            node.setIdNode(dto.getParentId() + "." + dto.getIdNode());
+        }
+    }
+
+    @Named("setIdNode")
+    default String setIdNode(String idNode, String parentKey) {
+        if (idNode == null || !idNode.contains(".")) {
+            return null;
+        }
+        if (parentKey == null)
+            return idNode;
+        return (parentKey+"+"+idNode);
+    }
 
     @Mapping(target = "name", ignore = true)
     @Mapping(target = "type", ignore = true)

@@ -186,4 +186,10 @@ public class NodeServiceImpl implements NodeService {
 
         return response;
     }
+
+    @Override
+    public List<String> getSites() {
+        List<Node> nodes = nodeRepository.findRootNodes();
+        return nodes.stream().map(Node::getIdNode).toList();
+    }
 }
