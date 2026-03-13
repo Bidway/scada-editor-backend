@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 public class CreateNodeDto {
     @JsonProperty("type")
-    private String type;
+    private Long type;
     @JsonProperty("idNode")
     private String idNode;
 //    @JsonProperty("isLeaf")

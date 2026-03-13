@@ -18,6 +18,14 @@ public interface TemplateRepository extends JpaRepository<Template, Long> {
             """)
     Optional<Template> findByNameWithParams(String name);
 
+    @Query(""" 
+            select distinct t
+            from Template t
+            join fetch t.templateParams
+            where t.id = :id
+            """)
+    Optional<Template> findByIdWithParams(Long id);
+
     @Query("SELECT t FROM Template t ORDER BY t.id ASC")
     List<Template> findAll();
 }

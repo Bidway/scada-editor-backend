@@ -60,7 +60,7 @@ public class NodeServiceImpl implements NodeService {
         response.setNodeDTO(nodeMapper.toDto(savedNode));
 
         List<Long> paramIds = templateRepository
-                .findByNameWithParams(createNodeDTO.getType())
+                .findByIdWithParams(createNodeDTO.getType())
                 .map(t -> t.getTemplateParams()
                         .stream()
                         .map(p -> p.getDescriptionId())
