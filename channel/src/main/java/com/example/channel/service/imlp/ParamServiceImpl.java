@@ -38,13 +38,13 @@ public class ParamServiceImpl implements ParamService {
     private final CommandManager commandManager;
 
     @Override
-    public void deleteParamById(Long id) {
+    public void deleteParamById(Long id, String userName) {
 
         NodeParam param = paramRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Param not found: " + id));
 
         CrudCommand<NodeParam> cmd = new CrudCommand<>(
-                1L,
+                userName,
                 CrudCommand.Action.DELETE,
                 paramRepository,
                 mapper,
@@ -57,7 +57,7 @@ public class ParamServiceImpl implements ParamService {
     }
 
     @Override
-    public ParamDto createParam(CreateParamDto dto) {
+    public ParamDto createParam(CreateParamDto dto,String userName) {
 
         Node node = nodeRepository.findByIdNode(dto.getIdNode())
                 .orElseThrow(() -> new RuntimeException("Node not found"));
@@ -68,7 +68,7 @@ public class ParamServiceImpl implements ParamService {
         param.setValue(dto.getValue());
 
         CrudCommand<NodeParam> cmd = new CrudCommand<>(
-                1L,
+                userName,
                 CrudCommand.Action.CREATE,
                 paramRepository,
                 mapper,
@@ -86,7 +86,7 @@ public class ParamServiceImpl implements ParamService {
 
     @Override
     @Transactional
-    public ResponseEntity<Void> updateParams(List<KeyValue> keyValues) {
+    public ResponseEntity<Void> updateParams(List<KeyValue> keyValues, String userName) {
 
         for (KeyValue kv : keyValues) {
 
@@ -103,7 +103,7 @@ public class ParamServiceImpl implements ParamService {
             param.setValue(kv.getValue());
 
             CrudCommand<NodeParam> cmd = new CrudCommand<>(
-                    1L,
+                    userName,
                     CrudCommand.Action.UPDATE,
                     paramRepository,
                     mapper,

@@ -13,7 +13,7 @@ public class CrudCommand<T> implements Command<T> {
 
     public enum Action { CREATE, UPDATE, DELETE }
 
-    private final Long userId;
+    private final String userName;
     private final Action action;
     private final JpaRepository<T, Long> repository;
     private final ObjectMapper mapper;
@@ -24,7 +24,7 @@ public class CrudCommand<T> implements Command<T> {
     private final Function<T, Long> idExtractor;
 
     public CrudCommand(
-            Long userId,
+            String userName,
             Action action,
             JpaRepository<T, Long> repository,
             ObjectMapper mapper,
@@ -32,7 +32,7 @@ public class CrudCommand<T> implements Command<T> {
             T entityBeforeUpdate,
             Function<T, Long> idExtractor
     ) {
-        this.userId = userId;
+        this.userName = userName;
         this.action = action;
         this.repository = repository;
         this.mapper = mapper;
@@ -68,7 +68,7 @@ public class CrudCommand<T> implements Command<T> {
         };
 
         return new CommandResult<>(
-                userId,
+                userName,
                 entity.getClass().getSimpleName(),
                 entityId,
                 action.name(),

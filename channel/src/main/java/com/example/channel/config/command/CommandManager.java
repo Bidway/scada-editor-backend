@@ -26,8 +26,8 @@ public class CommandManager {
         return result; // <-- возвращаем CommandResult<T>
     }
     @Transactional
-    public void executeUndo(UndoHandler handler, CommandLog log,Long userId){
-        CommandResult result = handler.undo(log, userId);
+    public void executeUndo(UndoHandler handler, CommandLog log,String userName){
+        CommandResult result = handler.undo(log, userName);
         if(result != null)
             commandRepository.save(CommandLog.from(result));
     }

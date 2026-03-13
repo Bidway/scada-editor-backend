@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 public class CommandResult<T> {
-    private final Long userId;
+    private final String userName;
     private final String entityType;
     private final Long entityId;
     private final String commandType;
@@ -14,7 +14,7 @@ public class CommandResult<T> {
     private final T result; // ← ВАЖНО
 
     public CommandResult(
-            Long userId,
+            String userName,
             String entityType,
             Long entityId,
             String commandType,
@@ -22,7 +22,7 @@ public class CommandResult<T> {
             JsonNode undoPayload,
             T result
     ) {
-        this.userId = userId;
+        this.userName = userName;
         this.entityType = entityType;
         this.entityId = entityId;
         this.commandType = commandType;

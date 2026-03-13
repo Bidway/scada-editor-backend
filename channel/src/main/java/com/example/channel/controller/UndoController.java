@@ -26,8 +26,8 @@ public class UndoController {
     @PostMapping
     public List<Long> undo(
             @RequestBody List<Long> logIds,
-            @RequestParam Long userId
+            @RequestParam String userName
     ) {
-        return undoService.undoLogs(logIds, userId);
+        return undoService.undoLogs(logIds, userName);
     }
 }

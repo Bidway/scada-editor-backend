@@ -40,12 +40,12 @@ public class NodeServiceImpl implements NodeService {
     private final ObjectMapper mapper;
 
     @Transactional
-    public CreateNodeResponse createNode(CreateNodeDto createNodeDTO, Long userId) {
+    public CreateNodeResponse createNode(CreateNodeDto createNodeDTO, String userName) {
 
         Node node = nodeMapper.toEntity(createNodeDTO);
 
         CrudCommand<Node> nodeCommand = new CrudCommand<>(
-                userId,
+                userName,
                 CrudCommand.Action.CREATE,
                 nodeRepository,
                 mapper,
@@ -78,7 +78,7 @@ public class NodeServiceImpl implements NodeService {
             nodeParam.setValue("");
 
             CrudCommand<NodeParam> paramCommand = new CrudCommand<>(
-                    userId,
+                    userName,
                     CrudCommand.Action.CREATE,
                     paramRepository,
                     mapper,
@@ -97,7 +97,7 @@ public class NodeServiceImpl implements NodeService {
     }
 
     @Transactional
-    public void deleteNodeByIdNode(String idNode, Long userId) {
+    public void deleteNodeByIdNode(String idNode,  String userName) {
 
         Node node = nodeRepository.findByIdNode(idNode)
                 .orElseThrow(() -> new IllegalArgumentException("Node not found: " + idNode));
@@ -108,7 +108,7 @@ public class NodeServiceImpl implements NodeService {
         for (NodeParam param : params) {
 
             CrudCommand<NodeParam> deleteParamCmd = new CrudCommand<>(
-                    userId,
+                    userName,
                     CrudCommand.Action.DELETE,
                     paramRepository,
                     mapper,
@@ -121,7 +121,7 @@ public class NodeServiceImpl implements NodeService {
         }
 
         CrudCommand<Node> deleteNodeCmd = new CrudCommand<>(
-                userId,
+                userName,
                 CrudCommand.Action.DELETE,
                 nodeRepository,
                 mapper,

@@ -18,19 +18,22 @@ public class ParamController {
     private final ParamService paramService;
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteParam(@PathVariable Long id) {
-        paramService.deleteParamById(id);
+    public ResponseEntity<Void> deleteParam(@PathVariable Long id,
+                                            @RequestHeader("X-Username") String userName) {
+        paramService.deleteParamById(id, userName);
         return ResponseEntity.noContent().build();
     }
     @PostMapping("")
-    public ResponseEntity<ParamDto> createParam(@RequestBody CreateParamDto createParamDTO) {
-        ParamDto response = paramService.createParam(createParamDTO);
+    public ResponseEntity<ParamDto> createParam(@RequestBody CreateParamDto createParamDTO,
+                                                @RequestHeader("X-Username") String userName) {
+        ParamDto response = paramService.createParam(createParamDTO, userName);
         return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/update")
-    public ResponseEntity updateNodeParams(@RequestBody List<KeyValue> keyValues) {
-        return ResponseEntity.ok(paramService.updateParams(keyValues));
+    public ResponseEntity updateNodeParams(@RequestBody List<KeyValue> keyValues,
+                                           @RequestHeader("X-Username") String userName) {
+        return ResponseEntity.ok(paramService.updateParams(keyValues, userName));
     }
     @GetMapping("/description")
     public ResponseEntity<DescriptionResponse> getDescriptions(){

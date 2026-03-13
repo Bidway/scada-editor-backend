@@ -28,7 +28,7 @@ public class GenericUndoHandler implements UndoHandler {
     }
 
     @Override
-    public CommandResult undo(CommandLog log, Long userId) {
+    public CommandResult undo(CommandLog log, String userName) {
 
         String action = log.getCommandType();
         String entityType = log.getEntityType();
@@ -64,7 +64,7 @@ public class GenericUndoHandler implements UndoHandler {
             };
 
             return new CommandResult<>(
-                    userId,
+                    userName,
                     entityType,
                     log.getEntityId(),
                     action,
