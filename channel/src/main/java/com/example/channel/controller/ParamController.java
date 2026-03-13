@@ -2,7 +2,7 @@ package com.example.channel.controller;
 
 import com.example.channel.dto.paramDto.CreateParamDto;
 import com.example.channel.dto.KeyValue;
-import com.example.channel.dto.paramDto.DescriptionRespose;
+import com.example.channel.dto.paramDto.DescriptionResponse;
 import com.example.channel.dto.paramDto.ParamDto;
 import com.example.channel.service.ParamService;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +33,7 @@ public class ParamController {
         return ResponseEntity.ok(paramService.updateParams(keyValues));
     }
     @GetMapping("/description")
-    public ResponseEntity<DescriptionRespose> getDescriptions(){
+    public ResponseEntity<DescriptionResponse> getDescriptions(){
         return ResponseEntity.ok(paramService.getDescriptions());
     }
 }

@@ -1,4 +1,4 @@
-package com.example.channel.command.undo;
+package com.example.channel.command;
 
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandResult;
@@ -38,9 +38,13 @@ public class GenericUndoHandler implements UndoHandler {
 
             Object undoEntity = mapper.convertValue(log.getUndoPayload(), clazz);
 
-            JpaRepository repository = (JpaRepository) context.getBean(
-                    clazz.getSimpleName() + "Repository"
-            );
+            String repositoryBeanName =
+                    Character.toLowerCase(clazz.getSimpleName().charAt(0))
+                            + clazz.getSimpleName().substring(1)
+                            + "Repository";
+
+            JpaRepository repository =
+                    (JpaRepository) context.getBean(repositoryBeanName);
 
             Object result = switch (action) {
                 case "CREATE" -> {

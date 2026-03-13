@@ -2,7 +2,7 @@ package com.example.channel.service;
 
 import com.example.channel.dto.paramDto.CreateParamDto;
 import com.example.channel.dto.KeyValue;
-import com.example.channel.dto.paramDto.DescriptionRespose;
+import com.example.channel.dto.paramDto.DescriptionResponse;
 import com.example.channel.dto.paramDto.ParamDto;
 import org.springframework.http.ResponseEntity;
 
@@ -15,6 +15,6 @@ public interface ParamService {
 
     ResponseEntity<Void> updateParams(List<KeyValue> keyValues);
 
-    DescriptionRespose getDescriptions();
+    DescriptionResponse getDescriptions();
 
 }

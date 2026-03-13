@@ -7,6 +7,7 @@ import com.example.channel.config.command.UndoHandler;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,15 +28,21 @@ public class UndoService {
         this.handlers = handlers;
     }
 
+
+    public List<CommandLog> getLogsByPeriod(LocalDateTime from, LocalDateTime to) {
+
+        return commandLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from, to);
+    }
+
+
     @Transactional
-    public List<Long> undo(List<Long> commandLogIds, Long userId) {
+    public List<Long> undoLogs(List<Long> commandLogIds, Long userId) {
 
         List<Long> failedIds = new ArrayList<>();
 
-        // Лучше делать undo в обратном порядке
         List<CommandLog> logs = commandLogRepository.findAllById(commandLogIds)
                 .stream()
-                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                .sorted((a, b) -> Long.compare(b.getId(), a.getId())) // обратный порядок
                 .toList();
 
         for (CommandLog log : logs) {
@@ -46,7 +53,9 @@ public class UndoService {
                         .filter(h -> h.supports(log.getCommandType()))
                         .findFirst()
                         .orElseThrow(() ->
-                                new IllegalStateException("No UndoHandler for commandType " + log.getCommandType())
+                                new IllegalStateException(
+                                        "No UndoHandler for commandType " + log.getCommandType()
+                                )
                         );
 
                 commandManager.executeUndo(handler, log, userId);
@@ -55,8 +64,9 @@ public class UndoService {
 
                 failedIds.add(log.getId());
 
-                // можно добавить лог
-                System.err.println("Undo failed for logId=" + log.getId() + " : " + e.getMessage());
+                System.err.println(
+                        "Undo failed for logId=" + log.getId() + " : " + e.getMessage()
+                );
             }
         }
 

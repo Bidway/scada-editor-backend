@@ -1,17 +1,15 @@
 package com.example.channel.service.imlp;
 
-import com.example.channel.command.undo.CrudCommand;
+import com.example.channel.command.CrudCommand;
 import com.example.channel.config.command.CommandManager;
 import com.example.channel.config.command.CommandResult;
-import com.example.channel.dto.nodeDto.CreateNodeDto;
-import com.example.channel.dto.nodeDto.CreateNodeResponse;
-import com.example.channel.dto.nodeDto.NodeDto;
-import com.example.channel.dto.nodeDto.NodeResponse;
+import com.example.channel.dto.nodeDto.*;
 import com.example.channel.dto.paramDto.ParamDto;
 import com.example.channel.mapper.NodeMapper;
 import com.example.channel.model.Description;
 import com.example.channel.model.Node;
 import com.example.channel.model.NodeParam;
+import com.example.channel.model.template.Template;
 import com.example.channel.repository.DescriptionRepository;
 import com.example.channel.repository.NodeRepository;
 import com.example.channel.repository.ParamRepository;
@@ -22,9 +20,11 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -191,5 +191,18 @@ public class NodeServiceImpl implements NodeService {
     public List<String> getSites() {
         List<Node> nodes = nodeRepository.findRootNodes();
         return nodes.stream().map(Node::getIdNode).toList();
+    }
+
+    @Override
+    public TemplateResponse getTemplates() {
+        TemplateResponse response = new TemplateResponse();
+        Map<Long, String> templates = templateRepository.findAll()
+                .stream()
+                .collect(Collectors.toMap(
+                        Template::getId,
+                        Template::getName
+                ));
+        response.setTemplates(templates);
+        return response;
     }
 }

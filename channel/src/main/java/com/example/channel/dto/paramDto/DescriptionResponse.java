@@ -7,6 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class DescriptionRespose {
+public class DescriptionResponse {
     private List<Description> descriptions = new ArrayList<>();
 }
