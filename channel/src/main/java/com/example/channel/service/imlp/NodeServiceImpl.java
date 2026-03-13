@@ -3,6 +3,7 @@ package com.example.channel.service.imlp;
 import com.example.channel.command.CrudCommand;
 import com.example.channel.config.command.CommandManager;
 import com.example.channel.config.command.CommandResult;
+import com.example.channel.dto.KeyValue;
 import com.example.channel.dto.nodeDto.*;
 import com.example.channel.dto.paramDto.ParamDto;
 import com.example.channel.mapper.NodeMapper;
@@ -195,14 +196,19 @@ public class NodeServiceImpl implements NodeService {
 
     @Override
     public TemplateResponse getTemplates() {
+
         TemplateResponse response = new TemplateResponse();
-        Map<Long, String> templates = templateRepository.findAll()
+
+        List<KeyValue> templates = templateRepository.findAll()
                 .stream()
-                .collect(Collectors.toMap(
-                        Template::getId,
-                        Template::getName
-                ));
+                .map(t -> new KeyValue(
+                        t.getId(),
+                        t.getName()
+                ))
+                .toList();
+
         response.setTemplates(templates);
+
         return response;
     }
 }
