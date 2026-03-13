@@ -3,6 +3,7 @@ package com.example.channel.controller;
 import com.example.channel.dto.nodeDto.CreateNodeDto;
 import com.example.channel.dto.nodeDto.CreateNodeResponse;
 import com.example.channel.dto.nodeDto.NodeResponse;
+import com.example.channel.dto.nodeDto.TemplateResponse;
 import com.example.channel.service.NodeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -43,6 +44,10 @@ public class NodeController {
     @GetMapping("/sites")
     public List<String> getSites() {
         return nodeService.getSites();
+    }
+    @GetMapping("/tempalates")
+    public TemplateResponse getTemplates() {
+        return nodeService.getTemplates();
     }
 
 }

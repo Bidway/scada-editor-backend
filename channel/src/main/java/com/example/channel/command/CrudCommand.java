@@ -1,4 +1,4 @@
-package com.example.channel.command.undo;
+package com.example.channel.command;
 
 import com.example.channel.config.command.Command;
 import com.example.channel.config.command.CommandResult;
@@ -69,7 +69,7 @@ public class CrudCommand<T> implements Command<T> {
 
         return new CommandResult<>(
                 userId,
-                entity.getClass().getSimpleName().toUpperCase(),
+                entity.getClass().getSimpleName(),
                 entityId,
                 action.name(),
                 mapper.valueToTree(savedEntity),

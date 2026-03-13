@@ -1,17 +1,12 @@
 package com.example.channel.service.imlp;
 
-import com.example.channel.command.param.*;
-import com.example.channel.command.undo.CrudCommand;
-import com.example.channel.config.command.Command;
-import com.example.channel.config.command.CommandLog;
+import com.example.channel.command.CrudCommand;
 import com.example.channel.config.command.CommandManager;
-import com.example.channel.config.command.UndoHandler;
 import com.example.channel.dto.paramDto.CreateParamDto;
 import com.example.channel.dto.KeyValue;
-import com.example.channel.dto.paramDto.DescriptionRespose;
+import com.example.channel.dto.paramDto.DescriptionResponse;
 import com.example.channel.dto.paramDto.ParamDto;
 import com.example.channel.mapper.NodeMapper;
-import com.example.channel.config.command.CommandLogRepository;
 import com.example.channel.model.Description;
 import com.example.channel.model.Node;
 import com.example.channel.model.NodeParam;
@@ -129,9 +124,9 @@ public class ParamServiceImpl implements ParamService {
     }
 
     @Override
-    public DescriptionRespose getDescriptions() {
+    public DescriptionResponse getDescriptions() {
 
-        DescriptionRespose response = new DescriptionRespose();
+        DescriptionResponse response = new DescriptionResponse();
         response.setDescriptions(descriptionRepository.findAll());
         return response;
     }

@@ -1,10 +1,12 @@
 package com.example.channel.controller;
 
+import com.example.channel.config.command.CommandLog;
 import com.example.channel.service.UndoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -12,9 +14,20 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UndoController {
     private final UndoService undoService;
-    @PatchMapping()
-    public List<Long> undo(@RequestBody List<Long> idCommandLogs,
-                           @RequestHeader("X-User-Id") Long userId) {
-        return undoService.undo(idCommandLogs, userId);
+
+    @GetMapping("/logs")
+    public List<CommandLog> getLogs(
+            @RequestParam LocalDateTime from,
+            @RequestParam LocalDateTime to
+    ) {
+        return undoService.getLogsByPeriod(from, to);
+    }
+
+    @PostMapping
+    public List<Long> undo(
+            @RequestBody List<Long> logIds,
+            @RequestParam Long userId
+    ) {
+        return undoService.undoLogs(logIds, userId);
     }
 }
