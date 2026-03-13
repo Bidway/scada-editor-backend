@@ -19,15 +19,15 @@ public class NodeController {
 
     @DeleteMapping("/{idNode}")
     public ResponseEntity<Void> deleteNode(@PathVariable String idNode,
-                                           @RequestHeader("X-User-Id") Long userId) {
-        nodeService.deleteNodeByIdNode(idNode, userId);
+                                           @RequestHeader("X-Username") String userName) {
+        nodeService.deleteNodeByIdNode(idNode, userName);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("")
     public ResponseEntity<CreateNodeResponse> createNode(@RequestBody CreateNodeDto createNodeDTO,
-                                                         @RequestHeader("X-User-Id") Long userId) {
-        CreateNodeResponse response = nodeService.createNode(createNodeDTO, userId);
+                                                         @RequestHeader("X-Username") String userName) {
+        CreateNodeResponse response = nodeService.createNode(createNodeDTO, userName);
         return ResponseEntity.ok(response);
     }
 
@@ -45,7 +45,7 @@ public class NodeController {
     public List<String> getSites() {
         return nodeService.getSites();
     }
-    @GetMapping("/tempalates")
+    @GetMapping("/templates")
     public TemplateResponse getTemplates() {
         return nodeService.getTemplates();
     }

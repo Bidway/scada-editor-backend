@@ -36,7 +36,7 @@ public class UndoService {
 
 
     @Transactional
-    public List<Long> undoLogs(List<Long> commandLogIds, Long userId) {
+    public List<Long> undoLogs(List<Long> commandLogIds, String userName) {
 
         List<Long> failedIds = new ArrayList<>();
 
@@ -58,7 +58,7 @@ public class UndoService {
                                 )
                         );
 
-                commandManager.executeUndo(handler, log, userId);
+                commandManager.executeUndo(handler, log, userName);
 
             } catch (Exception e) {
 

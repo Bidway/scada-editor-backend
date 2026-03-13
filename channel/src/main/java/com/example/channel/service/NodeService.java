@@ -10,8 +10,8 @@ import java.util.List;
 
 public interface NodeService {
 
-    void deleteNodeByIdNode(String idNode, Long userId);
-    CreateNodeResponse createNode(CreateNodeDto createNodeDTO, Long userId);
+    void deleteNodeByIdNode(String idNode, String userName);
+    CreateNodeResponse createNode(CreateNodeDto createNodeDTO, String userName);
     NodeResponse getFullHierarchy(String rootPath);
     NodeResponse getHierarchy(String rootPath);
     List<String> getSites();

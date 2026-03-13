@@ -9,11 +9,11 @@ import org.springframework.http.ResponseEntity;
 import java.util.List;
 
 public interface ParamService {
-    void deleteParamById(Long id);
+    void deleteParamById(Long id, String userName);
 
-    ParamDto createParam(CreateParamDto createParamDTO);
+    ParamDto createParam(CreateParamDto createParamDTO, String userName);
 
-    ResponseEntity<Void> updateParams(List<KeyValue> keyValues);
+    ResponseEntity<Void> updateParams(List<KeyValue> keyValues, String userName);
 
     DescriptionResponse getDescriptions();
 
