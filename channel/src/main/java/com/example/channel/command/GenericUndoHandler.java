@@ -46,13 +46,6 @@ public class GenericUndoHandler implements UndoHandler {
             Object undoEntity = mapper.convertValue(log.getUndoPayload(), clazz);
 
 
-//            String repositoryBeanName =
-//                    Character.toLowerCase(clazz.getSimpleName().charAt(0))
-//                            + clazz.getSimpleName().substring(1)
-//                            + "Repository";
-//
-//            JpaRepository repository =
-//                    (JpaRepository) context.getBean(repositoryBeanName);
             var repoInfo = repositories.getRepositoryInformationFor(clazz)
                     .orElseThrow(() -> new RuntimeException(
                             "Repository not found for " + clazz.getName()
