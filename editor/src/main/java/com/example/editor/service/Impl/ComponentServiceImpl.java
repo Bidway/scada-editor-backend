@@ -71,4 +71,6 @@ public class ComponentServiceImpl implements ComponentService {
     public List<Component> getAll() {
         return repository.findAll();
     }
+
+
 }
