@@ -4,9 +4,13 @@ import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandResult;
 import com.example.channel.config.command.UndoHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.support.Repositories;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.Set;
 
@@ -15,11 +19,14 @@ public class GenericUndoHandler implements UndoHandler {
 
     private final ObjectMapper mapper;
     private final ApplicationContext context;
+    private final Repositories repositories;
 
     public GenericUndoHandler(ObjectMapper mapper, ApplicationContext context) {
         this.mapper = mapper;
         this.context = context;
+        this.repositories = new Repositories(context);
     }
+
 
     @Override
     public boolean supports(String commandType) {
@@ -38,13 +45,25 @@ public class GenericUndoHandler implements UndoHandler {
 
             Object undoEntity = mapper.convertValue(log.getUndoPayload(), clazz);
 
-            String repositoryBeanName =
-                    Character.toLowerCase(clazz.getSimpleName().charAt(0))
-                            + clazz.getSimpleName().substring(1)
-                            + "Repository";
+
+//            String repositoryBeanName =
+//                    Character.toLowerCase(clazz.getSimpleName().charAt(0))
+//                            + clazz.getSimpleName().substring(1)
+//                            + "Repository";
+//
+//            JpaRepository repository =
+//                    (JpaRepository) context.getBean(repositoryBeanName);
+            var repoInfo = repositories.getRepositoryInformationFor(clazz)
+                    .orElseThrow(() -> new RuntimeException(
+                            "Repository not found for " + clazz.getName()
+                    ));
+
+            Class<?> repoInterface = repoInfo.getRepositoryInterface();
 
             JpaRepository repository =
-                    (JpaRepository) context.getBean(repositoryBeanName);
+                    (JpaRepository) context.getBean(repoInterface);
+
+
 
             Object result = switch (action) {
                 case "CREATE" -> {

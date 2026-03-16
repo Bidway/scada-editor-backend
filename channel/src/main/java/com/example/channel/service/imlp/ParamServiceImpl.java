@@ -63,7 +63,7 @@ public class ParamServiceImpl implements ParamService {
                 .orElseThrow(() -> new RuntimeException("Node not found"));
 
         NodeParam param = new NodeParam();
-        param.setNode(node);
+        param.setIdNode(node.getIdNode());
         param.setIdType(descriptionRepository.findById(dto.getId()).getId());
         param.setValue(dto.getValue());
 
@@ -96,7 +96,7 @@ public class ParamServiceImpl implements ParamService {
             // копия состояния для undo
             NodeParam beforeUpdate = new NodeParam();
             beforeUpdate.setId(param.getId());
-            beforeUpdate.setNode(param.getNode());
+            beforeUpdate.setIdNode(param.getIdNode());
             beforeUpdate.setIdType(param.getIdType());
             beforeUpdate.setValue(param.getValue());
 
