@@ -17,6 +17,6 @@ public interface ParamRepository extends JpaRepository<NodeParam, Long> {
 
     List<NodeParam> findAllByIdIn(List<Long> ids);
     Optional<NodeParam> findById(Long id);
-    Optional<List<NodeParam>> findByNode(Node node);
+    Optional<List<NodeParam>> findByIdNode(String idNode);
 
 }

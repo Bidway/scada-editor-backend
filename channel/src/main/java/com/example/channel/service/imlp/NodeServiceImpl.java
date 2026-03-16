@@ -74,7 +74,7 @@ public class NodeServiceImpl implements NodeService {
 
             NodeParam nodeParam = new NodeParam();
             nodeParam.setIdType(paramId);
-            nodeParam.setNode(savedNode);
+            nodeParam.setIdNode(savedNode.getIdNode());
             nodeParam.setValue("");
 
             CrudCommand<NodeParam> paramCommand = new CrudCommand<>(
@@ -102,7 +102,7 @@ public class NodeServiceImpl implements NodeService {
         Node node = nodeRepository.findByIdNode(idNode)
                 .orElseThrow(() -> new IllegalArgumentException("Node not found: " + idNode));
 
-        List<NodeParam> params = paramRepository.findByNode(node)
+        List<NodeParam> params = paramRepository.findByIdNode(node.getIdNode())
                 .orElse(Collections.emptyList());
 
         for (NodeParam param : params) {

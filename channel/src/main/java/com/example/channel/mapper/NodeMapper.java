@@ -38,7 +38,7 @@ public interface NodeMapper {
 
     @Mapping(target = "name", ignore = true)
     @Mapping(target = "type", ignore = true)
-    @Mapping(target = "idNode", source = "param.node.idNode")
+//    @Mapping(target = "idNode", source = "idNode")
     ParamDto toDto(NodeParam param, List<Description> descriptions);
     @AfterMapping
     default void fillDescription(
@@ -66,7 +66,7 @@ public interface NodeMapper {
     }
 
     @Mapping(target = "id", source = "nodeParam.id")
-    @Mapping(target = "idNode", source = "nodeParam.node.idNode")
+//    @Mapping(target = "idNode", source = "idNode")
     @Mapping(target = "value", source = "nodeParam.value")
     @Mapping(target = "name", source = "description.name")
     @Mapping(target = "type", source = "description.type")
