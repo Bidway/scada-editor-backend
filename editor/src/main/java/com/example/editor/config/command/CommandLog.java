@@ -19,7 +19,7 @@ public class CommandLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long userId;
+    private String userName;
     private String entityType;
     private Long entityId;
     private String commandType;
@@ -39,7 +39,7 @@ public class CommandLog {
 
     public static CommandLog from(CommandResult r) {
         CommandLog log = new CommandLog();
-        log.userId = r.getUserId();
+        log.userName = r.getUserName();
         log.entityType = r.getEntityType();
         log.entityId = r.getEntityId();
         log.commandType = r.getCommandType();
@@ -50,7 +50,7 @@ public class CommandLog {
 
     public CommandResult toResult() {
         return new CommandResult(
-                userId, entityType, entityId, commandType, payload, undoPayload, null
+                userName, entityType, entityId, commandType, payload, undoPayload, null
         );
     }
 }

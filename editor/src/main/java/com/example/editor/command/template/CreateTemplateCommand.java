@@ -49,6 +49,6 @@ public class CreateTemplateCommand implements Command<TemplateResponseDto> {
         response.setType(template.getType());
         response.setComponents(componentMapper.toDtoTree(rootComponent));
 
-        return new CommandResult<>(1L, "template", 1L, "CREATE_TEMPLATE", null, null, response);
+        return new CommandResult<>("david", "template", 1L, "CREATE_TEMPLATE", null, null, response);
     }
 }
