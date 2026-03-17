@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "binding")
+@Table(name = "binding", schema = "editor")
 @Getter
 @Setter
 @NoArgsConstructor

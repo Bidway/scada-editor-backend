@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "node")
+@Table(name = "node", schema = "channel")
 @Getter
 @Setter
 public class Node {

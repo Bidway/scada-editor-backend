@@ -2,8 +2,8 @@ package com.example.editor.command.template;
 
 import com.example.editor.config.command.Command;
 import com.example.editor.config.command.CommandResult;
-import com.example.editor.dto.TemplateCreateDto;
-import com.example.editor.dto.TemplateResponseDto;
+import com.example.editor.dto.template.TemplateCreateDto;
+import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
 import com.example.editor.model.TemplateComponent;
 import com.example.editor.model.TemplateFacePlate;

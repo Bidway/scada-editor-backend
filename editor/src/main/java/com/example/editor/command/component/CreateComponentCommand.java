@@ -2,8 +2,8 @@ package com.example.editor.command.component;
 
 import com.example.editor.config.command.Command;
 import com.example.editor.config.command.CommandResult;
-import com.example.editor.dto.ComponentCreateDto;
-import com.example.editor.dto.ComponentResponseDto;
+import com.example.editor.dto.component.ComponentCreateDto;
+import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.Component;
 import com.example.editor.repository.ComponentRepository;

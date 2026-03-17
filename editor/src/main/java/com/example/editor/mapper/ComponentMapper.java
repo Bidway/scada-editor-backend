@@ -1,8 +1,8 @@
 package com.example.editor.mapper;
 
-import com.example.editor.dto.ComponentResponseDto;
-import com.example.editor.dto.SceneCreateResponseDto;
-import com.example.editor.dto.ScenesResponseDto;
+import com.example.editor.dto.component.ComponentResponseDto;
+import com.example.editor.dto.scene.SceneCreateResponseDto;
+import com.example.editor.dto.scene.ScenesResponseDto;
 import com.example.editor.model.Component;
 import org.mapstruct.*;
 

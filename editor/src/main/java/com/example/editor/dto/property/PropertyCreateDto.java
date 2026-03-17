@@ -1,4 +1,4 @@
-package com.example.editor.dto;
+package com.example.editor.dto.property;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

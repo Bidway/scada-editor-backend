@@ -11,7 +11,7 @@ import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "command_log")
+@Table(name = "command_log", schema = "editor")
 @Data
 public class CommandLog {
 

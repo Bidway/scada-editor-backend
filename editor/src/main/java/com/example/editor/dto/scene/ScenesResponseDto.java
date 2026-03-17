@@ -1,4 +1,4 @@
-package com.example.editor.dto;
+package com.example.editor.dto.scene;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;

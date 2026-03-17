@@ -1,4 +1,4 @@
-package com.example.editor.dto;
+package com.example.editor.dto.scene;
 
 import com.example.editor.model.Component;
 import com.fasterxml.jackson.databind.JsonNode;
