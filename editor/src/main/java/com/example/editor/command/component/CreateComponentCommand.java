@@ -44,7 +44,7 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
         JsonNode undoPayload = mapper.valueToTree(Map.of("ids", allIds));
 
         return new CommandResult<>(
-                1L,
+                "david",
                 "component",
                 1l,
                 "CREATE_COMPONENT",

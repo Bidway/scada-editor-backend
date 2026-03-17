@@ -14,6 +14,6 @@ public class DeleteTemplateCommand implements Command<Void> {
     @Override
     public CommandResult<Void> execute() {
         templateRepository.deleteById(templateId);
-        return new CommandResult<>(1L, "template", templateId, "DELETE_TEMPLATE", null, null, null);
+        return new CommandResult<>("david", "template", templateId, "DELETE_TEMPLATE", null, null, null);
     }
 }

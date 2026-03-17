@@ -48,7 +48,7 @@ public class CreateSceneCommand implements Command<SceneCreateResponseDto> {
         ));
 
         return new CommandResult<>(
-                1l,
+                "david",
                 "component",
                 saved.getId(),
                 "CREATE_SCENE",
