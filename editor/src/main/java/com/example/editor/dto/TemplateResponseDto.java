@@ -9,5 +9,5 @@ public class TemplateResponseDto {
     private Long id;
     private String name;
     private String type;
-    private TemplateComponentResponseDto components;
+    private TemplateComponentResponseDto rootComponent;
 }

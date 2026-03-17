@@ -60,7 +60,7 @@ public class TemplateService {
                     dto.setType(template.getType());
 
                     if (template.getRootComponent() != null) {
-                        dto.setComponents(componentMapper.toDtoTree(template.getRootComponent()));
+                        dto.setRootComponent(componentMapper.toDtoTree(template.getRootComponent()));
                     }
                     return dto;
                 })
@@ -77,7 +77,7 @@ public class TemplateService {
         dto.setName(template.getName());
         dto.setType(template.getType());
         if (template.getRootComponent() != null) {
-            dto.setComponents(componentMapper.toDtoTree(template.getRootComponent()));
+            dto.setRootComponent(componentMapper.toDtoTree(template.getRootComponent()));
         }
         return dto;
     }

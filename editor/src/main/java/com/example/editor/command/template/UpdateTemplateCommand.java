@@ -38,7 +38,7 @@ public class UpdateTemplateCommand implements Command<TemplateResponseDto> {
 
         // 3️⃣ Создаём новые компоненты
         var componentsFlat = componentMapper.toEntitiesFlat(
-                java.util.Collections.singletonList(dto.getComponents()),
+                java.util.Collections.singletonList(dto.getRootComponent()),
                 template
         );
         var savedComponents = componentRepository.saveAll(componentsFlat);
@@ -53,7 +53,7 @@ public class UpdateTemplateCommand implements Command<TemplateResponseDto> {
         response.setId(template.getId());
         response.setName(template.getName());
         response.setType(template.getType());
-        response.setComponents(componentMapper.toDtoTree(rootComponent));
+        response.setRootComponent(componentMapper.toDtoTree(rootComponent));
 
         return new CommandResult<>("david", "template", 1L, "UPDATE_TEMPLATE", null, null, response);
     }
