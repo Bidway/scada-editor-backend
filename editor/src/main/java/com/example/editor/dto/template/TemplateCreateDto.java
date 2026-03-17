@@ -1,8 +1,6 @@
-package com.example.editor.dto;
+package com.example.editor.dto.template;
 
 import lombok.Data;
-
-import java.util.List;
 
 @Data
 public class TemplateCreateDto {

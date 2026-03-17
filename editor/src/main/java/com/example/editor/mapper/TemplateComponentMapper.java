@@ -1,7 +1,7 @@
 package com.example.editor.mapper;
 
-import com.example.editor.dto.TemplateComponentCreateDto;
-import com.example.editor.dto.TemplateComponentResponseDto;
+import com.example.editor.dto.template.TemplateComponentCreateDto;
+import com.example.editor.dto.template.TemplateComponentResponseDto;
 import com.example.editor.model.TemplateComponent;
 import com.example.editor.model.TemplateFacePlate;
 import org.springframework.stereotype.Component;
@@ -64,5 +64,25 @@ public class TemplateComponentMapper {
         dto.setChildren(childrenDto);
 
         return dto;
+    }
+    public TemplateComponent mapTree(TemplateComponentCreateDto dto, TemplateFacePlate template) {
+
+        TemplateComponent entity = new TemplateComponent();
+        entity.setName(dto.getName());
+        entity.setType(dto.getType());
+        entity.setImage(dto.getImage());
+        entity.setTemplate(template);
+
+        List<TemplateComponent> children = dto.getChildren().stream()
+                .map(childDto -> {
+                    TemplateComponent child = mapTree(childDto, template);
+                    child.setParent(entity); // 👈 ВАЖНО
+                    return child;
+                })
+                .toList();
+
+        entity.setChildren(children);
+
+        return entity;
     }
 }

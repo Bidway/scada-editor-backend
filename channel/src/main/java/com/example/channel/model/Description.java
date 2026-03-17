@@ -6,7 +6,7 @@ import lombok.Setter;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "description")
+@Table(name = "description", schema = "channel")
 @Getter
 @Setter
 public class Description {

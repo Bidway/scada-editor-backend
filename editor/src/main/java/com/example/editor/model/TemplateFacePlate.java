@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "template_faceplate")
+@Table(name = "template_faceplate", schema = "editor")
 @Getter
 @Setter
 @NoArgsConstructor

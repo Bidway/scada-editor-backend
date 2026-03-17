@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "template")
+@Table(name = "template_node", schema = "channel")
 @Data
 public class Template {
     @Id

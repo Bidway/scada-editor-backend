@@ -9,7 +9,7 @@ import org.hibernate.annotations.Type;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "command_log")
+@Table(name = "command_log", schema = "channel")
 @Data
 public class CommandLog {
 

@@ -1,7 +1,7 @@
 package com.example.editor.controller;
 
-import com.example.editor.dto.TemplateCreateDto;
-import com.example.editor.dto.TemplateResponseDto;
+import com.example.editor.dto.template.TemplateCreateDto;
+import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.service.TemplateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
-@Table(name="template_param")
+@Table(name="template_param", schema = "channel")
 @Data
 public class TemplateParam {
     @EmbeddedId

@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Entity
-@Table(name = "users")
+@Table(name = "users", schema = "auth")
 @NoArgsConstructor
 public class User {
     @Id

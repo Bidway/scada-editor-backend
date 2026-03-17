@@ -8,7 +8,7 @@ import lombok.Setter;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "param")
+@Table(name = "param", schema = "channel")
 @Getter
 @Setter
 public class NodeParam {

@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "component")
+@Table(name = "component", schema = "editor")
 @Getter
 @Setter
 @NoArgsConstructor

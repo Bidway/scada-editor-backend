@@ -2,8 +2,8 @@ package com.example.editor.command.template;
 
 import com.example.editor.config.command.Command;
 import com.example.editor.config.command.CommandResult;
-import com.example.editor.dto.TemplateCreateDto;
-import com.example.editor.dto.TemplateResponseDto;
+import com.example.editor.dto.template.TemplateCreateDto;
+import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
 import com.example.editor.model.TemplateComponent;
 import com.example.editor.model.TemplateFacePlate;
@@ -22,33 +22,38 @@ public class CreateTemplateCommand implements Command<TemplateResponseDto> {
     @Override
     public CommandResult<TemplateResponseDto> execute() {
 
-        // 1️⃣ Создаём шаблон
+        // 1️⃣ Создаём template
         TemplateFacePlate template = new TemplateFacePlate();
         template.setName(dto.getName());
         template.setType(dto.getType());
         templateRepository.save(template);
 
-        // 2️⃣ Создаём компоненты рекурсивно, пока parent=null
-        var componentsFlat = componentMapper.toEntitiesFlat(
-                java.util.Collections.singletonList(dto.getRootComponent()),
-                template
-        );
+        // 2️⃣ Строим ДЕРЕВО компонентов
+        TemplateComponent rootComponent =
+                componentMapper.mapTree(dto.getRootComponent(), template);
 
-        // 3️⃣ Сохраняем все компоненты, Hibernate проставит id
-        var savedComponents = componentRepository.saveAll(componentsFlat);
+        // 3️⃣ Сохраняем дерево (cascade сохранит всё)
+        componentRepository.save(rootComponent);
 
-        // 4️⃣ Устанавливаем rootComponent шаблона
-        TemplateComponent rootComponent = savedComponents.get(0);
+        // 4️⃣ Привязываем root к template
         template.setRootComponent(rootComponent);
         templateRepository.save(template);
 
-        // 5️⃣ Конвертируем в ResponseDto
+        // 5️⃣ Формируем ответ
         TemplateResponseDto response = new TemplateResponseDto();
         response.setId(template.getId());
         response.setName(template.getName());
         response.setType(template.getType());
         response.setRootComponent(componentMapper.toDtoTree(rootComponent));
 
-        return new CommandResult<>("david", "template", 1L, "CREATE_TEMPLATE", null, null, response);
+        return new CommandResult<>(
+                "david",
+                "template",
+                template.getId(),
+                "CREATE_TEMPLATE",
+                null,
+                null,
+                response
+        );
     }
 }
