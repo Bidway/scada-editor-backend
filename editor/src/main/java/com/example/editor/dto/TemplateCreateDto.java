@@ -8,5 +8,5 @@ import java.util.List;
 public class TemplateCreateDto {
     private String name;
     private String type;
-    private TemplateComponentCreateDto components;
+    private TemplateComponentCreateDto rootComponent;
 }

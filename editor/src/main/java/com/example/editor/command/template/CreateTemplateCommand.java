@@ -30,7 +30,7 @@ public class CreateTemplateCommand implements Command<TemplateResponseDto> {
 
         // 2️⃣ Создаём компоненты рекурсивно, пока parent=null
         var componentsFlat = componentMapper.toEntitiesFlat(
-                java.util.Collections.singletonList(dto.getComponents()),
+                java.util.Collections.singletonList(dto.getRootComponent()),
                 template
         );
 
@@ -47,7 +47,7 @@ public class CreateTemplateCommand implements Command<TemplateResponseDto> {
         response.setId(template.getId());
         response.setName(template.getName());
         response.setType(template.getType());
-        response.setComponents(componentMapper.toDtoTree(rootComponent));
+        response.setRootComponent(componentMapper.toDtoTree(rootComponent));
 
         return new CommandResult<>("david", "template", 1L, "CREATE_TEMPLATE", null, null, response);
     }
