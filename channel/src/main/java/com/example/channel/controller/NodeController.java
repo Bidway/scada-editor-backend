@@ -17,6 +17,13 @@ import java.util.List;
 public class NodeController {
     private final NodeService nodeService;
 
+    @GetMapping("/{idNode}")
+    public ResponseEntity<NodeResponse> connectNode(
+            @PathVariable String idNode,
+            @RequestHeader("X-Username") String userName) {
+        nodeService.connectNode(idNode,userName);
+        return ResponseEntity.noContent().build();
+    }
     @DeleteMapping("/{idNode}")
     public ResponseEntity<Void> deleteNode(@PathVariable String idNode,
                                            @RequestHeader("X-Username") String userName) {

@@ -2,19 +2,17 @@ package com.example.editor.service;
 
 
 
+import com.example.editor.dto.property.PropertyCreateDto;
+import com.example.editor.dto.property.PropertyResponseDto;
 import com.example.editor.model.ComponentProperty;
 
 import java.util.List;
 
 public interface ComponentPropertyService {
 
-    ComponentProperty create(ComponentProperty property);
+    PropertyResponseDto create(PropertyCreateDto property);
 
-    ComponentProperty update(Long id, ComponentProperty property);
+    PropertyResponseDto update(Long id, PropertyCreateDto property);
 
     void delete(Long id);
-
-    ComponentProperty getById(Long id);
-
-    List<ComponentProperty> getByComponentId(Long componentId);
 }

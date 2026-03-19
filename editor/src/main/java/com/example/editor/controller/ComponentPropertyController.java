@@ -1,5 +1,7 @@
 package com.example.editor.controller;
 
+import com.example.editor.dto.property.PropertyCreateDto;
+import com.example.editor.dto.property.PropertyResponseDto;
 import com.example.editor.model.ComponentProperty;
 import com.example.editor.service.ComponentPropertyService;
 import lombok.RequiredArgsConstructor;
@@ -15,30 +17,19 @@ public class ComponentPropertyController {
     private final ComponentPropertyService service;
 
     @PostMapping
-    public ComponentProperty create(@RequestBody ComponentProperty property) {
+    public PropertyResponseDto create(@RequestBody PropertyCreateDto property) {
         return service.create(property);
     }
 
     @PutMapping("/{id}")
-    public ComponentProperty update(
+    public PropertyResponseDto update(
             @PathVariable Long id,
-            @RequestBody ComponentProperty property) {
+            @RequestBody PropertyCreateDto property) {
         return service.update(id, property);
     }
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.delete(id);
-    }
-
-    @GetMapping("/{id}")
-    public ComponentProperty getById(@PathVariable Long id) {
-        return service.getById(id);
-    }
-
-    @GetMapping("/component/{componentId}")
-    public List<ComponentProperty> getByComponentId(
-            @PathVariable Long componentId) {
-        return service.getByComponentId(componentId);
     }
 }

@@ -4,9 +4,13 @@ import com.example.editor.config.command.CommandManager;
 import com.example.editor.command.property.CreatePropertyCommand;
 import com.example.editor.command.property.DeletePropertyCommand;
 import com.example.editor.command.property.UpdatePropertyCommand;
+import com.example.editor.dto.property.PropertyCreateDto;
+import com.example.editor.dto.property.PropertyResponseDto;
+import com.example.editor.mapper.ComponentPropertyMapper;
 import com.example.editor.model.ComponentProperty;
 import com.example.editor.repository.ComponentPropertyRepository;
 import com.example.editor.service.ComponentPropertyService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,25 +18,31 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class ComponentPropertyServiceImpl
-        implements ComponentPropertyService {
+public class ComponentPropertyServiceImpl implements ComponentPropertyService {
 
     private final ComponentPropertyRepository repository;
     private final CommandManager commandManager;
+    private final ComponentPropertyMapper mapper;
+    private final ObjectMapper objectMapper;
 
     @Override
-    public ComponentProperty create(ComponentProperty property) {
+    public PropertyResponseDto create(PropertyCreateDto dto) {
+
+        ComponentProperty entity = mapper.toEntity(dto);
 
         CreatePropertyCommand command =
-                new CreatePropertyCommand(repository, property);
+                new CreatePropertyCommand(repository, mapper, objectMapper, entity);
+
         return commandManager.execute(command);
     }
 
     @Override
-    public ComponentProperty update(Long id, ComponentProperty property) {
+    public PropertyResponseDto update(Long id, PropertyCreateDto dto) {
+
+//        ComponentProperty entity = mapper.toEntity(dto);
 
         UpdatePropertyCommand command =
-                new UpdatePropertyCommand(repository, id, property);
+                new UpdatePropertyCommand(repository, mapper, objectMapper, id, dto);
 
         return commandManager.execute(command);
     }
@@ -43,17 +53,7 @@ public class ComponentPropertyServiceImpl
         DeletePropertyCommand command =
                 new DeletePropertyCommand(repository, id);
 
-        command.execute();
+        commandManager.execute(command);
     }
 
-    @Override
-    public ComponentProperty getById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Property not found"));
-    }
-
-    @Override
-    public List<ComponentProperty> getByComponentId(Long componentId) {
-        return repository.findByComponentId(componentId);
-    }
 }

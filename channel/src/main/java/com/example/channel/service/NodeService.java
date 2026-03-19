@@ -4,6 +4,7 @@ import com.example.channel.dto.nodeDto.CreateNodeDto;
 import com.example.channel.dto.nodeDto.CreateNodeResponse;
 import com.example.channel.dto.nodeDto.NodeResponse;
 import com.example.channel.dto.nodeDto.TemplateResponse;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
@@ -16,4 +17,5 @@ public interface NodeService {
     NodeResponse getHierarchy(String rootPath);
     List<String> getSites();
     TemplateResponse getTemplates();
+    void connectNode(String idNode,String userName);
 }

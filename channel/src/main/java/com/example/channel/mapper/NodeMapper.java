@@ -14,6 +14,11 @@ import java.util.List;
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface NodeMapper {
 
+
+
+
+
+
     @Mapping(target = "idNode", ignore = true)
     Node toEntity(CreateNodeDto dto);
 
@@ -35,6 +40,8 @@ public interface NodeMapper {
             return idNode;
         return (parentKey+"+"+idNode);
     }
+
+
 
     @Mapping(target = "name", ignore = true)
     @Mapping(target = "type", ignore = true)
