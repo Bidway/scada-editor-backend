@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 @Data
-public class PropertyCreateDto {
+public class PropertyResponseDto {
+    private Long id;
     private Long component_id;
     private String property_type;
     private String tag_id;

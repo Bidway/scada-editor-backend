@@ -211,4 +211,9 @@ public class NodeServiceImpl implements NodeService {
 
         return response;
     }
+
+    @Override
+    public void connectNode(String idNode, String userName) {
+
+    }
 }

@@ -23,7 +23,6 @@ public class UpdateTemplateCommand implements Command<TemplateResponseDto> {
     @Override
     public CommandResult<TemplateResponseDto> execute() {
 
-        // 1️⃣ Находим шаблон
         TemplateFacePlate template = templateRepository.findById(templateId)
                 .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId));
 
@@ -31,24 +30,14 @@ public class UpdateTemplateCommand implements Command<TemplateResponseDto> {
         template.setType(dto.getType());
         templateRepository.save(template);
 
-        // 2️⃣ Удаляем старые компоненты (чистим дерево)
-        if (template.getRootComponent() != null) {
-            componentRepository.delete(template.getRootComponent());
-        }
+        TemplateComponent rootComponent =
+                componentMapper.mapTree(dto.getRootComponent(), template);
 
-        // 3️⃣ Создаём новые компоненты
-        var componentsFlat = componentMapper.toEntitiesFlat(
-                java.util.Collections.singletonList(dto.getRootComponent()),
-                template
-        );
-        var savedComponents = componentRepository.saveAll(componentsFlat);
+        componentRepository.save(rootComponent);
 
-        // 4️⃣ Обновляем rootComponent
-        TemplateComponent rootComponent = savedComponents.get(0);
         template.setRootComponent(rootComponent);
         templateRepository.save(template);
 
-        // 5️⃣ Формируем ResponseDto
         TemplateResponseDto response = new TemplateResponseDto();
         response.setId(template.getId());
         response.setName(template.getName());

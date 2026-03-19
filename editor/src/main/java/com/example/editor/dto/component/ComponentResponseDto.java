@@ -1,5 +1,6 @@
 package com.example.editor.dto.component;
 
+import com.example.editor.dto.property.PropertyResponseDto;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
@@ -15,4 +16,5 @@ public class ComponentResponseDto {
     private Long parent_id;
     private JsonNode image;
     private List<ComponentResponseDto> children;
+    private List<PropertyResponseDto> properties;
 }

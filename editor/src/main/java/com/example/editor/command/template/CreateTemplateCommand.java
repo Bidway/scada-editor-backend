@@ -22,24 +22,19 @@ public class CreateTemplateCommand implements Command<TemplateResponseDto> {
     @Override
     public CommandResult<TemplateResponseDto> execute() {
 
-        // 1️⃣ Создаём template
         TemplateFacePlate template = new TemplateFacePlate();
         template.setName(dto.getName());
         template.setType(dto.getType());
         templateRepository.save(template);
 
-        // 2️⃣ Строим ДЕРЕВО компонентов
         TemplateComponent rootComponent =
                 componentMapper.mapTree(dto.getRootComponent(), template);
 
-        // 3️⃣ Сохраняем дерево (cascade сохранит всё)
         componentRepository.save(rootComponent);
 
-        // 4️⃣ Привязываем root к template
         template.setRootComponent(rootComponent);
         templateRepository.save(template);
 
-        // 5️⃣ Формируем ответ
         TemplateResponseDto response = new TemplateResponseDto();
         response.setId(template.getId());
         response.setName(template.getName());
