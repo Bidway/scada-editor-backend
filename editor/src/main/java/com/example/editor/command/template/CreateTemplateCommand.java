@@ -5,10 +5,10 @@ import com.example.editor.config.command.CommandResult;
 import com.example.editor.dto.template.TemplateCreateDto;
 import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
-import com.example.editor.model.TemplateComponent;
-import com.example.editor.model.TemplateFacePlate;
-import com.example.editor.repository.TemplateComponentRepository;
-import com.example.editor.repository.TemplateFacePlateRepository;
+import com.example.editor.model.template.TemplateComponent;
+import com.example.editor.model.template.TemplateFacePlate;
+import com.example.editor.repository.template.TemplateComponentRepository;
+import com.example.editor.repository.template.TemplateFacePlateRepository;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

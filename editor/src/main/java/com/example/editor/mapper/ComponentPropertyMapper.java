@@ -2,9 +2,9 @@ package com.example.editor.mapper;
 
 import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.dto.property.PropertyResponseDto;
-import com.example.editor.model.Component;
-import com.example.editor.model.ComponentProperty;
-import com.example.editor.repository.ComponentRepository;
+import com.example.editor.model.component.Component;
+import com.example.editor.model.component.ComponentProperty;
+import com.example.editor.repository.component.ComponentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mapstruct.*;

@@ -2,7 +2,7 @@ package com.example.editor.command.component;
 
 import com.example.editor.config.command.Command;
 import com.example.editor.config.command.CommandResult;
-import com.example.editor.repository.ComponentRepository;
+import com.example.editor.repository.component.ComponentRepository;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;

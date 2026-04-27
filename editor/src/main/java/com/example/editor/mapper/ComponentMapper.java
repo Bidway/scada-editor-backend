@@ -3,7 +3,7 @@ package com.example.editor.mapper;
 import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
-import com.example.editor.model.Component;
+import com.example.editor.model.component.Component;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mapstruct.*;

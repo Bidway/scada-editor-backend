@@ -5,7 +5,7 @@ import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
-import com.example.editor.model.Component;
+import com.example.editor.model.component.Component;
 import com.example.editor.service.ComponentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

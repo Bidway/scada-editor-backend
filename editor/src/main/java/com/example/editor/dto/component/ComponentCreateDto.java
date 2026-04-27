@@ -21,5 +21,5 @@ public class ComponentCreateDto {
     private String parent_key;//
     private Long parent_id;
 
-    private JsonNode image;
+    private List<СomponentStateDto> states;
 }

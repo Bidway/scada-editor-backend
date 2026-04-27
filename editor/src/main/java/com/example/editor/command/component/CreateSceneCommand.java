@@ -5,8 +5,8 @@ import com.example.editor.config.command.CommandResult;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.mapper.ComponentMapper;
-import com.example.editor.model.Component;
-import com.example.editor.repository.ComponentRepository;
+import com.example.editor.model.component.Component;
+import com.example.editor.repository.component.ComponentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.Map;
 
 @RequiredArgsConstructor
-public class CreateSceneCommand implements Command<SceneCreateResponseDto> {
+public class                                                                                         CreateSceneCommand implements Command<SceneCreateResponseDto> {
 
     private final ComponentRepository repository;
     private final SceneCreateDto dto;
@@ -29,7 +29,7 @@ public class CreateSceneCommand implements Command<SceneCreateResponseDto> {
         scene.setName(dto.getName());
         scene.setType("scene");
         scene.setParent(null);
-        scene.setImage(mapper.createArrayNode()); // []
+        scene.setStates(null);
         scene.setChildren(new ArrayList<>());
 
         scene.setVersion(1L);

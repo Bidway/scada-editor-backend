@@ -1,10 +1,8 @@
-package com.example.editor.model;
+package com.example.editor.model.template;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
+import com.example.editor.model.component.ComponentState;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Type;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,9 +26,15 @@ public class TemplateComponent {
     @Column(nullable = false)
     private String type;
 
-    @Type(JsonBinaryType.class)
-    @Column(columnDefinition = "jsonb")
-    private JsonNode image;
+//    @Type(JsonBinaryType.class)
+//    @Column(columnDefinition = "jsonb")
+//    private JsonNode image;
+    @OneToMany(
+            mappedBy = "component",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private List<TemplateComponentState> states = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id", nullable = false)

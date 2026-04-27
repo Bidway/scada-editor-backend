@@ -2,12 +2,9 @@ package com.example.editor.controller;
 
 import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.dto.property.PropertyResponseDto;
-import com.example.editor.model.ComponentProperty;
 import com.example.editor.service.ComponentPropertyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/editor/properties")

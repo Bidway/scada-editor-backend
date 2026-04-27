@@ -1,6 +1,6 @@
 package com.example.editor.dto.scene;
 
-import com.example.editor.model.Component;
+import com.example.editor.model.component.Component;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 

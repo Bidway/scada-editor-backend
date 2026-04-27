@@ -1,10 +1,7 @@
-package com.example.editor.model;
+package com.example.editor.model.template;
 
 import jakarta.persistence.*;
 import lombok.*;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "template_faceplate", schema = "editor")

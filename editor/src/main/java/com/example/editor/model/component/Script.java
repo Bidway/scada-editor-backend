@@ -1,16 +1,16 @@
-package com.example.editor.model;
+package com.example.editor.model.component;
 
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "binding", schema = "editor")
+@Table(name = "scripts", schema = "editor")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Binding {
+public class Script {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,10 +20,7 @@ public class Binding {
     @JoinColumn(name = "component_id", nullable = false)
     private Component component;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "component_property_id", nullable = false)
-    private ComponentProperty componentProperty;
-
+    @Column(nullable = false)
     private String name;
 
     @Column(columnDefinition = "text")

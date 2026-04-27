@@ -14,7 +14,7 @@ public class ComponentResponseDto {
     private String type;
     private Long version;
     private Long parent_id;
-    private JsonNode image;
+    private List<ComponentStateResponseDto> states;
     private List<ComponentResponseDto> children;
     private List<PropertyResponseDto> properties;
 }
