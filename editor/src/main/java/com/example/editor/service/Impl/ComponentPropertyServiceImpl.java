@@ -7,14 +7,12 @@ import com.example.editor.command.property.UpdatePropertyCommand;
 import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.dto.property.PropertyResponseDto;
 import com.example.editor.mapper.ComponentPropertyMapper;
-import com.example.editor.model.ComponentProperty;
-import com.example.editor.repository.ComponentPropertyRepository;
+import com.example.editor.model.component.ComponentProperty;
+import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.service.ComponentPropertyService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor

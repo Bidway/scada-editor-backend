@@ -1,10 +1,7 @@
-package com.example.editor.model;
+package com.example.editor.model.component;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Type;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,9 +25,15 @@ public class Component {
     @Column(nullable = false)
     private String type;
 
-    @Type(JsonBinaryType.class)
-    @Column(columnDefinition = "jsonb")
-    private JsonNode image;
+//    @Type(JsonBinaryType.class)
+//    @Column(columnDefinition = "jsonb")
+//    private JsonNode image;
+    @OneToMany(
+        mappedBy = "component",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true
+    )
+    private List<ComponentState> states = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")

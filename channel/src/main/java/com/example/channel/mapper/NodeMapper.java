@@ -16,9 +16,6 @@ public interface NodeMapper {
 
 
 
-
-
-
     @Mapping(target = "idNode", ignore = true)
     Node toEntity(CreateNodeDto dto);
 

@@ -5,8 +5,9 @@ import com.example.editor.config.command.CommandResult;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.mapper.ComponentMapper;
-import com.example.editor.model.Component;
-import com.example.editor.repository.ComponentRepository;
+import com.example.editor.model.component.Component;
+import com.example.editor.model.component.ComponentState;
+import com.example.editor.repository.component.ComponentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -84,10 +85,26 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
         entity.setName(dto.getName());
         entity.setType(dto.getType());
         entity.setVersion(dto.getVersion());
-        entity.setImage(dto.getImage());
+//        entity.setImage(dto.getImage());
         entity.setParent(parent);
 
-        // Обновляем/создаем детей
+        entity.getStates().clear();
+
+        if (dto.getStates() != null) {
+
+            List<ComponentState> states = dto.getStates().stream()
+                    .map(stateDto -> ComponentState.builder()
+                            .name(stateDto.getName())
+                            .image(stateDto.getImage())
+                            .isDefault(stateDto.getIsDefault())
+                            .component(entity)
+                            .build()
+                    )
+                    .toList();
+
+            entity.getStates().addAll(states);
+        }
+
         List<Component> children = dto.getChildren()
                 .stream()
                 .map(childDto -> {
@@ -99,7 +116,6 @@ public class CreateComponentCommand implements Command<List<ComponentResponseDto
                                         "Child component not found: " + childDto.getId()
                                 ));
                     } else {
-                        // Новый ребенок
                         childEntity = new Component();
                     }
                     return mapRecursive(childDto, childEntity, entity);

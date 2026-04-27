@@ -2,15 +2,19 @@ package com.example.editor.mapper;
 
 import com.example.editor.dto.template.TemplateComponentCreateDto;
 import com.example.editor.dto.template.TemplateComponentResponseDto;
-import com.example.editor.model.TemplateComponent;
-import com.example.editor.model.TemplateFacePlate;
+import com.example.editor.model.template.TemplateComponent;
+import com.example.editor.model.template.TemplateComponentState;
+import com.example.editor.model.template.TemplateFacePlate;
+import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
+@AllArgsConstructor
 public class TemplateComponentMapper {
+    private final StateMapper stateMapper;
 
     /**
      * 1. Преобразование TemplateComponentCreateDto → TemplateComponent
@@ -30,7 +34,19 @@ public class TemplateComponentMapper {
             TemplateComponent entity = new TemplateComponent();
             entity.setName(dto.getName());
             entity.setType(dto.getType());
-            entity.setImage(dto.getImage());
+//            entity.setImage(dto.getImage());
+            entity.getStates().clear();
+
+            List<TemplateComponentState> states = dto.getStates().stream().map(
+                    state -> TemplateComponentState.builder()
+                            .name(state.getName())
+                            .image(state.getImage())
+                            .isDefault(state.getIsDefault())
+                            .component(entity)
+                            .build()
+            ).toList();
+            entity.setStates(states);
+
             entity.setTemplate(template);
             entity.setParent(parent); // пока parent может быть null, потом исправим
 
@@ -53,7 +69,8 @@ public class TemplateComponentMapper {
         dto.setId(root.getId());
         dto.setName(root.getName());
         dto.setType(root.getType());
-        dto.setImage(root.getImage());
+        dto.setStates(stateMapper.toDtoList(root.getStates()));
+
         dto.setParent_id(root.getParent() != null ? root.getParent().getId() : null);
 
         List<TemplateComponentResponseDto> childrenDto = root.getChildren()
@@ -70,7 +87,19 @@ public class TemplateComponentMapper {
         TemplateComponent entity = new TemplateComponent();
         entity.setName(dto.getName());
         entity.setType(dto.getType());
-        entity.setImage(dto.getImage());
+//        entity.setImage(dto.getImage());
+        entity.getStates().clear();
+
+        List<TemplateComponentState> states = dto.getStates().stream().map(
+                state -> TemplateComponentState.builder()
+                        .name(state.getName())
+                        .image(state.getImage())
+                        .isDefault(state.getIsDefault())
+                        .component(entity)
+                        .build()
+        ).toList();
+        entity.setStates(states);
+
         entity.setTemplate(template);
 
         List<TemplateComponent> children = dto.getChildren().stream()

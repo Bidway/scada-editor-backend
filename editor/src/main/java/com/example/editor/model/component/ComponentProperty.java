@@ -1,4 +1,4 @@
-package com.example.editor.model;
+package com.example.editor.model.component;
 
 import jakarta.persistence.*;
 import lombok.*;

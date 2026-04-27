@@ -2,7 +2,7 @@ package com.example.editor.command.property;
 
 import com.example.editor.config.command.Command;
 import com.example.editor.config.command.CommandResult;
-import com.example.editor.repository.ComponentPropertyRepository;
+import com.example.editor.repository.component.ComponentPropertyRepository;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

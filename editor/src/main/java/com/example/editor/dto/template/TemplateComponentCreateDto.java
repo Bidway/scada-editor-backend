@@ -1,5 +1,6 @@
 package com.example.editor.dto.template;
 
+import com.example.editor.dto.component.СomponentStateDto;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
@@ -13,5 +14,5 @@ public class TemplateComponentCreateDto {
     private String name;
     private String parent_key;
     private List<TemplateComponentCreateDto> children = new ArrayList<>();
-    private JsonNode image;
+    private List<СomponentStateDto> states;
 }

@@ -2,7 +2,7 @@ package com.example.editor.command.template;
 
 import com.example.editor.config.command.Command;
 import com.example.editor.config.command.CommandResult;
-import com.example.editor.repository.TemplateFacePlateRepository;
+import com.example.editor.repository.template.TemplateFacePlateRepository;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

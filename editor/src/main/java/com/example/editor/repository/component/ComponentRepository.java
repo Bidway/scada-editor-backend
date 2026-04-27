@@ -1,7 +1,7 @@
-package com.example.editor.repository;
+package com.example.editor.repository.component;
 
 
-import com.example.editor.model.Component;
+import com.example.editor.model.component.Component;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
