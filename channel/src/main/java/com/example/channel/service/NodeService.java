@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface NodeService {
 
-    void deleteNodeByIdNode(String idNode, String userName);
+    java.util.UUID deleteNodeByIdNode(String idNode, String userName);
     CreateNodeResponse createNode(CreateNodeDto createNodeDTO, String userName);
     NodeResponse getFullHierarchy(String rootPath);
     NodeResponse getHierarchy(String rootPath);

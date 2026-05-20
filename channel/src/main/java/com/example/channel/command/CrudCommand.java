@@ -1,12 +1,14 @@
 package com.example.channel.command;
 
 import com.example.channel.config.command.Command;
+import com.example.channel.config.command.CommandBatch;
 import com.example.channel.config.command.CommandResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 public class CrudCommand<T> implements Command<T> {
@@ -22,6 +24,8 @@ public class CrudCommand<T> implements Command<T> {
     private final T entityBeforeUpdate;
 
     private final Function<T, Long> idExtractor;
+    private final UUID batchId;
+    private final Integer sequence;
 
     public CrudCommand(
             String userName,
@@ -32,6 +36,43 @@ public class CrudCommand<T> implements Command<T> {
             T entityBeforeUpdate,
             Function<T, Long> idExtractor
     ) {
+        this(userName, action, repository, mapper, entity, entityBeforeUpdate, idExtractor, null, null);
+    }
+
+    public CrudCommand(
+            String userName,
+            Action action,
+            JpaRepository<T, Long> repository,
+            ObjectMapper mapper,
+            T entity,
+            T entityBeforeUpdate,
+            Function<T, Long> idExtractor,
+            CommandBatch batch
+    ) {
+        this(
+                userName,
+                action,
+                repository,
+                mapper,
+                entity,
+                entityBeforeUpdate,
+                idExtractor,
+                batch != null ? batch.getBatchId() : null,
+                batch != null ? batch.nextSequence() : null
+        );
+    }
+
+    private CrudCommand(
+            String userName,
+            Action action,
+            JpaRepository<T, Long> repository,
+            ObjectMapper mapper,
+            T entity,
+            T entityBeforeUpdate,
+            Function<T, Long> idExtractor,
+            UUID batchId,
+            Integer sequence
+    ) {
         this.userName = userName;
         this.action = action;
         this.repository = repository;
@@ -39,6 +80,8 @@ public class CrudCommand<T> implements Command<T> {
         this.entity = entity;
         this.entityBeforeUpdate = entityBeforeUpdate;
         this.idExtractor = idExtractor;
+        this.batchId = batchId;
+        this.sequence = sequence;
     }
 
     @Override
@@ -72,6 +115,8 @@ public class CrudCommand<T> implements Command<T> {
                 entity.getClass().getSimpleName(),
                 entityId,
                 action.name(),
+                batchId,
+                sequence,
                 mapper.valueToTree(savedEntity),
                 undoPayload,
                 savedEntity
