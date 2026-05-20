@@ -12,6 +12,7 @@ import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
 import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Component;
+import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +26,7 @@ import java.util.List;
 public class ComponentServiceImpl implements ComponentService {
 
     private final ComponentRepository repository;
+    private final ComponentPropertyRepository propertyRepository;
     private final ObjectMapper mapper;
     private final CommandManager commandManager;
     private final ComponentMapper componentMapper;
@@ -32,7 +34,7 @@ public class ComponentServiceImpl implements ComponentService {
     @Override
     public List<ComponentResponseDto> create(List<ComponentCreateDto> components) {
         CreateComponentCommand command =
-                new CreateComponentCommand(repository, components, mapper, componentMapper);
+                new CreateComponentCommand(repository, propertyRepository, components, mapper, componentMapper);
         return commandManager.execute(command);
     }
     @Override
@@ -52,7 +54,7 @@ public class ComponentServiceImpl implements ComponentService {
     public List<ComponentResponseDto> update(List<ComponentCreateDto> components) {
 
         UpdateComponentCommand command =
-                new UpdateComponentCommand(repository, components, mapper,componentMapper);
+                new UpdateComponentCommand(repository, propertyRepository, components, mapper, componentMapper);
         return commandManager.execute(command);
     }
 
