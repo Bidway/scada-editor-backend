@@ -80,8 +80,10 @@ public class GenericUndoHandler implements UndoHandler {
                     entityType,
                     log.getEntityId(),
                     action,
+                    null,
+                    null,
                     mapper.valueToTree(result),
-                    log.getPayload(), // обратное undoPayload
+                    log.getPayload(),
                     result
             );
 

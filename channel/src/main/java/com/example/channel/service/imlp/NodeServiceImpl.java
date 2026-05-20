@@ -1,6 +1,7 @@
 package com.example.channel.service.imlp;
 
 import com.example.channel.command.CrudCommand;
+import com.example.channel.config.command.CommandBatch;
 import com.example.channel.config.command.CommandManager;
 import com.example.channel.config.command.CommandResult;
 import com.example.channel.dto.KeyValue;
@@ -22,9 +23,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,6 +43,7 @@ public class NodeServiceImpl implements NodeService {
     public CreateNodeResponse createNode(CreateNodeDto createNodeDTO, String userName) {
 
         Node node = nodeMapper.toEntity(createNodeDTO);
+        CommandBatch batch = CommandBatch.start();
 
         CrudCommand<Node> nodeCommand = new CrudCommand<>(
                 userName,
@@ -51,13 +52,15 @@ public class NodeServiceImpl implements NodeService {
                 mapper,
                 node,
                 null,
-                Node::getId
+                Node::getId,
+                batch
         );
 
         CommandResult<Node> nodeResult = commandManager.execute(nodeCommand);
         Node savedNode = nodeResult.getResult();
 
         CreateNodeResponse response = new CreateNodeResponse();
+        response.setBatchId(batch.getBatchId());
         response.setNodeDTO(nodeMapper.toDto(savedNode));
 
         List<Long> paramIds = templateRepository
@@ -84,7 +87,8 @@ public class NodeServiceImpl implements NodeService {
                     mapper,
                     nodeParam,
                     null,
-                    NodeParam::getId
+                    NodeParam::getId,
+                    batch
             );
 
             CommandResult<NodeParam> paramResult = commandManager.execute(paramCommand);
@@ -97,13 +101,15 @@ public class NodeServiceImpl implements NodeService {
     }
 
     @Transactional
-    public void deleteNodeByIdNode(String idNode,  String userName) {
+    public UUID deleteNodeByIdNode(String idNode, String userName) {
 
         Node node = nodeRepository.findByIdNode(idNode)
                 .orElseThrow(() -> new IllegalArgumentException("Node not found: " + idNode));
 
         List<NodeParam> params = paramRepository.findByIdNode(node.getIdNode())
                 .orElse(Collections.emptyList());
+
+        CommandBatch batch = CommandBatch.start();
 
         for (NodeParam param : params) {
 
@@ -114,7 +120,8 @@ public class NodeServiceImpl implements NodeService {
                     mapper,
                     param,
                     null,
-                    NodeParam::getId
+                    NodeParam::getId,
+                    batch
             );
 
             commandManager.execute(deleteParamCmd);
@@ -127,10 +134,12 @@ public class NodeServiceImpl implements NodeService {
                 mapper,
                 node,
                 null,
-                Node::getId
+                Node::getId,
+                batch
         );
 
         commandManager.execute(deleteNodeCmd);
+        return batch.getBatchId();
     }
 
     @Override

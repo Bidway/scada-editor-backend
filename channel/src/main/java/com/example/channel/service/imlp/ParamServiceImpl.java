@@ -1,6 +1,7 @@
 package com.example.channel.service.imlp;
 
 import com.example.channel.command.CrudCommand;
+import com.example.channel.config.command.CommandBatch;
 import com.example.channel.config.command.CommandManager;
 import com.example.channel.dto.paramDto.CreateParamDto;
 import com.example.channel.dto.KeyValue;
@@ -88,6 +89,8 @@ public class ParamServiceImpl implements ParamService {
     @Transactional
     public ResponseEntity<Void> updateParams(List<KeyValue> keyValues, String userName) {
 
+        CommandBatch batch = keyValues.size() > 1 ? CommandBatch.start() : null;
+
         for (KeyValue kv : keyValues) {
 
             NodeParam param = paramRepository.findById(kv.getKey())
@@ -109,7 +112,8 @@ public class ParamServiceImpl implements ParamService {
                     mapper,
                     param,
                     beforeUpdate,
-                    NodeParam::getId
+                    NodeParam::getId,
+                    batch
             );
 
             NodeParam updated = commandManager.execute(cmd).getResult();

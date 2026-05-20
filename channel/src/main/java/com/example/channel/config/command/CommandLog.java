@@ -7,6 +7,7 @@ import lombok.Data;
 import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "command_log", schema = "channel")
@@ -21,6 +22,14 @@ public class CommandLog {
     private String entityType;
     private Long entityId;
     private String commandType;
+
+    @Column(name = "batch_id")
+    private UUID batchId;
+
+    private Integer sequence;
+
+    @Column(name = "undone_at")
+    private LocalDateTime undoneAt;
 
 
     @Type(JsonType.class)
@@ -39,6 +48,8 @@ public class CommandLog {
         log.entityType = r.getEntityType();
         log.entityId = r.getEntityId();
         log.commandType = r.getCommandType();
+        log.batchId = r.getBatchId();
+        log.sequence = r.getSequence();
         log.payload = r.getPayload();
         log.undoPayload = r.getUndoPayload();
         return log;
@@ -46,7 +57,15 @@ public class CommandLog {
 
     public CommandResult toResult() {
         return new CommandResult(
-                userName, entityType, entityId, commandType, payload, undoPayload, null
+                userName,
+                entityType,
+                entityId,
+                commandType,
+                batchId,
+                sequence,
+                payload,
+                undoPayload,
+                null
         );
     }
 }

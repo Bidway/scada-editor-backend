@@ -1,5 +1,6 @@
 package com.example.channel.controller;
 
+import com.example.channel.dto.UndoBatchDto;
 import com.example.channel.dto.nodeDto.CreateNodeDto;
 import com.example.channel.dto.nodeDto.CreateNodeResponse;
 import com.example.channel.dto.nodeDto.NodeResponse;
@@ -25,10 +26,11 @@ public class NodeController {
         return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/{idNode}")
-    public ResponseEntity<Void> deleteNode(@PathVariable String idNode,
-                                           @RequestHeader("X-Username") String userName) {
-        nodeService.deleteNodeByIdNode(idNode, userName);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<UndoBatchDto> deleteNode(
+            @PathVariable String idNode,
+            @RequestHeader("X-Username") String userName
+    ) {
+        return ResponseEntity.ok(new UndoBatchDto(nodeService.deleteNodeByIdNode(idNode, userName)));
     }
 
     @PostMapping("")
