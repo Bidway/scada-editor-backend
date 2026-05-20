@@ -17,4 +17,6 @@ public class ComponentResponseDto {
     private List<ComponentStateResponseDto> states;
     private List<ComponentResponseDto> children;
     private List<PropertyResponseDto> properties;
+    private List<ScriptResponseDto> scripts;
+    private List<BindingResponseDto> bindings;
 }

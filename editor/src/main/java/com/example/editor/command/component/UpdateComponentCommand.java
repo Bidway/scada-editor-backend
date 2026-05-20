@@ -7,6 +7,7 @@ import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentState;
+import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +21,7 @@ import java.util.stream.Stream;
 public class UpdateComponentCommand implements Command<List<ComponentResponseDto>> {
 
     private final ComponentRepository repository;
+    private final ComponentPropertyRepository propertyRepository;
     private final List<ComponentCreateDto> dtos;
     private final ObjectMapper mapper;
     private final ComponentMapper componentMapper;
@@ -131,6 +133,8 @@ public class UpdateComponentCommand implements Command<List<ComponentResponseDto
 
         entity.getChildren().clear();
         entity.getChildren().addAll(children);
+
+        ComponentScriptBindingApplier.apply(entity, dto, propertyRepository);
 
         return entity;
     }
