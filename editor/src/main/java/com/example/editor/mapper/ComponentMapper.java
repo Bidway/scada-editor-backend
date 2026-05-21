@@ -11,13 +11,15 @@ import org.mapstruct.*;
 import java.util.List;
 
 @Mapper(componentModel = "spring",
-        uses = ComponentPropertyMapper.class)
+        uses = {ComponentPropertyMapper.class, ScriptMapper.class, BindingMapper.class})
 public interface ComponentMapper {
     ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Named("mainToDto")
     @Mapping(target = "parent_id", source = "parent.id")
     @Mapping(target = "properties", source = "properties")
+    @Mapping(target = "scripts", source = "scripts")
+    @Mapping(target = "bindings", source = "bindings")
     ComponentResponseDto toDto(Component entity);
 
     @Mapping(target = "parent_key", source = "parent.id")
