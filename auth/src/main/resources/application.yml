@@ -4,8 +4,10 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/savushkin
-    username: postgres
-    password: postgres
+#    username: postgres
+#    password: postgres
+    username: scada_user
+    password: scada123456
 
   jpa:
     hibernate:
