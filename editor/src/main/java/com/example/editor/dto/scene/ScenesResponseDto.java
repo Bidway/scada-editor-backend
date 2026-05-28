@@ -4,8 +4,8 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
 @Data
-@RequiredArgsConstructor
 public class ScenesResponseDto {
     private long id;
     private String name;
+    private Long project_id;
 }

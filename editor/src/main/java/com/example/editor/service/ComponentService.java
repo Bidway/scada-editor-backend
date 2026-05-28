@@ -4,6 +4,9 @@ package com.example.editor.service;
 
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
+import com.example.editor.dto.project.ProjectCreateDto;
+import com.example.editor.dto.project.ProjectCreateResponseDto;
+import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
@@ -15,9 +18,13 @@ public interface ComponentService {
 
     List<ComponentResponseDto> create(List<ComponentCreateDto> component);
 
+    ProjectCreateResponseDto createProject(ProjectCreateDto project);
+
+    List<ProjectsResponseDto> getProjects();
+
     SceneCreateResponseDto createScene(SceneCreateDto scene);
 
-    List<ScenesResponseDto> getScenes();
+    List<ScenesResponseDto> getScenes(Long projectId);
 
     List<ComponentResponseDto> update(List<ComponentCreateDto> components);
 

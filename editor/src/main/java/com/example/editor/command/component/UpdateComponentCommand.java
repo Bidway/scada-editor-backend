@@ -7,6 +7,7 @@ import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentState;
+import com.example.editor.model.component.ComponentTypes;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -71,6 +72,8 @@ public class UpdateComponentCommand implements Command<List<ComponentResponseDto
                     ));
         }
 
+        ComponentHierarchyValidator.validateParentForCreate(parent, dto.getType());
+
         return mapRecursive(dto, entity, parent);
     }
 
@@ -79,6 +82,10 @@ public class UpdateComponentCommand implements Command<List<ComponentResponseDto
         // 🔹 обновляем поля
         entity.setName(dto.getName());
         entity.setType(dto.getType());
+        if (ComponentTypes.PROJECT.equals(dto.getType()) || ComponentTypes.SCENE.equals(dto.getType())) {
+            throw new IllegalStateException(
+                    "Use dedicated endpoints to create or move projects and scenes");
+        }
         entity.setVersion(dto.getVersion());
         entity.setParent(parent);
 
