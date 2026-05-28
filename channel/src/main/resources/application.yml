@@ -4,8 +4,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/savushkin
-    username: scada_user
-    password: scada123456
+    username: postgres
+    password: postgres
 #    username: scada_user
 #    password: scada123456
 

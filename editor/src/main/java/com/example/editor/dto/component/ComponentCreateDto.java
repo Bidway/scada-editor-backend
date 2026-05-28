@@ -1,6 +1,5 @@
 package com.example.editor.dto.component;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -24,7 +23,7 @@ public class ComponentCreateDto {
     private List<СomponentStateDto> states;//
 
     /** Именованные скрипты компонента (onClick, onTimer, init и т.д.). */
-    private List<ScriptPayloadDto> scripts;
+    private List<ScriptCreateDto> scripts;
 
     /**
      * Привязки свойств к выражениям. {@code component_property_id} должен ссылаться на свойство
