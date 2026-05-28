@@ -13,4 +13,8 @@ public interface ComponentRepository extends JpaRepository<Component, Long> {
     List<Component> findByParentId(Long parentId);
 
     List<Component> findByType(String type);
+
+    List<Component> findByParentIsNullAndType(String type);
+
+    List<Component> findByParentIdAndType(Long parentId, String type);
 }

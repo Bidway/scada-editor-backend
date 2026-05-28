@@ -1,6 +1,8 @@
 package com.example.editor.mapper;
 
 import com.example.editor.dto.component.ComponentResponseDto;
+import com.example.editor.dto.project.ProjectCreateResponseDto;
+import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
 import com.example.editor.model.component.Component;
@@ -25,10 +27,20 @@ public interface ComponentMapper {
     @Mapping(target = "parent_key", source = "parent.id")
     SceneCreateResponseDto toSceneCreateDto(Component entity);
 
+    @Mapping(target = "parent_id", source = "parent.id")
+    ProjectCreateResponseDto toProjectCreateDto(Component entity);
+
     @IterableMapping(qualifiedByName = "mainToDto")
     List<ComponentResponseDto> toDtoList(List<Component> entities);
 
+    @Mapping(target = "project_id", source = "parent.id")
+    ScenesResponseDto toScenesDto(Component entity);
+
     List<ScenesResponseDto> toScenesDtoList(List<Component> entities);
+
+    ProjectsResponseDto toProjectsDto(Component entity);
+
+    List<ProjectsResponseDto> toProjectsDtoList(List<Component> entities);
 
     @AfterMapping
     default void mapChildren(Component entity,

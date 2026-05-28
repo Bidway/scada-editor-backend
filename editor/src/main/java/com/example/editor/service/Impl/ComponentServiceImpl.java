@@ -2,9 +2,14 @@ package com.example.editor.service.Impl;
 
 import com.example.editor.config.command.CommandManager;
 import com.example.editor.command.component.CreateComponentCommand;
+import com.example.editor.command.component.CreateProjectCommand;
 import com.example.editor.command.component.CreateSceneCommand;
 import com.example.editor.command.component.DeleteComponentCommand;
 import com.example.editor.command.component.UpdateComponentCommand;
+import com.example.editor.model.component.ComponentTypes;
+import com.example.editor.dto.project.ProjectCreateDto;
+import com.example.editor.dto.project.ProjectCreateResponseDto;
+import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
@@ -38,16 +43,32 @@ public class ComponentServiceImpl implements ComponentService {
         return commandManager.execute(command);
     }
     @Override
-    public SceneCreateResponseDto createScene(SceneCreateDto scene) {
-        CreateSceneCommand command =
-                new CreateSceneCommand(repository, scene, mapper,componentMapper);
+    public ProjectCreateResponseDto createProject(ProjectCreateDto project) {
+        CreateProjectCommand command =
+                new CreateProjectCommand(repository, project, mapper, componentMapper);
         return commandManager.execute(command);
     }
 
     @Override
-    public List<ScenesResponseDto> getScenes() {
+    public List<ProjectsResponseDto> getProjects() {
+        return componentMapper.toProjectsDtoList(
+                repository.findByParentIsNullAndType(ComponentTypes.PROJECT));
+    }
 
-        return componentMapper.toScenesDtoList(repository.findByType("scene"));
+    @Override
+    public SceneCreateResponseDto createScene(SceneCreateDto scene) {
+        CreateSceneCommand command =
+                new CreateSceneCommand(repository, scene, mapper, componentMapper);
+        return commandManager.execute(command);
+    }
+
+    @Override
+    public List<ScenesResponseDto> getScenes(Long projectId) {
+        if (projectId != null) {
+            return componentMapper.toScenesDtoList(
+                    repository.findByParentIdAndType(projectId, ComponentTypes.SCENE));
+        }
+        return componentMapper.toScenesDtoList(repository.findByType(ComponentTypes.SCENE));
     }
 
     @Override
