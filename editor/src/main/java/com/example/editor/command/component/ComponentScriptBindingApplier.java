@@ -2,7 +2,7 @@ package com.example.editor.command.component;
 
 import com.example.editor.dto.component.BindingPayloadDto;
 import com.example.editor.dto.component.ComponentCreateDto;
-import com.example.editor.dto.component.ScriptPayloadDto;
+import com.example.editor.dto.component.ScriptCreateDto;
 import com.example.editor.model.component.Binding;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentProperty;
@@ -23,7 +23,7 @@ public class ComponentScriptBindingApplier {
     ) {
         entity.getScripts().clear();
         if (dto.getScripts() != null) {
-            for (ScriptPayloadDto s : dto.getScripts()) {
+            for (ScriptCreateDto s : dto.getScripts()) {
                 if (s.getName() == null || s.getName().isBlank()) {
                     throw new IllegalStateException("Script name is required");
                 }

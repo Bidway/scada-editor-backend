@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 public class PropertyResponseDto {
     private Long id;
+    private String name;
     private Long component_id;
     private String property_type;
     private String tag_id;

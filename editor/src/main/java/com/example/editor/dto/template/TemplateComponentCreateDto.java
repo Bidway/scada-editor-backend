@@ -1,7 +1,8 @@
 package com.example.editor.dto.template;
 
+import com.example.editor.dto.component.ScriptCreateDto;
 import com.example.editor.dto.component.СomponentStateDto;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.example.editor.dto.property.PropertyCreateDto;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -15,4 +16,6 @@ public class TemplateComponentCreateDto {
     private String parent_key;
     private List<TemplateComponentCreateDto> children = new ArrayList<>();
     private List<СomponentStateDto> states;
+    private List<PropertyCreateDto> properties;
+    private List<ScriptCreateDto> scripts;
 }

@@ -1,4 +1,9 @@
 package com.example.editor.repository.template;
 
-public interface TemplateScriptRepository {
+import com.example.editor.model.template.TemplateScript;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface TemplateScriptRepository extends JpaRepository<TemplateScript, Long> {
 }

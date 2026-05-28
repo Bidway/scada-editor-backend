@@ -1,6 +1,5 @@
 package com.example.editor.model.template;
 
-import com.example.editor.model.component.ComponentState;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -35,6 +34,12 @@ public class TemplateComponent {
             orphanRemoval = true
     )
     private List<TemplateComponentState> states = new ArrayList<>();
+
+    @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TemplateScript> scripts = new ArrayList<>();
+
+    @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TemplateComponentProperty> properties = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id", nullable = false)
