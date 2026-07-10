@@ -1,7 +1,7 @@
 package com.example.editor.dto.template;
 
 import com.example.editor.dto.component.ScriptCreateDto;
-import com.example.editor.dto.component.СomponentStateDto;
+import com.example.editor.dto.component.ComponentStateDto;
 import com.example.editor.dto.property.PropertyCreateDto;
 import lombok.Data;
 
@@ -15,7 +15,7 @@ public class TemplateComponentCreateDto {
     private String name;
     private String parent_key;
     private List<TemplateComponentCreateDto> children = new ArrayList<>();
-    private List<СomponentStateDto> states;
+    private List<ComponentStateDto> states;
     private List<PropertyCreateDto> properties;
     private List<ScriptCreateDto> scripts;
 }

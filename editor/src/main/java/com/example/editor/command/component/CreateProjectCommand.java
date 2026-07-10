@@ -22,6 +22,7 @@ public class CreateProjectCommand implements Command<ProjectCreateResponseDto> {
     private final ProjectCreateDto dto;
     private final ObjectMapper mapper;
     private final ComponentMapper componentMapper;
+    private final String userName;
 
     @Override
     public CommandResult<ProjectCreateResponseDto> execute() {
@@ -44,7 +45,7 @@ public class CreateProjectCommand implements Command<ProjectCreateResponseDto> {
         JsonNode undoPayload = mapper.valueToTree(Map.of("id", saved.getId()));
 
         return new CommandResult<>(
-                "david",
+                userName,
                 "component",
                 saved.getId(),
                 "CREATE_PROJECT",

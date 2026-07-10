@@ -18,6 +18,7 @@ public class CreateTemplateCommand implements Command<TemplateResponseDto> {
     private final TemplateComponentRepository componentRepository;
     private final TemplateComponentMapper componentMapper;
     private final TemplateCreateDto dto;
+    private final String userName;
 
     @Override
     public CommandResult<TemplateResponseDto> execute() {
@@ -42,7 +43,7 @@ public class CreateTemplateCommand implements Command<TemplateResponseDto> {
         response.setRootComponent(componentMapper.toDtoTree(rootComponent));
 
         return new CommandResult<>(
-                "david",
+                userName,
                 "template",
                 template.getId(),
                 "CREATE_TEMPLATE",

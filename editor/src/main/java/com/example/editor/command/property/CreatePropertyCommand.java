@@ -18,8 +18,8 @@ public class CreatePropertyCommand implements Command<PropertyResponseDto> {
     private final ComponentPropertyRepository repository;
     private final ComponentPropertyMapper mapper;
     private final ObjectMapper objectMapper;
-
     private final ComponentProperty property;
+    private final String userName;
 
     @Override
     public CommandResult<PropertyResponseDto> execute() {
@@ -38,7 +38,7 @@ public class CreatePropertyCommand implements Command<PropertyResponseDto> {
         );
 
         return new CommandResult<>(
-                "david",
+                userName,
                 "component_property",
                 saved.getId(),
                 "CREATE_PROPERTY",
