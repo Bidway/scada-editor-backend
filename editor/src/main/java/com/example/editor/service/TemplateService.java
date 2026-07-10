@@ -3,13 +3,13 @@ package com.example.editor.service;
 import com.example.editor.command.template.CreateTemplateCommand;
 import com.example.editor.command.template.DeleteTemplateCommand;
 import com.example.editor.command.template.UpdateTemplateCommand;
+import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.template.TemplateCreateDto;
 import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
 import com.example.editor.model.template.TemplateFacePlate;
 import com.example.editor.repository.template.TemplateFacePlateRepository;
 import com.example.editor.repository.template.TemplateComponentRepository;
-import com.example.editor.config.command.CommandResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,42 +23,35 @@ public class TemplateService {
     private final TemplateFacePlateRepository templateRepository;
     private final TemplateComponentRepository componentRepository;
     private final TemplateComponentMapper componentMapper;
+    private final CommandManager commandManager;
 
-    // Создание шаблона
-    public TemplateResponseDto createTemplate(TemplateCreateDto dto) {
+    public TemplateResponseDto createTemplate(TemplateCreateDto dto, String userName) {
         CreateTemplateCommand command = new CreateTemplateCommand(
-                templateRepository, componentRepository, componentMapper, dto
+                templateRepository, componentRepository, componentMapper, dto, userName
         );
-        CommandResult<TemplateResponseDto> result = command.execute();
-        return result.getResult();
+        return commandManager.execute(command);
     }
 
-    // Обновление шаблона
-    public TemplateResponseDto updateTemplate(Long templateId, TemplateCreateDto dto) {
+    public TemplateResponseDto updateTemplate(Long templateId, TemplateCreateDto dto, String userName) {
         UpdateTemplateCommand command = new UpdateTemplateCommand(
-                templateRepository, componentRepository, componentMapper, templateId, dto
+                templateRepository, componentRepository, componentMapper, templateId, dto, userName
         );
-        CommandResult<TemplateResponseDto> result = command.execute();
-        return result.getResult();
+        return commandManager.execute(command);
     }
 
-    // Удаление шаблона
-    public void deleteTemplate(Long templateId) {
-        DeleteTemplateCommand command = new DeleteTemplateCommand(templateRepository, templateId);
-        command.execute();
+    public void deleteTemplate(Long templateId, String userName) {
+        DeleteTemplateCommand command = new DeleteTemplateCommand(templateRepository, templateId, userName);
+        commandManager.execute(command);
     }
 
-    // Получение всех шаблонов
     public List<TemplateResponseDto> getAllTemplates() {
         List<TemplateFacePlate> templates = templateRepository.findAll();
-
         return templates.stream()
                 .map(template -> {
                     TemplateResponseDto dto = new TemplateResponseDto();
                     dto.setId(template.getId());
                     dto.setName(template.getName());
                     dto.setType(template.getType());
-
                     if (template.getRootComponent() != null) {
                         dto.setRootComponent(componentMapper.toDtoTree(template.getRootComponent()));
                     }
@@ -67,7 +60,6 @@ public class TemplateService {
                 .collect(Collectors.toList());
     }
 
-    // Получение одного шаблона по id
     public TemplateResponseDto getTemplateById(Long templateId) {
         TemplateFacePlate template = templateRepository.findById(templateId)
                 .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId));

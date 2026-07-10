@@ -5,6 +5,9 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/auth.main.iml" filepath="$PROJECT_DIR$/.idea/modules/auth.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/channel.main.iml" filepath="$PROJECT_DIR$/.idea/modules/channel.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/editor.main.iml" filepath="$PROJECT_DIR$/.idea/modules/editor.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/auth/scada-editor-backend.auth.main.iml" filepath="$PROJECT_DIR$/.idea/modules/auth/scada-editor-backend.auth.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/channel/scada-editor-backend.channel.main.iml" filepath="$PROJECT_DIR$/.idea/modules/channel/scada-editor-backend.channel.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/editor/scada-editor-backend.editor.main.iml" filepath="$PROJECT_DIR$/.idea/modules/editor/scada-editor-backend.editor.main.iml" />
     </modules>
   </component>
 </project>

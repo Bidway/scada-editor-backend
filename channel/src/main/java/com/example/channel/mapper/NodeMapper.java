@@ -9,6 +9,8 @@ import com.example.channel.model.NodeParam;
 import org.mapstruct.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring",
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -17,6 +19,7 @@ public interface NodeMapper {
 
 
     @Mapping(target = "idNode", ignore = true)
+    @Mapping(target = "id", ignore = true)
     Node toEntity(CreateNodeDto dto);
 
     @AfterMapping
@@ -26,16 +29,6 @@ public interface NodeMapper {
         } else {
             node.setIdNode(dto.getParentId() + "." + dto.getIdNode());
         }
-    }
-
-    @Named("setIdNode")
-    default String setIdNode(String idNode, String parentKey) {
-        if (idNode == null || !idNode.contains(".")) {
-            return null;
-        }
-        if (parentKey == null)
-            return idNode;
-        return (parentKey+"+"+idNode);
     }
 
 
@@ -50,11 +43,12 @@ public interface NodeMapper {
             NodeParam param,
             List<Description> descriptions
     ) {
-        int index = param.getIdType().intValue() - 1;
-
-        if (index >= 0 && index < descriptions.size()) {
-            dto.setName(descriptions.get(index).getName());
-            dto.setType(descriptions.get(index).getType());
+        Map<Long, Description> descMap = descriptions.stream()
+                .collect(Collectors.toMap(Description::getId, d -> d));
+        Description desc = descMap.get(param.getIdType());
+        if (desc != null) {
+            dto.setName(desc.getName());
+            dto.setType(desc.getType());
         }
     }
 

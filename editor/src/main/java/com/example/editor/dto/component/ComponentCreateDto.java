@@ -15,7 +15,7 @@ public class ComponentCreateDto {
     private String type;
     private String parent_key;
     private Long parent_id;
-    private List<СomponentStateDto> states;
+    private List<ComponentStateDto> states;
     private List<ScriptCreateDto> scripts;
     private List<BindingPayloadDto> bindings;
 }

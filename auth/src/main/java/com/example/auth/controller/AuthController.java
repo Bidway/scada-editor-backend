@@ -43,16 +43,15 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginDto dto) {
-        User u = repo.findByLogin(dto.login())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User u = repo.findByLogin(dto.login()).orElse(null);
 
-        if (!encoder.matches(dto.password(), u.getPassword())) {
-            return ResponseEntity.status(401).body("Incorrect password");
+        if (u == null || !encoder.matches(dto.password(), u.getPassword())) {
+            return ResponseEntity.status(401).body("Invalid credentials");
         }
 
         String token = jwtService.generateToken(u.getLogin(), u.getId());
 
-        return ResponseEntity.ok(new TokenResponse(token,"Logged in successfully"));
+        return ResponseEntity.ok(new TokenResponse(token, "Logged in successfully"));
     }
 }
 

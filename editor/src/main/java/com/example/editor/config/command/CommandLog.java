@@ -1,14 +1,13 @@
 package com.example.editor.config.command;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.Type;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "command_log", schema = "editor")
@@ -24,34 +23,34 @@ public class CommandLog {
     private Long entityId;
     private String commandType;
 
+    @Column(name = "batch_id")
+    private UUID batchId;
 
-//    @Type(JsonType.class)
+    private Integer sequence;
+
+    @Column(name = "undone_at")
+    private LocalDateTime undoneAt;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private JsonNode payload;
 
-//    @Type(JsonType.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private JsonNode undoPayload;
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    public static CommandLog from(CommandResult r) {
+    public static CommandLog from(CommandResult<?> r) {
         CommandLog log = new CommandLog();
         log.userName = r.getUserName();
         log.entityType = r.getEntityType();
         log.entityId = r.getEntityId();
         log.commandType = r.getCommandType();
+        log.batchId = r.getBatchId();
+        log.sequence = r.getSequence();
         log.payload = r.getPayload();
         log.undoPayload = r.getUndoPayload();
         return log;
     }
-
-    public CommandResult toResult() {
-        return new CommandResult(
-                userName, entityType, entityId, commandType, payload, undoPayload, null
-        );
-    }
 }
-

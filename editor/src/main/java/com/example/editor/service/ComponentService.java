@@ -1,7 +1,5 @@
 package com.example.editor.service;
 
-
-
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.dto.project.ProjectCreateDto;
@@ -16,19 +14,19 @@ import java.util.List;
 
 public interface ComponentService {
 
-    List<ComponentResponseDto> create(List<ComponentCreateDto> component);
+    List<ComponentResponseDto> create(List<ComponentCreateDto> components, String userName);
 
-    ProjectCreateResponseDto createProject(ProjectCreateDto project);
+    ProjectCreateResponseDto createProject(ProjectCreateDto project, String userName);
 
     List<ProjectsResponseDto> getProjects();
 
-    SceneCreateResponseDto createScene(SceneCreateDto scene);
+    SceneCreateResponseDto createScene(SceneCreateDto scene, String userName);
 
     List<ScenesResponseDto> getScenes(Long projectId);
 
-    List<ComponentResponseDto> update(List<ComponentCreateDto> components);
+    List<ComponentResponseDto> update(List<ComponentCreateDto> components, String userName);
 
-    void delete(List<Long> ids);
+    void delete(List<Long> ids, String userName);
 
     ComponentResponseDto getById(Long id);
 

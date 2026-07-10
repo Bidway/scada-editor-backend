@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface DescriptionRepository extends JpaRepository<Description, Long> {
@@ -13,5 +14,5 @@ public interface DescriptionRepository extends JpaRepository<Description, Long> 
     List<Description> findAll();
 
     Description findByName(String name);
-    Description findById(long id);
+    Optional<Description> findById(long id);
 }

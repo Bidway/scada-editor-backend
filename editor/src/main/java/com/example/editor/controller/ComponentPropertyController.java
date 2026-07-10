@@ -14,19 +14,24 @@ public class ComponentPropertyController {
     private final ComponentPropertyService service;
 
     @PostMapping
-    public PropertyResponseDto create(@RequestBody PropertyCreateDto property) {
-        return service.create(property);
+    public PropertyResponseDto create(
+            @RequestBody PropertyCreateDto property,
+            @RequestHeader("X-Username") String userName) {
+        return service.create(property, userName);
     }
 
     @PutMapping("/{id}")
     public PropertyResponseDto update(
             @PathVariable Long id,
-            @RequestBody PropertyCreateDto property) {
-        return service.update(id, property);
+            @RequestBody PropertyCreateDto property,
+            @RequestHeader("X-Username") String userName) {
+        return service.update(id, property, userName);
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
-        service.delete(id);
+    public void delete(
+            @PathVariable Long id,
+            @RequestHeader("X-Username") String userName) {
+        service.delete(id, userName);
     }
 }

@@ -24,34 +24,23 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public PropertyResponseDto create(PropertyCreateDto dto) {
-
+    public PropertyResponseDto create(PropertyCreateDto dto, String userName) {
         ComponentProperty entity = mapper.toEntity(dto);
-
         CreatePropertyCommand command =
-                new CreatePropertyCommand(repository, mapper, objectMapper, entity);
-
+                new CreatePropertyCommand(repository, mapper, objectMapper, entity, userName);
         return commandManager.execute(command);
     }
 
     @Override
-    public PropertyResponseDto update(Long id, PropertyCreateDto dto) {
-
-//        ComponentProperty entity = mapper.toEntity(dto);
-
+    public PropertyResponseDto update(Long id, PropertyCreateDto dto, String userName) {
         UpdatePropertyCommand command =
-                new UpdatePropertyCommand(repository, mapper, objectMapper, id, dto);
-
+                new UpdatePropertyCommand(repository, mapper, objectMapper, id, dto, userName);
         return commandManager.execute(command);
     }
 
     @Override
-    public void delete(Long id) {
-
-        DeletePropertyCommand command =
-                new DeletePropertyCommand(repository, id);
-
+    public void delete(Long id, String userName) {
+        DeletePropertyCommand command = new DeletePropertyCommand(repository, id, userName, objectMapper);
         commandManager.execute(command);
     }
-
 }

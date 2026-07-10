@@ -19,9 +19,9 @@ public class UpdatePropertyCommand implements Command<PropertyResponseDto> {
     private final ComponentPropertyRepository repository;
     private final ComponentPropertyMapper mapper;
     private final ObjectMapper objectMapper;
-
     private final Long id;
     private final PropertyCreateDto dto;
+    private final String userName;
 
     @Override
     public CommandResult<PropertyResponseDto> execute() {
@@ -47,7 +47,7 @@ public class UpdatePropertyCommand implements Command<PropertyResponseDto> {
         );
 
         return new CommandResult<>(
-                "david",
+                userName,
                 "component_property",
                 saved.getId(),
                 "UPDATE_PROPERTY",

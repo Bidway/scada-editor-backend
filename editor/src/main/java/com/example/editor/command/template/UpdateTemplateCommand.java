@@ -19,6 +19,7 @@ public class UpdateTemplateCommand implements Command<TemplateResponseDto> {
     private final TemplateComponentMapper componentMapper;
     private final Long templateId;
     private final TemplateCreateDto dto;
+    private final String userName;
 
     @Override
     public CommandResult<TemplateResponseDto> execute() {
@@ -44,6 +45,6 @@ public class UpdateTemplateCommand implements Command<TemplateResponseDto> {
         response.setType(template.getType());
         response.setRootComponent(componentMapper.toDtoTree(rootComponent));
 
-        return new CommandResult<>("david", "template", 1L, "UPDATE_TEMPLATE", null, null, response);
+        return new CommandResult<>(userName, "template", template.getId(), "UPDATE_TEMPLATE", null, null, response);
     }
 }

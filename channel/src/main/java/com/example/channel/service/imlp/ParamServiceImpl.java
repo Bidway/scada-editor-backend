@@ -1,6 +1,8 @@
 package com.example.channel.service.imlp;
 
-import com.example.channel.command.CrudCommand;
+import com.example.channel.command.CreateParamCommand;
+import com.example.channel.command.DeleteParamCommand;
+import com.example.channel.command.UpdateParamCommand;
 import com.example.channel.config.command.CommandBatch;
 import com.example.channel.config.command.CommandManager;
 import com.example.channel.dto.paramDto.CreateParamDto;
@@ -40,88 +42,54 @@ public class ParamServiceImpl implements ParamService {
 
     @Override
     public void deleteParamById(Long id, String userName) {
-
         NodeParam param = paramRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Param not found: " + id));
 
-        CrudCommand<NodeParam> cmd = new CrudCommand<>(
-                userName,
-                CrudCommand.Action.DELETE,
-                paramRepository,
-                mapper,
-                param,
-                null,
-                NodeParam::getId
-        );
-
-        commandManager.execute(cmd);
+        commandManager.execute(new DeleteParamCommand(paramRepository, param, mapper, userName, null));
     }
 
     @Override
-    public ParamDto createParam(CreateParamDto dto,String userName) {
-
+    public ParamDto createParam(CreateParamDto dto, String userName) {
         Node node = nodeRepository.findByIdNode(dto.getIdNode())
                 .orElseThrow(() -> new RuntimeException("Node not found"));
 
+        Description description = descriptionRepository.findById(dto.getId())
+                .orElseThrow(() -> new RuntimeException("Description not found: " + dto.getId()));
         NodeParam param = new NodeParam();
         param.setIdNode(node.getIdNode());
-        param.setIdType(descriptionRepository.findById(dto.getId()).getId());
+        param.setIdType(description.getId());
         param.setValue(dto.getValue());
 
-        CrudCommand<NodeParam> cmd = new CrudCommand<>(
-                userName,
-                CrudCommand.Action.CREATE,
-                paramRepository,
-                mapper,
-                param,
-                null,
-                NodeParam::getId
-        );
-
-        NodeParam saved = commandManager.execute(cmd).getResult();
+        NodeParam saved = commandManager.execute(
+                new CreateParamCommand(paramRepository, param, mapper, userName, null)
+        ).getResult();
 
         List<Description> descriptions = descriptionRepository.findAll();
-
         return nodeMapper.toDto(saved, descriptions);
     }
 
     @Override
     @Transactional
     public ResponseEntity<Void> updateParams(List<KeyValue> keyValues, String userName) {
-
         CommandBatch batch = keyValues.size() > 1 ? CommandBatch.start() : null;
 
         for (KeyValue kv : keyValues) {
-
             NodeParam param = paramRepository.findById(kv.getKey())
                     .orElseThrow(() -> new RuntimeException("Param not found"));
 
-            // копия состояния для undo
-            NodeParam beforeUpdate = new NodeParam();
-            beforeUpdate.setId(param.getId());
-            beforeUpdate.setIdNode(param.getIdNode());
-            beforeUpdate.setIdType(param.getIdType());
-            beforeUpdate.setValue(param.getValue());
+            NodeParam before = new NodeParam();
+            before.setId(param.getId());
+            before.setIdNode(param.getIdNode());
+            before.setIdType(param.getIdType());
+            before.setValue(param.getValue());
 
             param.setValue(kv.getValue());
 
-            CrudCommand<NodeParam> cmd = new CrudCommand<>(
-                    userName,
-                    CrudCommand.Action.UPDATE,
-                    paramRepository,
-                    mapper,
-                    param,
-                    beforeUpdate,
-                    NodeParam::getId,
-                    batch
-            );
+            NodeParam updated = commandManager.execute(
+                    new UpdateParamCommand(paramRepository, before, param, mapper, userName, batch)
+            ).getResult();
 
-            NodeParam updated = commandManager.execute(cmd).getResult();
-
-            messagingTemplate.convertAndSend(
-                    "/topic/param/" + updated.getId(),
-                    updated.getValue()
-            );
+            messagingTemplate.convertAndSend("/topic/param/" + updated.getId(), updated.getValue());
         }
 
         return ResponseEntity.ok().build();
@@ -129,7 +97,6 @@ public class ParamServiceImpl implements ParamService {
 
     @Override
     public DescriptionResponse getDescriptions() {
-
         DescriptionResponse response = new DescriptionResponse();
         response.setDescriptions(descriptionRepository.findAll());
         return response;

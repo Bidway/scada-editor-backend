@@ -3,20 +3,33 @@ package com.example.editor.command.component;
 import com.example.editor.config.command.Command;
 import com.example.editor.config.command.CommandResult;
 import com.example.editor.repository.component.ComponentRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @RequiredArgsConstructor
 public class DeleteComponentCommand implements Command<Void> {
 
     private final ComponentRepository repository;
     private final List<Long> ids;
-
+    private final String userName;
+    private final ObjectMapper mapper;
 
     @Override
     public CommandResult<Void> execute() {
-        ids.stream().forEach(id -> repository.deleteById(id));
-        return null;
+        ids.forEach(repository::deleteById);
+        JsonNode idsPayload = mapper.valueToTree(Map.of("ids", ids));
+        return new CommandResult<>(
+                userName,
+                "component",
+                null,
+                "DELETE_COMPONENT",
+                idsPayload,
+                idsPayload,
+                null
+        );
     }
 }

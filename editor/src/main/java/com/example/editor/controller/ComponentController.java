@@ -23,12 +23,17 @@ public class ComponentController {
     private final ComponentService service;
 
     @PostMapping
-    public List<ComponentResponseDto> create(@RequestBody List<ComponentCreateDto> components) {
-        return service.create(components);
+    public List<ComponentResponseDto> create(
+            @RequestBody List<ComponentCreateDto> components,
+            @RequestHeader("X-Username") String userName) {
+        return service.create(components, userName);
     }
+
     @PostMapping("/project")
-    public ProjectCreateResponseDto createProject(@RequestBody ProjectCreateDto project) {
-        return service.createProject(project);
+    public ProjectCreateResponseDto createProject(
+            @RequestBody ProjectCreateDto project,
+            @RequestHeader("X-Username") String userName) {
+        return service.createProject(project, userName);
     }
 
     @GetMapping("/projects")
@@ -37,8 +42,10 @@ public class ComponentController {
     }
 
     @PostMapping("/scene")
-    public SceneCreateResponseDto createScene(@RequestBody SceneCreateDto scene) {
-        return service.createScene(scene);
+    public SceneCreateResponseDto createScene(
+            @RequestBody SceneCreateDto scene,
+            @RequestHeader("X-Username") String userName) {
+        return service.createScene(scene, userName);
     }
 
     @GetMapping("/scenes")
@@ -46,14 +53,18 @@ public class ComponentController {
         return service.getScenes(projectId);
     }
 
-    @PutMapping()
-    public List<ComponentResponseDto> update(@RequestBody List<ComponentCreateDto> components) {
-        return service.update(components);
+    @PutMapping
+    public List<ComponentResponseDto> update(
+            @RequestBody List<ComponentCreateDto> components,
+            @RequestHeader("X-Username") String userName) {
+        return service.update(components, userName);
     }
 
-    @DeleteMapping()
-    public void delete(@RequestBody List<Long> ids) {
-        service.delete(ids);
+    @DeleteMapping
+    public void delete(
+            @RequestBody List<Long> ids,
+            @RequestHeader("X-Username") String userName) {
+        service.delete(ids, userName);
     }
 
     @GetMapping("/{id}")

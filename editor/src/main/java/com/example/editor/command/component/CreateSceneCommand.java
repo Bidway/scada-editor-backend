@@ -22,6 +22,7 @@ public class CreateSceneCommand implements Command<SceneCreateResponseDto> {
     private final SceneCreateDto dto;
     private final ObjectMapper mapper;
     private final ComponentMapper componentMapper;
+    private final String userName;
 
     @Override
     public CommandResult<SceneCreateResponseDto> execute() {
@@ -52,7 +53,7 @@ public class CreateSceneCommand implements Command<SceneCreateResponseDto> {
         JsonNode undoPayload = mapper.valueToTree(Map.of("id", saved.getId()));
 
         return new CommandResult<>(
-                "david",
+                userName,
                 "component",
                 saved.getId(),
                 "CREATE_SCENE",

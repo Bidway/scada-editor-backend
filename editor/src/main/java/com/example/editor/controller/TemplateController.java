@@ -15,33 +15,35 @@ public class TemplateController {
 
     private final TemplateService templateService;
 
-    // GET /api/templates - получить все шаблоны
     @GetMapping
     public List<TemplateResponseDto> getAllTemplates() {
         return templateService.getAllTemplates();
     }
 
-    // GET /api/templates/{id} - получить один шаблон
     @GetMapping("/{id}")
     public TemplateResponseDto getTemplate(@PathVariable Long id) {
         return templateService.getTemplateById(id);
     }
 
-    // POST /api/templates - создать шаблон
     @PostMapping
-    public TemplateResponseDto createTemplate(@RequestBody TemplateCreateDto dto) {
-        return templateService.createTemplate(dto);
+    public TemplateResponseDto createTemplate(
+            @RequestBody TemplateCreateDto dto,
+            @RequestHeader("X-Username") String userName) {
+        return templateService.createTemplate(dto, userName);
     }
 
-    // PUT /api/templates/{id} - обновить шаблон
     @PutMapping("/{id}")
-    public TemplateResponseDto updateTemplate(@PathVariable Long id, @RequestBody TemplateCreateDto dto) {
-        return templateService.updateTemplate(id, dto);
+    public TemplateResponseDto updateTemplate(
+            @PathVariable Long id,
+            @RequestBody TemplateCreateDto dto,
+            @RequestHeader("X-Username") String userName) {
+        return templateService.updateTemplate(id, dto, userName);
     }
 
-    // DELETE /api/templates/{id} - удалить шаблон
     @DeleteMapping("/{id}")
-    public void deleteTemplate(@PathVariable Long id) {
-        templateService.deleteTemplate(id);
+    public void deleteTemplate(
+            @PathVariable Long id,
+            @RequestHeader("X-Username") String userName) {
+        templateService.deleteTemplate(id, userName);
     }
 }

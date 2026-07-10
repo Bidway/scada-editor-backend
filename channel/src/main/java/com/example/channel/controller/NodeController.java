@@ -22,7 +22,7 @@ public class NodeController {
     public ResponseEntity<NodeResponse> connectNode(
             @PathVariable String idNode,
             @RequestHeader("X-Username") String userName) {
-        nodeService.connectNode(idNode,userName);
+        nodeService.connectNode(idNode, userName);
         return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/{idNode}")
