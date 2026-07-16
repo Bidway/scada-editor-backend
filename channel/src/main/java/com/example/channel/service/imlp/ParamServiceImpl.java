@@ -8,6 +8,7 @@ import com.example.channel.config.command.CommandManager;
 import com.example.channel.dto.paramDto.CreateParamDto;
 import com.example.channel.dto.KeyValue;
 import com.example.channel.dto.paramDto.DescriptionResponse;
+import com.example.channel.dto.paramDto.KafkaBindingDto;
 import com.example.channel.dto.paramDto.ParamDto;
 import com.example.channel.mapper.NodeMapper;
 import com.example.channel.model.Description;
@@ -100,5 +101,15 @@ public class ParamServiceImpl implements ParamService {
         DescriptionResponse response = new DescriptionResponse();
         response.setDescriptions(descriptionRepository.findAll());
         return response;
+    }
+
+    @Override
+    public List<KafkaBindingDto> resolveKafkaBindings(List<Long> paramIds) {
+        if (paramIds == null || paramIds.isEmpty()) {
+            return List.of();
+        }
+        return paramRepository.findAllByIdIn(paramIds).stream()
+                .map(p -> new KafkaBindingDto(p.getId(), p.getIdNode()))
+                .toList();
     }
 }

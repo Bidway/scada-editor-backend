@@ -1,12 +1,12 @@
 plugins {
-    id 'java'
-    id 'org.springframework.boot' version '3.5.7'
-    id 'io.spring.dependency-management' version '1.1.7'
+    java
+    id("org.springframework.boot") version "3.5.7"
+    id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = 'com.example'
-version = '0.0.1-SNAPSHOT'
-description = 'auth'
+group = "com.example"
+version = "0.0.1-SNAPSHOT"
+description = "auth"
 
 java {
     toolchain {
@@ -16,7 +16,7 @@ java {
 
 configurations {
     compileOnly {
-        extendsFrom annotationProcessor
+        extendsFrom(configurations.annotationProcessor.get())
     }
 }
 
@@ -34,6 +34,7 @@ dependencies {
     // Spring Boot
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.mockito:mockito-core")
+    testImplementation(platform("org.testcontainers:testcontainers-bom:1.21.3"))
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:testcontainers")
     testImplementation("org.testcontainers:postgresql")
@@ -64,6 +65,15 @@ dependencies {
     implementation("com.vladmihalcea:hibernate-types-60:2.21.1")
 }
 
-tasks.named('test') {
+tasks.named<Test>("test") {
     useJUnitPlatform()
+    environment("DOCKER_HOST", "npipe:////./pipe/dockerDesktopLinuxEngine")
+    environment("TESTCONTAINERS_RYUK_DISABLED", "true")
+}
+
+// Отключаем «плоский» jar: сервис деплоится как исполняемый bootJar и как
+// библиотека никуда не подключается. Заодно в build/libs остаётся один jar,
+// поэтому COPY build/libs/*.jar в Dockerfile не ломается.
+tasks.named("jar") {
+    enabled = false
 }

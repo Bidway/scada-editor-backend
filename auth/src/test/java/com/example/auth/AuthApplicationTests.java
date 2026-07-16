@@ -1,36 +1,20 @@
 package com.example.auth;
 
+import com.example.auth.support.PostgresTestContainerSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
-@Testcontainers
-class AuthApplicationTests {
+class AuthApplicationTests extends PostgresTestContainerSupport {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test");
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.jpa.properties.hibernate.default_schema", () -> "auth");
-        registry.add("spring.jpa.properties.hibernate.hbm2ddl.create_namespaces", () -> "true");
-    }
-
-    @MockBean
+    @MockitoBean
     RedisConnectionFactory redisConnectionFactory;
+
+    @MockitoBean
+    ReactiveRedisConnectionFactory reactiveRedisConnectionFactory;
 
     @Test
     void contextLoads() {

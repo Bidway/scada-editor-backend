@@ -1,0 +1,22 @@
+# Секреты
+.env
+.env.*
+
+# Gradle / сборка
+.gradle/
+build/
+bin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker-образы (локально в deliver/images/, не в репозитории)
+deliver/images/*.tar.gz
