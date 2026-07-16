@@ -6,7 +6,6 @@ import com.example.editor.dto.template.TemplateComponentCreateDto;
 import com.example.editor.model.template.TemplateComponent;
 import com.example.editor.model.template.TemplateComponentProperty;
 import com.example.editor.model.template.TemplateScript;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.experimental.UtilityClass;
 
 @UtilityClass
@@ -54,14 +53,10 @@ public class TemplateComponentDataApplier {
                             .valueType(p.getValue_type())
                             .defaultValue(p.getDefault_value())
                             .logging(p.isLogging())
-                            .onChange(jsonToString(p.getOnChange()))
+                            .onChange(p.getOnChange())
                             .component(entity)
                             .build()
             );
         }
-    }
-
-    private static String jsonToString(JsonNode node) {
-        return node != null ? node.toString() : null;
     }
 }

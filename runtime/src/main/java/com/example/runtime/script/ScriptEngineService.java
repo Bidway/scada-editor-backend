@@ -57,9 +57,27 @@ public class ScriptEngineService {
     void initPool() {
         int size = pool.remainingCapacity();
         for (int i = 0; i < size; i++) {
-            pool.add(newContext());
+            Context ctx = newContext();
+            warmUp(ctx);
+            pool.add(ctx);
         }
-        log.info("ScriptEngineService: GraalVM JS context pool initialized, size={}", size);
+        log.info("ScriptEngineService: GraalVM JS context pool initialized and warmed, size={}", size);
+    }
+
+    /**
+     * Первый {@code eval} на свежем контексте инициализирует движок GraalVM и не
+     * укладывается в {@link #timeoutMs} — из-за чего первый реальный onChange/ACTION
+     * гиб бы по watchdog. Прогоняем разовый eval с теми же биндингами при старте,
+     * чтобы эту стоимость оплатить на буте, а не на горячем пути.
+     */
+    private void warmUp(Context ctx) {
+        try {
+            ctx.getBindings("js").putMember("tag", 0);
+            ctx.getBindings("js").putMember("props", new MapProxyObject(new ConcurrentHashMap<>()));
+            ctx.eval(Source.create("js", "typeof tag; typeof props; props.__warm = tag;"));
+        } catch (Exception e) {
+            log.warn("Script context warm-up failed (continuing): {}", e.getMessage());
+        }
     }
 
     @PreDestroy

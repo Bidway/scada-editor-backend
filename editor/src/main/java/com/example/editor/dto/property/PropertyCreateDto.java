@@ -1,6 +1,5 @@
 package com.example.editor.dto.property;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 @Data
@@ -13,5 +12,7 @@ public class PropertyCreateDto {
     private String value_type;
     private String default_value;
     private boolean logging;
-    private JsonNode onChange;
+    // Сырой JS, исполняемый runtime при изменении привязанного тега (тот же формат,
+    // что и Script компонента). Без JSON-обёртки — см. ScriptEngineService.
+    private String onChange;
 }
