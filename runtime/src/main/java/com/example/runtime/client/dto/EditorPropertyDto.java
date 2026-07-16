@@ -1,6 +1,5 @@
 package com.example.runtime.client.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 /**
@@ -18,17 +17,13 @@ public class EditorPropertyDto {
     private String value_type;
     private String default_value;
     private boolean logging;
-    private JsonNode onChange;
+    private String onChange;
 
     /**
-     * onChange хранится в editor как JSON (обычно — просто JSON-строка с текстом
-     * JS-скрипта). Достаём именно текст скрипта независимо от того, как он туда попал.
+     * onChange хранится и отдаётся editor как сырой JS (тот же формат, что и
+     * Script компонента). Пустой/пробельный текст трактуем как «скрипта нет».
      */
     public String extractOnChangeScript() {
-        if (onChange == null || onChange.isNull()) {
-            return null;
-        }
-        String text = onChange.isTextual() ? onChange.asText() : onChange.toString();
-        return (text == null || text.isBlank()) ? null : text;
+        return (onChange == null || onChange.isBlank()) ? null : onChange;
     }
 }
