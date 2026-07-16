@@ -28,6 +28,30 @@ services:
       timeout: 5s
       retries: 5
 
+  kafka:
+    image: apache/kafka:3.8.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:19092,CONTROLLER://0.0.0.0:19093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:19093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Дефолтный heap брокера — 1 ГБ, и вместе с продюсер-стеком он не влезает
+      # в 2 ГБ, которые Docker Desktop выделяет по умолчанию → OOMKilled (137).
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
   auth:
     build: ./auth
     environment:
@@ -85,6 +109,26 @@ services:
       redis:
         condition: service_healthy
 
+  runtime:
+    build: ./runtime
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KAFKA_TAGS_TOPIC: ${KAFKA_TAGS_TOPIC:-scada.tags}
+      EDITOR_HOST: editor
+      EDITOR_PORT: 8083
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8085:8085"
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      editor:
+        condition: service_started
+
   gateway:
     build: ./gateway
     environment:
@@ -92,12 +136,14 @@ services:
       AUTH_HOST: auth
       CHANNEL_HOST: channel
       EDITOR_HOST: editor
+      RUNTIME_HOST: runtime
     ports:
       - "8080:8080"
     depends_on:
       - auth
       - channel
       - editor
+      - runtime
 
 volumes:
   postgres_data:

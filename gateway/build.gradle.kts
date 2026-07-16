@@ -57,3 +57,10 @@ dependencyManagement {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// Отключаем «плоский» jar: сервис деплоится как исполняемый bootJar и как
+// библиотека никуда не подключается. Заодно в build/libs остаётся один jar,
+// поэтому COPY build/libs/*.jar в Dockerfile не ломается.
+tasks.named("jar") {
+    enabled = false
+}

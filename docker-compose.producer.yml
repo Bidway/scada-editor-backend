@@ -1,0 +1,76 @@
+# ============================================================================
+# Продюсер-сторона из deliver/ (шлюз + симулятор + его БД), подключённая к
+# основному стеку. Шлюз реплеит архив BN1_MCA1 по OPC UA/Modbus и публикует
+# значения тегов в Kafka: key = путь узла (= ComponentProperty.tagId).
+#
+# Отличия от deliver/docker-compose.yml и почему:
+#   • kafka из его пакета НЕ поднимается — брокер один, из docker-compose.yml.
+#     Два брокера с DNS-именем `kafka` в одной сети схлопнулись бы.
+#   • сервисы переименованы в scada-* — иначе конфликт с postgres/gateway
+#     основного compose по тому же DNS-имени.
+#   • шлюз пишет в тот же топик, что и monitor-e2e.js (KAFKA_TAGS_TOPIC),
+#     поэтому реальный поток и ручные тестовые значения живут в одном топике.
+#
+# Образ шлюза НЕ пересобирался: и брокер (SPRING_KAFKA_BOOTSTRAP_SERVERS), и
+# топик (KAFKA_TOPICS_TELEMETRY = @Value ${kafka.topics.telemetry}), и адрес
+# симулятора (SIM_HOST) — штатные env-переменные внутри app.jar.
+#
+# Запуск:
+#   docker compose -f docker-compose.yml -f docker-compose.producer.yml up -d
+# ============================================================================
+services:
+
+  scada-postgres:
+    image: postgres:16
+    pull_policy: never
+    container_name: scada-postgres
+    environment:
+      POSTGRES_DB: scada_db
+      POSTGRES_USER: scada_user
+      POSTGRES_PASSWORD: scada_password
+    volumes:
+      - scada_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scada_user -d scada_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  scada-simulator:
+    image: localhost/scada-simulator:1.0
+    pull_policy: never
+    container_name: scada-simulator
+    environment:
+      # Симулятор анонсирует этот адрес клиентам — имя должно резолвиться в сети compose.
+      OPCUA_ENDPOINT: "opc.tcp://scada-simulator:4840"
+      MODBUS_PORT: "5020"
+    ports:
+      - "4840:4840"          # опционально: OPC UA с хоста
+      - "5020:5020"          # опционально: Modbus с хоста
+    restart: unless-stopped
+
+  scada-gateway:
+    image: localhost/scada-gateway:1.0
+    pull_policy: never
+    container_name: scada-gateway
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://scada-postgres:5432/scada_db"
+      SPRING_DATASOURCE_USERNAME: "scada_user"
+      SPRING_DATASOURCE_PASSWORD: "scada_password"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      # Один топик на реальный поток и на monitor-e2e.js — см. .env
+      KAFKA_TOPICS_TELEMETRY: "${KAFKA_TAGS_TOPIC:-scada.tags}"
+      SIM_HOST: "scada-simulator"
+    ports:
+      - "8888:8888"          # actuator/http шлюза
+    depends_on:
+      scada-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      scada-simulator:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  scada_pgdata:

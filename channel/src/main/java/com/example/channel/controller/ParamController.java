@@ -3,6 +3,8 @@ package com.example.channel.controller;
 import com.example.channel.dto.paramDto.CreateParamDto;
 import com.example.channel.dto.KeyValue;
 import com.example.channel.dto.paramDto.DescriptionResponse;
+import com.example.channel.dto.paramDto.KafkaBindingDto;
+import com.example.channel.dto.paramDto.KafkaBindingRequestDto;
 import com.example.channel.dto.paramDto.ParamDto;
 import com.example.channel.service.ParamService;
 import lombok.RequiredArgsConstructor;
@@ -38,5 +40,17 @@ public class ParamController {
     @GetMapping("/description")
     public ResponseEntity<DescriptionResponse> getDescriptions(){
         return ResponseEntity.ok(paramService.getDescriptions());
+    }
+
+    /**
+     * Батч-резолв тегов (id параметра-канала) в Kafka-key (idNode их узла). Используется
+     * сервисом runtime при старте сессии мониторинга, чтобы за один запрос узнать, по каким
+     * key в общем Kafka-топике проекта искать live-значения тегов. Сам топик — единый и
+     * задаётся конфигурацией runtime, а не хранится в channel.
+     */
+    @PostMapping("/kafka-bindings")
+    public ResponseEntity<List<KafkaBindingDto>> resolveKafkaBindings(
+            @RequestBody KafkaBindingRequestDto request) {
+        return ResponseEntity.ok(paramService.resolveKafkaBindings(request.getIds()));
     }
 }

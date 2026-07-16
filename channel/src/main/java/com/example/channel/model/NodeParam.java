@@ -16,10 +16,6 @@ public class NodeParam {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-//    @JsonIgnore
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "id_node", referencedColumnName = "id_node")
-//    private Node node;
     @Column(name = "id_node")
     private String idNode;
 

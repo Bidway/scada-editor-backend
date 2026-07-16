@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: runtime
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+server:
+  port: 8085
+
+jwt:
+  secret: ${JWT_SECRET:f8d7e2c6a1b3f9e5d8c4a7b2e1f3c5d6a8b4e7f2c9d1a3b5e6f8c2d4e7f9a0b1}
+
+runtime:
+  # Разовое (не горячий путь) обращение к editor — только при старте сессии мониторинга.
+  # Дерево проекта приходит уже со связями (ComponentProperty.tagId = путь узла = Kafka-key),
+  # поэтому обращений к channel нет вообще.
+  editor-base-url: http://${EDITOR_HOST:localhost}:${EDITOR_PORT:8083}
+  # Окно батчинга исходящих WS-сообщений с тегами/свойствами (см. OutboundFlusher).
+  flush-interval-ms: 40
+  script:
+    context-pool-size: 4
+    execution-timeout-ms: 200
+
+kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  consumer-group-id: runtime-service
+  # Единый топик проекта: все контроллеры/драйверы пишут значения тегов сюда,
+  # различаются по key сообщения (= Node.idNode).
+  tags-topic: ${KAFKA_TAGS_TOPIC:scada.tags}
