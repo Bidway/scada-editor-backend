@@ -17,7 +17,9 @@ import com.example.editor.model.component.ComponentTypes;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -138,7 +140,7 @@ public class ComponentServiceImpl implements ComponentService {
             List<ComponentState> states = dto.getStates().stream()
                     .map(s -> ComponentState.builder()
                             .name(s.getName())
-                            .image(s.getImage())
+                            .image(stripEvents(s.getImage()))
                             .isDefault(s.getIsDefault())
                             .component(entity)
                             .build())
@@ -165,5 +167,17 @@ public class ComponentServiceImpl implements ComponentService {
 
         ComponentScriptBindingApplier.apply(entity, dto, propertyRepository);
         return entity;
+    }
+
+    /**
+     * Обработчики событий переехали из {@code image.events} в {@code component_event}
+     * (принадлежат компоненту, а не картинке состояния). Ключ вычищается на входе, чтобы
+     * у события не появилось второго места хранения: {@code image} — только графика.
+     */
+    private JsonNode stripEvents(JsonNode image) {
+        if (image instanceof ObjectNode object) {
+            object.remove("events");
+        }
+        return image;
     }
 }

@@ -95,7 +95,7 @@
 |-------|--------|---------|
 | `auth` | auth | `user` |
 | `channel` | channel | `node`, `param`, `description`, `template`, `template_param`, `command_log` |
-| `editor` | editor | `component`, `component_state`, `component_property`, `script`, `binding`, `template_faceplate`, `template_component`, `template_component_property`, `template_component_state`, `template_script`, `command_log` |
+| `editor` | editor | `component`, `component_state`, `component_property`, `component_event`, `script`, `binding`, `template_faceplate`, `template_component`, `template_component_property`, `template_component_state`, `template_script`, `command_log` |
 
 `runtime` **не имеет собственной схемы БД** — данные сессии мониторинга (индекс тегов/скриптов,
 текущие значения свойств) живут только в памяти процесса на время жизни сессии.

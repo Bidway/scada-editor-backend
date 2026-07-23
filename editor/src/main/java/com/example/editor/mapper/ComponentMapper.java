@@ -13,7 +13,7 @@ import org.mapstruct.*;
 import java.util.List;
 
 @Mapper(componentModel = "spring",
-        uses = {ComponentPropertyMapper.class, ScriptMapper.class, BindingMapper.class})
+        uses = {ComponentPropertyMapper.class, ScriptMapper.class, BindingMapper.class, EventMapper.class})
 public interface ComponentMapper {
     ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -22,6 +22,7 @@ public interface ComponentMapper {
     @Mapping(target = "properties", source = "properties")
     @Mapping(target = "scripts", source = "scripts")
     @Mapping(target = "bindings", source = "bindings")
+    @Mapping(target = "events", source = "events")
     ComponentResponseDto toDto(Component entity);
 
     @Mapping(target = "parent_key", source = "parent.id")
