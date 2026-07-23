@@ -23,15 +23,18 @@ public class RuntimeSessionService {
     private final RuntimeSessionStore sessionStore;
     private final TagValueRouter tagValueRouter;
     private final ScriptEngineService scriptEngineService;
+    private final TagCommandService tagCommandService;
 
     public RuntimeSessionService(EditorClient editorClient,
                                   RuntimeSessionStore sessionStore,
                                   TagValueRouter tagValueRouter,
-                                  ScriptEngineService scriptEngineService) {
+                                  ScriptEngineService scriptEngineService,
+                                  TagCommandService tagCommandService) {
         this.editorClient = editorClient;
         this.sessionStore = sessionStore;
         this.tagValueRouter = tagValueRouter;
         this.scriptEngineService = scriptEngineService;
+        this.tagCommandService = tagCommandService;
     }
 
     /**
@@ -100,7 +103,8 @@ public class RuntimeSessionService {
 
         Map<String, Object> after;
         try {
-            after = scriptEngineService.runAction(script.source(), props);
+            after = scriptEngineService.runAction(
+                    script.source(), props, tagCommandService.sinkFor(session, script.componentId()));
         } catch (Exception e) {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
             return List.of();

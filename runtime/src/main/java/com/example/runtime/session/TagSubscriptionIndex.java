@@ -25,6 +25,8 @@ public class TagSubscriptionIndex {
     private final Map<String, List<OnChangeBinding>> tagToOnChangeBindings = new HashMap<>();
     private final Map<Long, ScriptEntry> scriptsById = new HashMap<>();
     private final Map<Long, String> propertyNames = new HashMap<>();
+    /** propertyId -> tag_id (путь узла). Нужен для обратного направления — записи тега. */
+    private final Map<Long, String> propertyTagIds = new HashMap<>();
     private final Map<Long, Long> propertyComponentId = new HashMap<>();
     private final Map<Long, List<Long>> componentPropertyIds = new HashMap<>();
     private final Map<Long, Object> initialPropertyValues = new ConcurrentHashMap<>();
@@ -63,6 +65,7 @@ public class TagSubscriptionIndex {
                 String tagId = property.getTag_id();
                 if (tagId != null && !tagId.isBlank()) {
                     allTagIds.add(tagId);
+                    propertyTagIds.put(propertyId, tagId);
                     tagToRawPropertyIds.computeIfAbsent(tagId, id -> new ArrayList<>()).add(propertyId);
 
                     String onChangeScript = property.extractOnChangeScript();
@@ -103,6 +106,28 @@ public class TagSubscriptionIndex {
 
     public Long propertyComponentId(Long propertyId) {
         return propertyComponentId.get(propertyId);
+    }
+
+    /** Путь тега (он же Kafka-key), к которому привязано свойство; {@code null} — свойство не теговое. */
+    public String tagIdOfProperty(Long propertyId) {
+        return propertyTagIds.get(propertyId);
+    }
+
+    /**
+     * Путь тега свойства компонента по <b>имени</b> свойства — так его называет скрипт
+     * в {@code writeTag('ST', true)}. Имена уникальны в пределах компонента (их задаёт
+     * автор схемы), поэтому первое совпадение и есть искомое.
+     */
+    public String tagIdOfComponentProperty(Long componentId, String propertyName) {
+        if (propertyName == null) {
+            return null;
+        }
+        for (Long propertyId : propertyIdsOfComponent(componentId)) {
+            if (propertyName.equals(propertyNames.get(propertyId))) {
+                return propertyTagIds.get(propertyId);
+            }
+        }
+        return null;
     }
 
     /** Все свойства компонента (для построения `props` объекта, видимого скрипту). */

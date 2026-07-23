@@ -8,6 +8,8 @@ import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Source;
+import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -34,6 +36,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * Скрипту доступны переменные {@code tag} (новое значение тега, только для onChange)
  * и {@code props} — мутируемый объект текущих значений свойств компонента по имени;
  * изменения {@code props.xxx = ...} после выполнения превращаются в PROPERTY_UPDATE.
+ * Плюс функция {@code writeTag(propertyName, value)} — запись тега в ПЛК
+ * (см. {@link TagWriteSink}); сама отправка происходит уже вне движка.
  */
 @Service
 @Slf4j
@@ -74,7 +78,9 @@ public class ScriptEngineService {
         try {
             ctx.getBindings("js").putMember("tag", 0);
             ctx.getBindings("js").putMember("props", new MapProxyObject(new ConcurrentHashMap<>()));
-            ctx.eval(Source.create("js", "typeof tag; typeof props; props.__warm = tag;"));
+            ctx.getBindings("js").putMember("writeTag", writeTagFunction(TagWriteSink.NOOP));
+            ctx.eval(Source.create("js",
+                    "typeof tag; typeof props; props.__warm = tag; writeTag('__warm', tag);"));
         } catch (Exception e) {
             log.warn("Script context warm-up failed (continuing): {}", e.getMessage());
         }
@@ -99,28 +105,32 @@ public class ScriptEngineService {
      * Выполняет onChange свойства при изменении привязанного тега.
      * Возвращает мутированную копию {@code props} — вызывающий сам вычисляет diff.
      */
-    public Map<String, Object> runOnChange(String scriptSource, Object tagValue, Map<String, Object> props) {
-        return execute(scriptSource, tagValue, props);
+    public Map<String, Object> runOnChange(String scriptSource, Object tagValue, Map<String, Object> props,
+                                           TagWriteSink writeSink) {
+        return execute(scriptSource, tagValue, props, writeSink);
     }
 
     /** Выполняет компонентный Script по действию с фронта (нажатие кнопки и т.п.). */
-    public Map<String, Object> runAction(String scriptSource, Map<String, Object> props) {
-        return execute(scriptSource, null, props);
+    public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, TagWriteSink writeSink) {
+        return execute(scriptSource, null, props, writeSink);
     }
 
-    private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props) {
+    private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
+                                        TagWriteSink writeSink) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return props;
         }
         Source source = sourceCache.computeIfAbsent(scriptSource,
                 s -> Source.create("js", s));
 
+        TagWriteSink sink = writeSink != null ? writeSink : TagWriteSink.NOOP;
         Context ctx = borrow();
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Future<?> future = executor.submit(() -> {
             try {
                 ctx.getBindings("js").putMember("tag", tagValue);
                 ctx.getBindings("js").putMember("props", new MapProxyObject(props));
+                ctx.getBindings("js").putMember("writeTag", writeTagFunction(sink));
                 ctx.eval(source);
             } catch (Throwable t) {
                 failure.set(t);
@@ -161,6 +171,44 @@ public class ScriptEngineService {
 
         release(ctx);
         return props;
+    }
+
+    /**
+     * Функция {@code writeTag(propertyName, value)}, видимая скрипту.
+     * <p>
+     * {@link ProxyExecutable} — единственный способ дать скрипту вызываемую функцию,
+     * не открывая доступ к Java: {@code HostAccess.NONE} остаётся в силе, наружу
+     * уходят только примитивы. Значение приводится к Java-типу здесь же, потому что
+     * {@link Value} живёт лишь пока жив контекст, а команда отправляется позже.
+     */
+    private ProxyExecutable writeTagFunction(TagWriteSink sink) {
+        return arguments -> {
+            if (arguments.length < 2) {
+                log.warn("writeTag() called with {} argument(s), expected 2 (propertyName, value)", arguments.length);
+                return null;
+            }
+            Value nameArg = arguments[0];
+            if (nameArg == null || !nameArg.isString()) {
+                log.warn("writeTag(): first argument must be a property name string");
+                return null;
+            }
+            sink.write(nameArg.asString(), toJavaValue(arguments[1]));
+            return null;
+        };
+    }
+
+    /** Примитив из JS в Java. Всё нераспознанное отдаём строкой — шлюз приведёт по dataType. */
+    private Object toJavaValue(Value value) {
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isBoolean()) {
+            return value.asBoolean();
+        }
+        if (value.isNumber()) {
+            return value.fitsInLong() ? value.asLong() : value.asDouble();
+        }
+        return value.toString();
     }
 
     private Context borrow() {

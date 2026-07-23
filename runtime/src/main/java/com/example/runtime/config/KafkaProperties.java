@@ -15,6 +15,8 @@ public class KafkaProperties {
     private String bootstrapServers = "localhost:9092";
     private String consumerGroupId = "runtime-service";
     private String tagsTopic = "scada.tags";
+    /** Топик команд шлюза (обратное направление: запись тега в ПЛК). Имя задаёт шлюз. */
+    private String commandsTopic = "scada-commands";
 
     public String getBootstrapServers() {
         return bootstrapServers;
@@ -38,5 +40,13 @@ public class KafkaProperties {
 
     public void setTagsTopic(String tagsTopic) {
         this.tagsTopic = tagsTopic;
+    }
+
+    public String getCommandsTopic() {
+        return commandsTopic;
+    }
+
+    public void setCommandsTopic(String commandsTopic) {
+        this.commandsTopic = commandsTopic;
     }
 }

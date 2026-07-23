@@ -40,7 +40,8 @@ public class TagKafkaConsumer {
     private volatile KafkaConsumer<String, String> consumer;
     private Thread thread;
 
-    public TagKafkaConsumer(KafkaProperties kafkaProperties, ApplicationEventPublisher eventPublisher) {
+    public TagKafkaConsumer(KafkaProperties kafkaProperties,
+                            ApplicationEventPublisher eventPublisher) {
         this.kafkaProperties = kafkaProperties;
         this.eventPublisher = eventPublisher;
     }
@@ -97,10 +98,10 @@ public class TagKafkaConsumer {
 
     /**
      * Достаёт значение тега из сообщения. В топике сосуществуют два формата:
-     * scada-gateway шлёт JSON-конверт (spring-kafka JsonSerializer над TelemetryMessage),
-     * где значение лежит в поле {@code value}, а ручные публикации — голый скаляр.
-     * Конверт распаковывается, всё остальное отдаётся как есть, поэтому дальше по
-     * цепочке значение всегда остаётся сырой строкой ({@code "72.7"}, {@code "true"}).
+     * драйвер устройства шлёт JSON-конверт (значение в поле {@code value}), а ручные
+     * публикации — голый скаляр. Конверт распаковывается, всё остальное отдаётся как
+     * есть, поэтому дальше по цепочке значение всегда остаётся сырой строкой
+     * ({@code "72.7"}, {@code "true"}) — модель тега целиком строковая.
      */
     private String extractValue(String raw) {
         if (raw == null || raw.isEmpty() || raw.charAt(0) != '{') {

@@ -31,3 +31,6 @@ kafka:
   # Единый топик проекта: все контроллеры/драйверы пишут значения тегов сюда,
   # различаются по key сообщения (= Node.idNode).
   tags-topic: ${KAFKA_TAGS_TOPIC:scada.tags}
+  # Обратное направление: запись тега в ПЛК. Имя топика задано шлюзом
+  # (kafka.topics.commands в его конфиге), результат он кладёт в scada-command-results.
+  commands-topic: ${KAFKA_COMMANDS_TOPIC:scada-commands}

@@ -6,7 +6,14 @@
 .gradle/
 build/
 bin/
+out/
 !gradle/wrapper/gradle-wrapper.jar
+
+# Node (tools/kafka-sim и пр.)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # IDE
 .idea/
@@ -17,6 +24,9 @@ bin/
 # OS
 .DS_Store
 Thumbs.db
+
+# Логи
+*.log
 
 # Docker-образы (локально в deliver/images/, не в репозитории)
 deliver/images/*.tar.gz
