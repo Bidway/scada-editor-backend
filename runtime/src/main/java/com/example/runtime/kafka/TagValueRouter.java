@@ -4,6 +4,7 @@ import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.OnChangeBinding;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionStore;
+import com.example.runtime.session.TagCommandService;
 import com.example.runtime.stream.PropertyUpdate;
 import com.example.runtime.stream.TagUpdate;
 import lombok.extern.slf4j.Slf4j;
@@ -31,13 +32,17 @@ public class TagValueRouter {
 
     private final RuntimeSessionStore sessionStore;
     private final ScriptEngineService scriptEngineService;
+    private final TagCommandService tagCommandService;
 
     /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последняя сессия. */
     private final Map<String, TagRuntimeState> tagStates = new ConcurrentHashMap<>();
 
-    public TagValueRouter(RuntimeSessionStore sessionStore, ScriptEngineService scriptEngineService) {
+    public TagValueRouter(RuntimeSessionStore sessionStore,
+                          ScriptEngineService scriptEngineService,
+                          TagCommandService tagCommandService) {
         this.sessionStore = sessionStore;
         this.scriptEngineService = scriptEngineService;
+        this.tagCommandService = tagCommandService;
     }
 
     /**
@@ -122,7 +127,8 @@ public class TagValueRouter {
 
         Map<String, Object> after;
         try {
-            after = scriptEngineService.runOnChange(binding.scriptSource(), tagValue, props);
+            after = scriptEngineService.runOnChange(
+                    binding.scriptSource(), tagValue, props, tagCommandService.sinkFor(session, componentId));
         } catch (Exception e) {
             log.warn("onChange script failed for property {}: {}", binding.componentPropertyId(), e.getMessage());
             return;
