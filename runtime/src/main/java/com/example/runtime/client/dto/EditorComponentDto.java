@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Зеркало editor.dto.component.ComponentResponseDto — полное дерево проекта,
- * как его отдаёт GET /api/editor/components/{id} (children/properties/scripts/bindings
+ * как его отдаёт GET /api/editor/components/{id} (children/properties/scripts/bindings/events
  * приходят вложенными сразу, без дополнительных запросов).
  */
 @Data
@@ -21,4 +21,5 @@ public class EditorComponentDto {
     private List<EditorPropertyDto> properties;
     private List<EditorScriptDto> scripts;
     private List<EditorBindingDto> bindings;
+    private List<EditorEventDto> events;
 }

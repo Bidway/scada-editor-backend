@@ -54,4 +54,7 @@ public class Component {
 
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Binding> bindings = new ArrayList<>();
+
+    @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ComponentEvent> events = new ArrayList<>();
 }

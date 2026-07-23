@@ -108,8 +108,29 @@ project
 | `id` | bigint PK | |
 | `component_id` | bigint FK | |
 | `name` | varchar | Название состояния |
-| `image` | jsonb | Изображение состояния |
+| `image` | jsonb | Изображение состояния — **только графика**. Обработчики событий здесь не хранятся: `image.events` вычищается при сохранении (`ComponentServiceImpl.stripEvents`), их место — `component_event` |
 | `is_default` | boolean | Состояние по умолчанию |
+
+### `component_event`
+Обработчик события компонента (клик оператора и т.п.). Принадлежит **компоненту**, а не
+состоянию: кнопка кликабельна независимо от того, какой картинкой она сейчас нарисована.
+
+| Колонка | Тип | Описание |
+|---------|-----|---------|
+| `id` | bigint PK | |
+| `component_id` | bigint FK → component | Удаление каскадируется на уровне JPA (`cascade = ALL`, `orphanRemoval`), как у `binding`/`scripts` |
+| `event_type` | varchar(32) | `onClick`, `onDoubleClick`, `onMouseDown`, `onMouseUp`, `onHover`, `onHoverOut`, `onOpen`, `onClose`. Ограничен CHECK — в отличие от `property_type`, это не свободная строка |
+| `script` | text | Код обработчика, исполняется **фронтом** |
+
+`UNIQUE (component_id, event_type)` — один обработчик на событие у компонента.
+
+Все события клиентские: событие порождает жест конкретного оператора, поэтому обработчик
+локален по природе. Колонки «где исполнять» нет и не нужно — серверная логика запускается
+не событием UI, а по `ACTION` (`scripts`) или по смене тега (`component_property.on_change`);
+клиентский обработчик делегирует бэку через `runScript(...)`. `onOpen`/`onClose` — события
+сцены, а сцена — та же строка в `component` (`type = 'scene'`), поэтому отдельной таблицы не
+требуется. Периодические серверные задачи (watchdog в ПЛК и т.п.) сюда **не** относятся: они
+не должны зависеть от вёрстки мнемосхемы — им нужна своя сущность уровня проекта.
 
 ### `component_property`
 Свойство компонента. Может быть обычным (значение хранится/задаётся в редакторе) или
@@ -180,6 +201,7 @@ component ───────────────────────�
   │                                          │
   ├──► component_state (1:N)                │
   ├──► component_property (1:N) ◄── binding ┘
+  ├──► component_event (1:N)
   └──► script (1:N)
 
 template_faceplate ──► template_component (дерево)

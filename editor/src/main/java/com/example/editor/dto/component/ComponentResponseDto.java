@@ -19,4 +19,5 @@ public class ComponentResponseDto {
     private List<PropertyResponseDto> properties;
     private List<ScriptResponseDto> scripts;
     private List<BindingResponseDto> bindings;
+    private List<EventResponseDto> events;
 }

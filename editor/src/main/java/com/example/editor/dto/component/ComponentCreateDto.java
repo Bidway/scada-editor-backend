@@ -18,6 +18,7 @@ public class ComponentCreateDto {
     private List<ComponentStateDto> states;
     private List<ScriptCreateDto> scripts;
     private List<BindingPayloadDto> bindings;
+    private List<EventPayloadDto> events;
 }
 
 
