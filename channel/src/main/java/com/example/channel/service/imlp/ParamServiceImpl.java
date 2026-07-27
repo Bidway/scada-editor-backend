@@ -10,6 +10,7 @@ import com.example.channel.dto.KeyValue;
 import com.example.channel.dto.paramDto.DescriptionResponse;
 import com.example.channel.dto.paramDto.KafkaBindingDto;
 import com.example.channel.dto.paramDto.ParamDto;
+import com.example.channel.exception.NotFoundException;
 import com.example.channel.mapper.NodeMapper;
 import com.example.channel.model.Description;
 import com.example.channel.model.Node;
@@ -44,7 +45,7 @@ public class ParamServiceImpl implements ParamService {
     @Override
     public void deleteParamById(Long id, String userName) {
         NodeParam param = paramRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Param not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Param not found: " + id));
 
         commandManager.execute(new DeleteParamCommand(paramRepository, param, mapper, userName, null));
     }
@@ -52,10 +53,10 @@ public class ParamServiceImpl implements ParamService {
     @Override
     public ParamDto createParam(CreateParamDto dto, String userName) {
         Node node = nodeRepository.findByIdNode(dto.getIdNode())
-                .orElseThrow(() -> new RuntimeException("Node not found"));
+                .orElseThrow(() -> new NotFoundException("Node not found: " + dto.getIdNode()));
 
         Description description = descriptionRepository.findById(dto.getId())
-                .orElseThrow(() -> new RuntimeException("Description not found: " + dto.getId()));
+                .orElseThrow(() -> new NotFoundException("Description not found: " + dto.getId()));
         NodeParam param = new NodeParam();
         param.setIdNode(node.getIdNode());
         param.setIdType(description.getId());
@@ -76,7 +77,7 @@ public class ParamServiceImpl implements ParamService {
 
         for (KeyValue kv : keyValues) {
             NodeParam param = paramRepository.findById(kv.getKey())
-                    .orElseThrow(() -> new RuntimeException("Param not found"));
+                    .orElseThrow(() -> new NotFoundException("Param not found: " + kv.getKey()));
 
             NodeParam before = new NodeParam();
             before.setId(param.getId());
