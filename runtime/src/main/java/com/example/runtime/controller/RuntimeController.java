@@ -2,7 +2,10 @@ package com.example.runtime.controller;
 
 import com.example.runtime.dto.CreateSessionRequest;
 import com.example.runtime.dto.SessionResponse;
+import com.example.runtime.dto.TagSnapshot;
 import com.example.runtime.session.RuntimeSessionService;
+
+import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -35,6 +38,14 @@ public class RuntimeController {
                 "/ws/runtime/" + bootstrap.session().getId(),
                 bootstrap.projectTree());
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Снимок текущих значений тегов строк таблицы (перед загрузкой рецепта)")
+    @GetMapping("/{sessionId}/snapshot")
+    public ResponseEntity<List<TagSnapshot>> snapshot(
+            @Parameter(description = "Идентификатор сессии") @PathVariable String sessionId,
+            @Parameter(description = "Идентификатор компонента-таблицы") @RequestParam Long componentId) {
+        return ResponseEntity.ok(sessionService.snapshot(sessionId, componentId));
     }
 
 
