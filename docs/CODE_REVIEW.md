@@ -228,7 +228,12 @@ public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
 
 ---
 
-### 10. Брошенные runtime-сессии живут вечно
+### 10. Брошенные runtime-сессии живут вечно ✅
+
+> **Исправлено 2026-07-27.** Добавлен `RuntimeSessionReaper` — `@Scheduled`-планировщик,
+> раз в минуту закрывающий сессии без живого WebSocket старше
+> `runtime.session.abandoned-timeout-minutes` (по умолчанию 5 мин) через
+> `sessionService.closeSession` (снимает и подписки в `TagValueRouter.tagStates`).
 
 **Где:** `runtime/.../session/RuntimeSessionStore.java`
 
@@ -262,7 +267,14 @@ sourceCache.computeIfAbsent(scriptSource, s -> Source.create("js", s));
 
 ---
 
-### 12. WebSocket без аутентификации
+### 12. WebSocket без аутентификации 🔶
+
+> **Частично исправлено 2026-07-27.** Проблема дублирующего подключения закрыта:
+> `RuntimeWebSocketHandler.afterConnectionEstablished` отклоняет второе подключение,
+> если у сессии уже есть живой WS, а `afterConnectionClosed` рвёт сессию только когда
+> уходит текущий WS (устаревшее/отклонённое подключение её не трогает).
+> **Осталась аутентификация WS** (пункты про gateway-маршрут и `permitAll`) — это
+> изменение контракта с фронтом, вынесено на отдельное решение.
 
 - В `gateway/src/main/resources/application.yml` нет маршрута на `/ws/runtime/**` —
   только `/api/runtime/**`. Значит фронт ходит на runtime:8085 напрямую, минуя
