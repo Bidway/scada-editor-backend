@@ -6,6 +6,7 @@ import com.example.channel.dto.nodeDto.CreateNodeResponse;
 import com.example.channel.dto.nodeDto.NodeResponse;
 import com.example.channel.dto.nodeDto.TemplateResponse;
 import com.example.channel.service.NodeService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +28,7 @@ public class NodeController {
     }
 
     @PostMapping("")
-    public ResponseEntity<CreateNodeResponse> createNode(@RequestBody CreateNodeDto createNodeDTO,
+    public ResponseEntity<CreateNodeResponse> createNode(@Valid @RequestBody CreateNodeDto createNodeDTO,
                                                          @RequestHeader("X-Username") String userName) {
         CreateNodeResponse response = nodeService.createNode(createNodeDTO, userName);
         return ResponseEntity.ok(response);

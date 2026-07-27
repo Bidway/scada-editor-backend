@@ -6,6 +6,7 @@ import com.example.auth.repository.UserRepository;
 import com.example.auth.dto.LoginDto;
 import com.example.auth.dto.RegisterDto;
 import com.example.auth.dto.TokenResponse;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,7 +29,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterDto dto) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterDto dto) {
         if (repo.findByLogin(dto.login()).isPresent()) {
             return ResponseEntity.badRequest().body("User exists");
         }

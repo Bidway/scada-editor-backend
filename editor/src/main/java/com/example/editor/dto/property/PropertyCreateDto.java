@@ -1,10 +1,12 @@
 package com.example.editor.dto.property;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
 public class PropertyCreateDto {
     private Long component_id;
+    @NotBlank
     private String name;
     private String property_type;
     private String tag_id;
