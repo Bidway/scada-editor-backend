@@ -8,7 +8,6 @@ import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
-import com.example.editor.model.component.Component;
 
 import java.util.List;
 
@@ -30,5 +29,5 @@ public interface ComponentService {
 
     ComponentResponseDto getById(Long id);
 
-    List<Component> getAll();
+    List<ComponentResponseDto> getAll();
 }

@@ -86,8 +86,8 @@ public class ComponentServiceImpl implements ComponentService {
     }
 
     @Override
-    public List<Component> getAll() {
-        return repository.findAll();
+    public List<ComponentResponseDto> getAll() {
+        return componentMapper.toDtoList(repository.findAll());
     }
 
     private Component buildComponent(ComponentCreateDto dto, Component parent) {
@@ -149,22 +149,23 @@ public class ComponentServiceImpl implements ComponentService {
             entity.getStates().addAll(states);
         }
 
-        List<Component> children = dto.getChildren().stream()
-                .map(childDto -> {
-                    Component childEntity;
-                    if (childDto.getId() != null) {
-                        childEntity = repository.findById(childDto.getId())
-                                .orElseThrow(() -> new IllegalStateException(
-                                        "Child component not found: " + childDto.getId()));
-                    } else {
-                        childEntity = new Component();
-                    }
-                    return populateComponent(childEntity, childDto, entity);
-                })
-                .collect(Collectors.toList());
-
         entity.getChildren().clear();
-        entity.getChildren().addAll(children);
+        if (dto.getChildren() != null) {
+            List<Component> children = dto.getChildren().stream()
+                    .map(childDto -> {
+                        Component childEntity;
+                        if (childDto.getId() != null) {
+                            childEntity = repository.findById(childDto.getId())
+                                    .orElseThrow(() -> new IllegalStateException(
+                                            "Child component not found: " + childDto.getId()));
+                        } else {
+                            childEntity = new Component();
+                        }
+                        return populateComponent(childEntity, childDto, entity);
+                    })
+                    .collect(Collectors.toList());
+            entity.getChildren().addAll(children);
+        }
 
         ComponentScriptBindingApplier.apply(entity, dto, propertyRepository);
         return entity;

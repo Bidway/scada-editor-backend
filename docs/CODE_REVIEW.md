@@ -113,7 +113,10 @@ compare-and-delete одним вызовом; префикс `lock:` для кл
 
 ---
 
-### 5. `children` без null-check, хотя `states` проверяется
+### 5. `children` без null-check, хотя `states` проверяется ✅
+
+> **Исправлено 2026-07-27.** Обход `children` обёрнут в `if (dto.getChildren() != null)`
+> по образцу `states`: `clear()` выполняется всегда, наполнение — только при непустом поле.
 
 **Где:** `editor/.../service/Impl/ComponentServiceImpl.java:139,151`
 
@@ -127,7 +130,12 @@ List<Component> children = dto.getChildren().stream()   // не проверен
 
 ---
 
-### 6. `GET /api/editor/components` отдаёт JPA-сущности напрямую
+### 6. `GET /api/editor/components` отдаёт JPA-сущности напрямую ✅
+
+> **Исправлено 2026-07-27.** `getAll` теперь возвращает `List<ComponentResponseDto>`
+> через существующий `componentMapper.toDtoList` (как и `getById`): `parent_id` —
+> скаляр, `children` рекурсят только вниз, цикла и `LazyInitializationException` нет.
+> Эндпоинт задокументирован в `API.md`, поэтому починен, а не удалён.
 
 **Где:** `editor/.../controller/ComponentController.java:76`, `editor/.../model/component/Component.java:38-43`
 
