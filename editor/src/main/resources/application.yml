@@ -24,7 +24,3 @@ spring:
 
 server:
   port: 8083
-
-jwt:
-  secret: ${JWT_SECRET:f8d7e2c6a1b3f9e5d8c4a7b2e1f3c5d6a8b4e7f2c9d1a3b5e6f8c2d4e7f9a0b1}
-  expiration-ms: 3600000
