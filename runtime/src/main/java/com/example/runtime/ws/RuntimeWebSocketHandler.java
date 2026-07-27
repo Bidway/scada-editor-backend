@@ -39,6 +39,14 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
             closeQuietly(wsSession, CloseStatus.NOT_ACCEPTABLE.withReason("Unknown runtime session"));
             return;
         }
+        WebSocketSession existing = session.getWebSocketSession();
+        if (existing != null && existing.isOpen()) {
+            // Одна WS на сессию: раньше второе подключение молча перезаписывало первое,
+            // и закрытие любого из двух рвало сессию для обоих. Теперь новое отклоняем.
+            log.warn("Runtime session {} already has an active WebSocket; rejecting the new connection", sessionId);
+            closeQuietly(wsSession, CloseStatus.NOT_ACCEPTABLE.withReason("Session already has an active connection"));
+            return;
+        }
         session.setWebSocketSession(wsSession);
         log.info("WebSocket connected for runtime session {}", sessionId);
     }
@@ -70,6 +78,13 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession wsSession, CloseStatus status) {
         String sessionId = extractSessionId(wsSession);
+        RuntimeSession session = sessionService.getSession(sessionId);
+        // Рвём сессию только если ушёл ИМЕННО текущий WS. Если это отклонённое/устаревшее
+        // подключение (см. afterConnectionEstablished), его закрытие не должно трогать живую сессию.
+        if (session != null && session.getWebSocketSession() != wsSession) {
+            log.info("Stale WebSocket closed for runtime session {} ({}); session kept", sessionId, status);
+            return;
+        }
         sessionService.closeSession(sessionId);
         log.info("WebSocket closed for runtime session {} ({})", sessionId, status);
     }

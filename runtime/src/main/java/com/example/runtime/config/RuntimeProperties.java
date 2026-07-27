@@ -10,6 +10,7 @@ public class RuntimeProperties {
     private String editorBaseUrl;
     private long flushIntervalMs = 40L;
     private final Script script = new Script();
+    private final Session session = new Session();
 
     public String getEditorBaseUrl() {
         return editorBaseUrl;
@@ -29,6 +30,23 @@ public class RuntimeProperties {
 
     public Script getScript() {
         return script;
+    }
+
+    public Session getSession() {
+        return session;
+    }
+
+    public static class Session {
+        /** Через сколько минут закрывать сессию, к которой так и не подключился WebSocket. */
+        private long abandonedTimeoutMinutes = 5L;
+
+        public long getAbandonedTimeoutMinutes() {
+            return abandonedTimeoutMinutes;
+        }
+
+        public void setAbandonedTimeoutMinutes(long abandonedTimeoutMinutes) {
+            this.abandonedTimeoutMinutes = abandonedTimeoutMinutes;
+        }
     }
 
     public static class Script {
