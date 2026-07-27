@@ -10,6 +10,7 @@ import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
+import com.example.editor.exception.NotFoundException;
 import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentState;
@@ -81,7 +82,7 @@ public class ComponentServiceImpl implements ComponentService {
     @Override
     public ComponentResponseDto getById(Long id) {
         return componentMapper.toDto(repository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Component not found: " + id)));
+                .orElseThrow(() -> new NotFoundException("Component not found: " + id)));
     }
 
     @Override
