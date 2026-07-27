@@ -1,5 +1,6 @@
 package com.example.runtime.config;
 
+import com.example.runtime.ws.RuntimeHandshakeInterceptor;
 import com.example.runtime.ws.RuntimeWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -17,10 +18,12 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final RuntimeWebSocketHandler runtimeWebSocketHandler;
+    private final RuntimeHandshakeInterceptor handshakeInterceptor;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(runtimeWebSocketHandler, "/ws/runtime/*")
+                .addInterceptors(handshakeInterceptor)
                 .setAllowedOriginPatterns("*");
     }
 }
