@@ -24,6 +24,10 @@ runtime:
   script:
     context-pool-size: 4
     execution-timeout-ms: 200
+  ws:
+    # Проверять JWT (query-параметр token) на WS-handshake. Для локального прогона без
+    # токена на фронте можно временно отключить: RUNTIME_WS_REQUIRE_AUTH=false.
+    require-auth: ${RUNTIME_WS_REQUIRE_AUTH:true}
 
 kafka:
   bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}

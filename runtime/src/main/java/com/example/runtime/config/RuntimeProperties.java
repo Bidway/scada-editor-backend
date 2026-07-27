@@ -11,6 +11,7 @@ public class RuntimeProperties {
     private long flushIntervalMs = 40L;
     private final Script script = new Script();
     private final Session session = new Session();
+    private final Ws ws = new Ws();
 
     public String getEditorBaseUrl() {
         return editorBaseUrl;
@@ -34,6 +35,23 @@ public class RuntimeProperties {
 
     public Session getSession() {
         return session;
+    }
+
+    public Ws getWs() {
+        return ws;
+    }
+
+    public static class Ws {
+        /** Требовать валидный JWT (query-параметр {@code token}) на WS-handshake. */
+        private boolean requireAuth = true;
+
+        public boolean isRequireAuth() {
+            return requireAuth;
+        }
+
+        public void setRequireAuth(boolean requireAuth) {
+            this.requireAuth = requireAuth;
+        }
     }
 
     public static class Session {

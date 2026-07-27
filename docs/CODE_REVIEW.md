@@ -277,14 +277,18 @@ sourceCache.computeIfAbsent(scriptSource, s -> Source.create("js", s));
 
 ---
 
-### 12. WebSocket без аутентификации 🔶
+### 12. WebSocket без аутентификации ✅
 
-> **Частично исправлено 2026-07-27.** Проблема дублирующего подключения закрыта:
-> `RuntimeWebSocketHandler.afterConnectionEstablished` отклоняет второе подключение,
-> если у сессии уже есть живой WS, а `afterConnectionClosed` рвёт сессию только когда
-> уходит текущий WS (устаревшее/отклонённое подключение её не трогает).
-> **Осталась аутентификация WS** (пункты про gateway-маршрут и `permitAll`) — это
-> изменение контракта с фронтом, вынесено на отдельное решение.
+> **Исправлено 2026-07-27.** (a) Аутентификация WS: `RuntimeHandshakeInterceptor`
+> проверяет JWT из query-параметра `token` тем же секретом, что и gateway (новый
+> `runtime.security.JwtService` + jjwt), — прямое подключение к runtime:8085 сохранено,
+> проверка один раз на handshake, поэтому горячий путь не страдает. Включено флагом
+> `runtime.ws.require-auth` (по умолчанию `true`; отключается `RUNTIME_WS_REQUIRE_AUTH=false`
+> для локального прогона). (b) Дублирующее подключение:
+> `afterConnectionEstablished` отклоняет второй WS при живом первом, а
+> `afterConnectionClosed` рвёт сессию только когда уходит текущий WS.
+>
+> **Фронт:** WebSocket теперь подключать как `/ws/runtime/{sessionId}?token=<jwt>`.
 
 - В `gateway/src/main/resources/application.yml` нет маршрута на `/ws/runtime/**` —
   только `/api/runtime/**`. Значит фронт ходит на runtime:8085 напрямую, минуя
