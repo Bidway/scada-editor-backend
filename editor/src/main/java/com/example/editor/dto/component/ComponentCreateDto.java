@@ -1,5 +1,6 @@
 package com.example.editor.dto.component;
 
+import com.example.editor.dto.property.PropertyCreateDto;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -19,6 +20,9 @@ public class ComponentCreateDto {
     private List<ScriptCreateDto> scripts;
     private List<BindingPayloadDto> bindings;
     private List<EventPayloadDto> events;
+    // Строки таблицы (и любые свойства компонента) массово. Без дефолта: null = «не прислано»
+    // => существующие свойства не трогаем (их можно вести и через ComponentPropertyController).
+    private List<PropertyCreateDto> properties;
 }
 
 

@@ -167,6 +167,7 @@ public class ComponentServiceImpl implements ComponentService {
             entity.getChildren().addAll(children);
         }
 
+        ComponentScriptBindingApplier.applyProperties(entity, dto);
         ComponentScriptBindingApplier.apply(entity, dto, propertyRepository);
         return entity;
     }
