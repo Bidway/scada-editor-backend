@@ -18,6 +18,7 @@ public class UndoService {
     private final CommandLogRepository commandLogRepository;
     private final CommandManager commandManager;
     private final List<UndoHandler> handlers;
+    private final UndoExecutor undoExecutor;
 
     public List<CommandLog> getLogsByPeriod(LocalDateTime from, LocalDateTime to) {
         return commandLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from, to);
@@ -40,21 +41,25 @@ public class UndoService {
         }
     }
 
-    @Transactional
+    /**
+     * Отменяет записи независимо друг от друга: каждая отмена — в своей транзакции
+     * ({@link UndoExecutor#undoOne}), поэтому сбой одной не откатывает остальные, и
+     * возвращаемый список {@code failed} действительно перечисляет только неудавшиеся.
+     * Здесь без {@code @Transactional} — транзакционные границы задаёт {@link UndoExecutor}.
+     */
     public List<Long> undoLogs(List<Long> ids, String userName) {
         List<Long> failed = new ArrayList<>();
-        List<CommandLog> logs = commandLogRepository.findAllById(ids)
+        List<Long> orderedIds = commandLogRepository.findAllById(ids)
                 .stream()
                 .sorted(Comparator.comparing(CommandLog::getId).reversed())
+                .map(CommandLog::getId)
                 .toList();
 
-        for (CommandLog log : logs) {
+        for (Long id : orderedIds) {
             try {
-                undoSingle(log, userName);
-                log.setUndoneAt(LocalDateTime.now());
-                commandLogRepository.save(log);
+                undoExecutor.undoOne(id, userName);
             } catch (Exception e) {
-                failed.add(log.getId());
+                failed.add(id);
             }
         }
         return failed;

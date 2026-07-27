@@ -45,12 +45,13 @@ public class CommandProducer {
     private static final String REQUESTED_BY = "scada-runtime";
 
     private final KafkaProperties kafkaProperties;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     private KafkaProducer<String, String> producer;
 
-    public CommandProducer(KafkaProperties kafkaProperties) {
+    public CommandProducer(KafkaProperties kafkaProperties, ObjectMapper objectMapper) {
         this.kafkaProperties = kafkaProperties;
+        this.objectMapper = objectMapper;
     }
 
     @PostConstruct

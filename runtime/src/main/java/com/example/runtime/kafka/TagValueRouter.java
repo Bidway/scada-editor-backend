@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * Горячий путь: диспетчеризация сообщений единого Kafka-топика проекта на все сессии,
@@ -147,6 +148,16 @@ public class TagValueRouter {
         }
     }
 
+    /**
+     * Строгий формат числа: опциональный знак, целая часть без ведущих нулей
+     * ({@code 0} либо {@code [1-9]\d*}), опциональная дробная часть и экспонента.
+     * Намеренно отвергает то, что {@link Double#parseDouble} проглотил бы неверно:
+     * {@code NaN}/{@code Infinity}, суффиксы типа {@code "1d"}/{@code "1f"}, hex-литералы,
+     * и статус-коды с ведущими нулями ({@code "0012"} должен остаться строкой, а не стать 12.0).
+     */
+    private static final Pattern NUMERIC =
+            Pattern.compile("[+-]?(0|[1-9]\\d*)(\\.\\d+)?([eE][+-]?\\d+)?");
+
     private Object coerce(String value) {
         if (value == null) {
             return null;
@@ -155,10 +166,13 @@ public class TagValueRouter {
         if ("true".equals(value) || "false".equals(value)) {
             return Boolean.valueOf(value);
         }
-        try {
-            return Double.parseDouble(value);
-        } catch (NumberFormatException e) {
-            return value;
+        if (NUMERIC.matcher(value).matches()) {
+            double d = Double.parseDouble(value);
+            // Отсекаем переполнение (например "1e400" -> Infinity): Jackson такое не сериализует.
+            if (Double.isFinite(d)) {
+                return d;
+            }
         }
+        return value;
     }
 }

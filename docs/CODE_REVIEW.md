@@ -3,8 +3,9 @@
 Выборочный проход по `runtime`, `editor`, `channel`, `gateway`, `auth` от 2026-07-23
 (ветка `microservice`, коммит `77d6ebf`). Порядок — по убыванию серьёзности.
 
-**Прогресс разбора (обновлено 2026-07-27):** исправлены пункты **#4, #8, #9**
-(помечены `✅` в заголовках). Остальное — к разбору.
+**Прогресс разбора (обновлено 2026-07-27):** исправлены пункты **#4, #8, #9** и
+**#13** (кроме подпункта про JWT-секрет — отложен осознанно). Исправленное помечено
+`✅`. Остальное — к разбору.
 
 ---
 
@@ -249,24 +250,37 @@ sourceCache.computeIfAbsent(scriptSource, s -> Source.create("js", s));
 
 ### 13. Мелочи
 
-- **Мёртвый эндпоинт.** `channel/.../controller/NodeController.java:21-27` —
+> **Исправлено 2026-07-27:** первые пять подпунктов (✅). JWT-секрет (⏸) отложен
+> осознанно — это ops/безопасность, а не код-качество; удаление дефолта сломает
+> стенд (нужен `JWT_SECRET` в окружении всех сервисов).
+
+- ✅ **Мёртвый эндпоинт.** `channel/.../controller/NodeController.java:21-27` —
   `connectNode` объявлен как `GET`, тип возврата `ResponseEntity<NodeResponse>`,
   фактически возвращает `noContent()`, а сервис
   (`NodeServiceImpl.java:153`) бросает `501 NOT_IMPLEMENTED`.
-- **Ловля исключения внутри `@Transactional`.**
+  → Эндпоинт и метод сервиса (интерфейс + реализация) удалены целиком.
+- ✅ **Ловля исключения внутри `@Transactional`.**
   `editor/.../service/UndoService.java:56` — сбойная операция уже пометила
   транзакцию rollback-only, поэтому на коммите всё равно прилетит
   `UnexpectedRollbackException`, а вызывающий по возвращённому списку `failed`
   думает, что остальное прошло.
-- **Слишком жадный `coerce`.** `runtime/.../kafka/TagValueRouter.java:150-163` —
+  → `undoLogs` выполняет каждую отмену в отдельной транзакции через новый бин
+  `UndoExecutor` (`REQUIRES_NEW`); сбой одной больше не откатывает остальные,
+  список `failed` корректен. `undoBatch` (атомарный по замыслу) не тронут.
+- ✅ **Слишком жадный `coerce`.** `runtime/.../kafka/TagValueRouter.java:150-163` —
   `Double.parseDouble` превратит `"NaN"`, `"Infinity"`, `"1d"` в числа, а строковый
   статус `"0012"` — в `12.0`.
-- **Молчаливый 401.** `gateway/.../filter/JwtAuthenticationFilter.java:51` —
+  → Перед парсингом строгая проверка регуляркой (без ведущих нулей, без суффиксов,
+  без `NaN`/`Infinity`) плюс отсечка не-finite результата (`1e400` → строка).
+- ✅ **Молчаливый 401.** `gateway/.../filter/JwtAuthenticationFilter.java:51` —
   `userId.toString()` даёт NPE, если claim `userId` отсутствует; NPE попадает в
   общий `catch (Exception e)` и превращается в 401 без всякого следа в логе.
-- **Свои `ObjectMapper` вместо бина.** `runtime/.../kafka/CommandProducer.java:48`
+  → Явная проверка `userId == null || username == null` с `log.warn`; в общем
+  `catch` добавлен `log.debug` (SLF4J напрямую — в gateway нет lombok).
+- ✅ **Свои `ObjectMapper` вместо бина.** `runtime/.../kafka/CommandProducer.java:48`
   и `runtime/.../kafka/TagKafkaConsumer.java:37` создают `new ObjectMapper()`,
   хотя в контексте есть настроенный бин (его же инжектит `RuntimeWebSocketHandler`).
-- **JWT-секрет с fallback в репозитории.** `gateway`, `runtime` и прочие
+  → Оба класса получают `ObjectMapper` через конструктор.
+- ⏸ **JWT-секрет с fallback в репозитории.** `gateway`, `runtime` и прочие
   `application.yml` содержат `${JWT_SECRET:f8d7e2...}` — рабочее значение по
-  умолчанию прямо в коде. Для стенда приемлемо, для прода — нет.
+  умолчанию прямо в коде. Для стенда приемлемо, для прода — нет. *(Отложено.)*

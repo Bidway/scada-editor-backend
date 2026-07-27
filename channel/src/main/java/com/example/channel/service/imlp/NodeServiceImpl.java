@@ -21,9 +21,7 @@ import com.example.channel.service.NodeService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collections;
 import java.util.List;
@@ -146,10 +144,5 @@ public class NodeServiceImpl implements NodeService {
                 .toList();
         response.setTemplates(templates);
         return response;
-    }
-
-    @Override
-    public void connectNode(String idNode, String userName) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "connectNode is not yet implemented");
     }
 }
