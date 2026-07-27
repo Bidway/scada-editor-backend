@@ -169,7 +169,17 @@ public List<Component> getAll() { return service.getAll(); }
 
 ## Костыли и неточности
 
-### 7. Bean Validation не используется вообще
+### 7. Bean Validation не используется вообще ✅
+
+> **Исправлено 2026-07-27.** `spring-boot-starter-validation` подключён в `runtime`,
+> `auth`, `channel`, `editor`. Ограничения и `@Valid` на входных точках:
+> `CreateSessionRequest.projectId` `@NotNull` (закрыт баг с `/components/null`);
+> `RegisterDto` — `@NotBlank @Size` на логин/пароль; `CreateNodeDto` — `@NotNull type`,
+> `@NotBlank idNode`; `PropertyCreateDto.name` `@NotBlank` (только на POST — PUT-обновление
+> оставлено свободным для частичных правок). В `runtime`/`editor`/`channel`
+> `GlobalExceptionHandler` добавлен обработчик `MethodArgumentNotValidException` → 400
+> (иначе широкий `@ExceptionHandler(Exception.class)` вернул бы 500). В `auth` своего
+> advice нет — там 400 отдаёт Spring Boot по умолчанию.
 
 Ни одного `@Valid` в проекте, `spring-boot-starter-validation` не подключён.
 Следствия:

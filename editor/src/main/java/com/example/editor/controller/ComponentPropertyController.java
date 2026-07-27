@@ -3,6 +3,7 @@ package com.example.editor.controller;
 import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.dto.property.PropertyResponseDto;
 import com.example.editor.service.ComponentPropertyService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,7 +16,7 @@ public class ComponentPropertyController {
 
     @PostMapping
     public PropertyResponseDto create(
-            @RequestBody PropertyCreateDto property,
+            @Valid @RequestBody PropertyCreateDto property,
             @RequestHeader("X-Username") String userName) {
         return service.create(property, userName);
     }

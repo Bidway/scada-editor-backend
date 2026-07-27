@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +28,7 @@ public class RuntimeController {
     @ApiResponse(responseCode = "200", description = "Сессия создана")
     @ApiResponse(responseCode = "400", description = "Проект не найден или неверный запрос")
     @PostMapping
-    public ResponseEntity<SessionResponse> createSession(@RequestBody CreateSessionRequest request) {
+    public ResponseEntity<SessionResponse> createSession(@Valid @RequestBody CreateSessionRequest request) {
         RuntimeSessionService.SessionBootstrap bootstrap = sessionService.createSession(request.getProjectId());
         SessionResponse response = new SessionResponse(
                 bootstrap.session().getId(),
