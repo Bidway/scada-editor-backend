@@ -34,16 +34,18 @@ public class TagKafkaConsumer {
 
     private final KafkaProperties kafkaProperties;
     private final ApplicationEventPublisher eventPublisher;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     private volatile boolean running = true;
     private volatile KafkaConsumer<String, String> consumer;
     private Thread thread;
 
     public TagKafkaConsumer(KafkaProperties kafkaProperties,
-                            ApplicationEventPublisher eventPublisher) {
+                            ApplicationEventPublisher eventPublisher,
+                            ObjectMapper objectMapper) {
         this.kafkaProperties = kafkaProperties;
         this.eventPublisher = eventPublisher;
+        this.objectMapper = objectMapper;
     }
 
     @PostConstruct

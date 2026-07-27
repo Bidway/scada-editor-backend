@@ -17,5 +17,4 @@ public interface NodeService {
     NodeResponse getHierarchy(String rootPath);
     List<String> getSites();
     TemplateResponse getTemplates();
-    void connectNode(String idNode,String userName);
 }
