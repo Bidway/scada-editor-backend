@@ -2,6 +2,7 @@ package com.example.runtime.session;
 
 import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
+import com.example.runtime.dto.TagSnapshot;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.stream.PropertyUpdate;
@@ -127,6 +128,28 @@ public class RuntimeSessionService {
             }
         }
         return changed;
+    }
+
+    /**
+     * Снимок текущих значений тегов строк таблицы (по требованию, перед загрузкой рецепта —
+     * без постоянного потока). Значения берутся из кэша последних значений {@link TagValueRouter};
+     * тег без пришедшей телеметрии вернёт {@code value = null}.
+     */
+    public List<TagSnapshot> snapshot(String sessionId, Long componentId) {
+        RuntimeSession session = sessionStore.get(sessionId);
+        if (session == null) {
+            throw new IllegalArgumentException("Unknown session: " + sessionId);
+        }
+        TagSubscriptionIndex index = session.getIndex();
+        List<TagSnapshot> result = new ArrayList<>();
+        for (Long propertyId : index.propertyIdsOfComponent(componentId)) {
+            String tagId = index.tagIdOfProperty(propertyId);
+            if (tagId == null) {
+                continue;
+            }
+            result.add(new TagSnapshot(tagId, tagValueRouter.lastValue(tagId)));
+        }
+        return result;
     }
 
     /**

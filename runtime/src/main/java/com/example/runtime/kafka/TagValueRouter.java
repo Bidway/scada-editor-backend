@@ -78,6 +78,12 @@ public class TagValueRouter {
         }
     }
 
+    /** Последнее известное значение тега (для снимка по требованию перед загрузкой рецепта). */
+    public String lastValue(String tagId) {
+        TagRuntimeState state = tagStates.get(tagId);
+        return state != null ? state.lastValue : null;
+    }
+
     @EventListener
     public void onMessage(KafkaTagMessageEvent event) {
         String tagId = event.key();
