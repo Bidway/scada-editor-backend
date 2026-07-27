@@ -58,7 +58,12 @@ public class TagSubscriptionIndex {
                 propertyNames.put(propertyId, property.getName());
                 propertyComponentId.put(propertyId, componentId);
                 componentPropertyIds.computeIfAbsent(componentId, id -> new ArrayList<>()).add(propertyId);
-                initialPropertyValues.put(propertyId, property.getDefault_value());
+                // ConcurrentHashMap не принимает null, а default_value необязателен.
+                // Отсутствие ключа = «значение не задано» — так же трактуется дальше по цепочке.
+                Object defaultValue = property.getDefault_value();
+                if (defaultValue != null) {
+                    initialPropertyValues.put(propertyId, defaultValue);
+                }
 
                 // property_type — свободная строка без валидации ("Тег", "TAG", ...),
                 // поэтому признак тега — только непустой tag_id.

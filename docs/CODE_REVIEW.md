@@ -11,7 +11,11 @@
 
 ## Реальные падения
 
-### 1. NPE при старте сессии, если у свойства нет `default_value`
+### 1. NPE при старте сессии, если у свойства нет `default_value` ✅
+
+> **Исправлено 2026-07-27** (вместе с #2 — единая модель null). Свойства без
+> `default_value` не кладутся в `initialPropertyValues`; отсутствие ключа = «значение
+> не задано» и одинаково трактуется по всей цепочке (`propertyValues`, `props` скрипта).
 
 **Где:** `runtime/.../session/TagSubscriptionIndex.java:32,61`
 
@@ -31,7 +35,14 @@ NPE, сессия не создаётся вовсе (клиент получа�
 
 ---
 
-### 2. NPE и утечка контекста GraalVM, если скрипт присвоит `props.x = null`
+### 2. NPE и утечка контекста GraalVM, если скрипт присвоит `props.x = null` ✅
+
+> **Исправлено 2026-07-27.** (1) `props` теперь `HashMap` (короткоживущая, однопоточная),
+> поэтому допускает null; `propertyValues` остаётся `ConcurrentHashMap`, но null в него
+> не пишется — сброс свойства = удаление ключа (`storePropertyValue`), а `Map.copyOf`
+> заменён на `new HashMap<>(props)`. (2) `MapProxyObject.putMember` приводит значение к
+> контекстонезависимому Java-объекту через новый `GraalValues.toJava` (тот же конвертер
+> использует `ScriptEngineService`), поэтому ссылок на закрытый контекст не остаётся.
 
 **Где:** `runtime/.../script/MapProxyObject.java:37`, `runtime/.../kafka/TagValueRouter.java:118`
 

@@ -34,6 +34,8 @@ public final class MapProxyObject implements ProxyObject {
 
     @Override
     public void putMember(String key, Value value) {
-        map.put(key, value.isNull() ? null : value.as(Object.class));
+        // Приводим к контекстонезависимому Java-значению здесь же: контекст живёт только
+        // во время eval, а результат переживает его в props/propertyValues (см. GraalValues).
+        map.put(key, GraalValues.toJava(value));
     }
 }
