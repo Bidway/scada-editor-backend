@@ -4,6 +4,7 @@ import com.example.editor.dto.component.BindingPayloadDto;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.EventPayloadDto;
 import com.example.editor.dto.component.ScriptCreateDto;
+import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.model.component.Binding;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentEvent;
@@ -22,6 +23,45 @@ import java.util.Set;
  */
 @UtilityClass
 public class ComponentScriptBindingApplier {
+
+    /**
+     * Массовая синхронизация свойств компонента (строки таблицы и т.п.) из DTO.
+     * <p>
+     * В отличие от scripts/bindings/events чистим <b>только если поле прислано</b>
+     * ({@code properties != null}): при {@code null} существующие свойства не трогаем, чтобы не
+     * ломать их ведение через отдельный {@code ComponentPropertyController}. Прислали список —
+     * полная замена (wholesale), поэтому обновление таблицы должно нести все строки сразу.
+     */
+    public void applyProperties(Component entity, ComponentCreateDto dto) {
+        if (dto.getProperties() == null) {
+            return;
+        }
+        entity.getProperties().clear();
+        for (PropertyCreateDto p : dto.getProperties()) {
+            if (p.getName() == null || p.getName().isBlank()) {
+                throw new IllegalStateException("Property name is required");
+            }
+            if (p.getProperty_type() == null || p.getProperty_type().isBlank()) {
+                throw new IllegalStateException("Property property_type is required for '" + p.getName() + "'");
+            }
+            if (p.getValue_type() == null || p.getValue_type().isBlank()) {
+                throw new IllegalStateException("Property value_type is required for '" + p.getName() + "'");
+            }
+            entity.getProperties().add(
+                    ComponentProperty.builder()
+                            .name(p.getName())
+                            .tagId(p.getTag_id())
+                            .propertyType(p.getProperty_type())
+                            .description(p.getDescription())
+                            .valueType(p.getValue_type())
+                            .defaultValue(p.getDefault_value())
+                            .logging(p.isLogging())
+                            .onChange(p.getOnChange())
+                            .component(entity)
+                            .build()
+            );
+        }
+    }
 
     public void apply(
             Component entity,
