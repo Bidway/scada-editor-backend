@@ -12,10 +12,12 @@ import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -43,7 +45,17 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class ScriptEngineService {
 
-    private final Map<String, Source> sourceCache = new ConcurrentHashMap<>();
+    /** Правки скрипта в редакторе создают новые ключи (ключ = весь текст), поэтому кэш ограничен. */
+    private static final int MAX_CACHED_SOURCES = 512;
+
+    /** LRU с ограничением: без предела кэш рос бы навсегда (#11). Синхронизирован — доступ из script-exec потоков. */
+    private final Map<String, Source> sourceCache = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Source> eldest) {
+                    return size() > MAX_CACHED_SOURCES;
+                }
+            });
     private final BlockingQueue<Context> pool;
     private final ScheduledExecutorService watchdog = Executors.newSingleThreadScheduledExecutor(
             r -> new Thread(r, "script-watchdog"));
@@ -77,7 +89,7 @@ public class ScriptEngineService {
     private void warmUp(Context ctx) {
         try {
             ctx.getBindings("js").putMember("tag", 0);
-            ctx.getBindings("js").putMember("props", new MapProxyObject(new ConcurrentHashMap<>()));
+            ctx.getBindings("js").putMember("props", new MapProxyObject(new HashMap<>()));
             ctx.getBindings("js").putMember("writeTag", writeTagFunction(TagWriteSink.NOOP));
             ctx.eval(Source.create("js",
                     "typeof tag; typeof props; props.__warm = tag; writeTag('__warm', tag);"));
@@ -152,6 +164,8 @@ public class ScriptEngineService {
             future.get(timeoutMs + 100, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             log.warn("Script execution failed/timed out: {}", e.getMessage());
+            // Прекращаем зависший script-exec поток: контекст уже закрывается из-под него.
+            future.cancel(true);
             replace(ctx);
             throw new ScriptExecutionException("Script execution failed or timed out", e);
         } finally {
@@ -207,7 +221,9 @@ public class ScriptEngineService {
             Context ctx = pool.poll(timeoutMs, TimeUnit.MILLISECONDS);
             if (ctx == null) {
                 log.warn("Script context pool exhausted, creating a temporary context");
-                return newContext();
+                Context fresh = newContext();
+                warmUp(fresh);
+                return fresh;
             }
             return ctx;
         } catch (InterruptedException e) {
@@ -227,6 +243,10 @@ public class ScriptEngineService {
             ctx.close(true);
         } catch (Exception ignored) {
         }
-        pool.offer(newContext());
+        // Обязательно прогреть: иначе холодный контекст в пуле → следующий eval снова
+        // таймаутит и снова кладёт холодный, и так по кругу (самоподдерживающийся сбой, #3).
+        Context fresh = newContext();
+        warmUp(fresh);
+        pool.offer(fresh);
     }
 }

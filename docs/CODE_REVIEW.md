@@ -66,7 +66,12 @@ map.put(key, value.isNull() ? null : value.as(Object.class));
 
 ---
 
-### 3. Контекст без прогрева = гарантированный таймаут
+### 3. Контекст без прогрева = гарантированный таймаут ✅
+
+> **Исправлено 2026-07-27.** `borrow()` (пул исчерпан) и `replace()` (после сбоя)
+> теперь прогревают новый контекст через `warmUp()` — самоподдерживающийся сбой из
+> холодных контекстов устранён. В ветке таймаута добавлен `future.cancel(true)`, чтобы
+> не оставлять висящий поток `script-exec` на зациклившемся скрипте.
 
 **Где:** `runtime/.../script/ScriptEngineService.java:218,239`
 
@@ -238,7 +243,11 @@ public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
 
 ---
 
-### 11. `sourceCache` растёт без ограничения
+### 11. `sourceCache` растёт без ограничения ✅
+
+> **Исправлено 2026-07-27.** `sourceCache` — теперь ограниченный LRU
+> (`Collections.synchronizedMap` над `LinkedHashMap` с `removeEldestEntry`, предел
+> `MAX_CACHED_SOURCES = 512`). Вытесненный `Source` при надобности пересоздаётся.
 
 **Где:** `runtime/.../script/ScriptEngineService.java:46,123`
 
