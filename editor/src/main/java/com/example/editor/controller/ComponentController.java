@@ -8,7 +8,6 @@ import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
-import com.example.editor.model.component.Component;
 import com.example.editor.service.ComponentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -73,7 +72,7 @@ public class ComponentController {
     }
 
     @GetMapping
-    public List<Component> getAll() {
+    public List<ComponentResponseDto> getAll() {
         return service.getAll();
     }
 }
