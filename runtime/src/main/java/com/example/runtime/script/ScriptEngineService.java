@@ -197,18 +197,9 @@ public class ScriptEngineService {
         };
     }
 
-    /** Примитив из JS в Java. Всё нераспознанное отдаём строкой — шлюз приведёт по dataType. */
+    /** Значение из JS в контекстонезависимый Java-объект (единый конвертер — см. {@link GraalValues}). */
     private Object toJavaValue(Value value) {
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        if (value.isBoolean()) {
-            return value.asBoolean();
-        }
-        if (value.isNumber()) {
-            return value.fitsInLong() ? value.asLong() : value.asDouble();
-        }
-        return value.toString();
+        return GraalValues.toJava(value);
     }
 
     private Context borrow() {

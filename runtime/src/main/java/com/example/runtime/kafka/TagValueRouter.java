@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -116,7 +117,9 @@ public class TagValueRouter {
     private void runOnChangeAndPublish(RuntimeSession session, OnChangeBinding binding, Object tagValue, long ts) {
         Long componentId = binding.componentId();
         List<Long> propertyIds = session.getIndex().propertyIdsOfComponent(componentId);
-        Map<String, Object> props = new ConcurrentHashMap<>();
+        // HashMap, а не ConcurrentHashMap: значение свойства может быть не задано (null),
+        // и скрипт вправе выставить props.x = null. Карта живёт одно выполнение скрипта.
+        Map<String, Object> props = new HashMap<>();
         for (Long propertyId : propertyIds) {
             String name = session.getIndex().propertyName(propertyId);
             Object current = session.getPropertyValues().get(propertyId);
@@ -124,7 +127,7 @@ public class TagValueRouter {
                 props.put(name, current);
             }
         }
-        Map<String, Object> before = Map.copyOf(props);
+        Map<String, Object> before = new HashMap<>(props);
 
         Map<String, Object> after;
         try {
@@ -142,9 +145,21 @@ public class TagValueRouter {
             }
             Object newValue = after.get(name);
             if (!java.util.Objects.equals(before.get(name), newValue)) {
-                session.getPropertyValues().put(propertyId, newValue);
+                storePropertyValue(session, propertyId, newValue);
                 session.getOutboundBuffer().offerProperty(new PropertyUpdate(propertyId, name, newValue, ts));
             }
+        }
+    }
+
+    /**
+     * Записывает значение свойства в хранилище сессии. {@code null} (свойство сброшено
+     * скриптом) представляется отсутствием ключа — {@code ConcurrentHashMap} не хранит null.
+     */
+    private static void storePropertyValue(RuntimeSession session, Long propertyId, Object value) {
+        if (value == null) {
+            session.getPropertyValues().remove(propertyId);
+        } else {
+            session.getPropertyValues().put(propertyId, value);
         }
     }
 

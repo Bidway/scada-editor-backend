@@ -9,11 +9,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
@@ -92,14 +92,17 @@ public class RuntimeSessionService {
         }
 
         List<Long> propertyIds = session.getIndex().propertyIdsOfComponent(script.componentId());
-        Map<String, Object> props = new ConcurrentHashMap<>();
+        // HashMap, а не ConcurrentHashMap: свойство может быть не задано (null), а скрипт
+        // вправе присвоить props.x = null. Карта короткоживущая и однопоточная (одно
+        // выполнение скрипта), поэтому потокобезопасность не нужна.
+        Map<String, Object> props = new HashMap<>();
         for (Long propertyId : propertyIds) {
             String name = session.getIndex().propertyName(propertyId);
             if (name != null) {
                 props.put(name, session.getPropertyValues().get(propertyId));
             }
         }
-        Map<String, Object> before = Map.copyOf(props);
+        Map<String, Object> before = new HashMap<>(props);
 
         Map<String, Object> after;
         try {
@@ -119,11 +122,24 @@ public class RuntimeSessionService {
             }
             Object newValue = after.get(name);
             if (!Objects.equals(before.get(name), newValue)) {
-                session.getPropertyValues().put(propertyId, newValue);
+                storePropertyValue(session, propertyId, newValue);
                 changed.add(new PropertyUpdate(propertyId, name, newValue, ts));
             }
         }
         return changed;
+    }
+
+    /**
+     * Записывает значение свойства в потокобезопасное хранилище сессии. {@code null}
+     * (свойство сброшено) представляется отсутствием ключа — {@code ConcurrentHashMap}
+     * не хранит null, а «нет ключа» и трактуется как «значение не задано».
+     */
+    private static void storePropertyValue(RuntimeSession session, Long propertyId, Object value) {
+        if (value == null) {
+            session.getPropertyValues().remove(propertyId);
+        } else {
+            session.getPropertyValues().put(propertyId, value);
+        }
     }
 
     public record SessionBootstrap(RuntimeSession session, EditorComponentDto projectTree) {
