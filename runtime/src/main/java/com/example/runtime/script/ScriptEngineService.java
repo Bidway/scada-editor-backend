@@ -63,7 +63,14 @@ public class ScriptEngineService {
     private final long timeoutMs;
 
     public ScriptEngineService(RuntimeProperties properties) {
-        int poolSize = Math.max(1, properties.getScript().getContextPoolSize());
+        // Контекстов должно хватать на всех одновременных вызывающих, иначе поток ждёт
+        // на poll() весь execution-timeout, а затем создаёт временный контекст с полным
+        // прогревом — сотни миллисекунд на горячем пути, и без ограничения сверху.
+        // Основной источник параллелизма — полосы OnChangeDispatcher, поэтому размер
+        // пула не может быть меньше их числа: две настройки иначе молча разъезжаются.
+        int poolSize = Math.max(
+                Math.max(1, properties.getScript().getContextPoolSize()),
+                properties.getScript().getOnChangeThreads());
         this.timeoutMs = properties.getScript().getExecutionTimeoutMs();
         this.pool = new ArrayBlockingQueue<>(poolSize);
         this.executor = Executors.newFixedThreadPool(poolSize, r -> new Thread(r, "script-exec"));
