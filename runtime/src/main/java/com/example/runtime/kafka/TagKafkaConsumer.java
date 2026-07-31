@@ -32,6 +32,11 @@ import java.util.Properties;
 @Slf4j
 public class TagKafkaConsumer {
 
+    private static final long POLL_TIMEOUT_MS = 200;
+
+    /** Пауза перед пересозданием consumer'а: чтобы при лежащем брокере не крутить цикл вхолостую. */
+    private static final long RECONNECT_DELAY_MS = 5000;
+
     private final KafkaProperties kafkaProperties;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -60,10 +65,27 @@ public class TagKafkaConsumer {
         running = false;
         KafkaConsumer<String, String> c = consumer;
         if (c != null) {
-            c.wakeup();
+            try {
+                c.wakeup();
+            } catch (Exception ignored) {
+                // consumer уже закрыт надзорным циклом — будить нечего
+            }
+        }
+        if (thread != null) {
+            thread.interrupt(); // снимает паузу перед переподключением, если поток спит в ней
         }
     }
 
+    /**
+     * Надзорный цикл: пересоздаёт consumer после любого сбоя, пока сервис не остановлен.
+     * <p>
+     * Раньше {@code catch} стоял снаружи {@code while}, и первое же исключение из
+     * {@code poll()} — таймаут ребаланса, кратковременная потеря брокера — навсегда
+     * завершало поток. Приложение при этом оставалось «живым»: HTTP отвечал, WebSocket-ы
+     * висели открытыми, а телеметрия просто переставала идти, и оператор смотрел на
+     * замерший экран, считая его актуальным. Это опаснее падения процесса, которое хотя
+     * бы заметно снаружи.
+     */
     private void pollLoop() {
         String topic = kafkaProperties.getTagsTopic();
         Properties props = new Properties();
@@ -74,27 +96,54 @@ public class TagKafkaConsumer {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
 
-        try (KafkaConsumer<String, String> c = new KafkaConsumer<>(props)) {
-            this.consumer = c;
-            c.subscribe(List.of(topic));
-            log.info("Started Kafka consumer for tags topic '{}'", topic);
-            while (running) {
-                ConsumerRecords<String, String> records = c.poll(Duration.ofMillis(200));
-                for (ConsumerRecord<String, String> record : records) {
-                    try {
-                        eventPublisher.publishEvent(
-                                new KafkaTagMessageEvent(record.key(), extractValue(record.value())));
-                    } catch (Exception e) {
-                        log.warn("Failed to dispatch kafka message from topic {}: {}", topic, e.getMessage());
-                    }
+        while (running) {
+            try (KafkaConsumer<String, String> c = new KafkaConsumer<>(props)) {
+                this.consumer = c;
+                c.subscribe(List.of(topic));
+                log.info("Started Kafka consumer for tags topic '{}'", topic);
+                consumeUntilStopped(c, topic);
+            } catch (WakeupException ignored) {
+                // штатная остановка через stop()
+            } catch (Exception e) {
+                log.error("Kafka consumer for tags topic '{}' failed, will reconnect in {} ms: {}",
+                        topic, RECONNECT_DELAY_MS, e.getMessage(), e);
+            } finally {
+                this.consumer = null;
+            }
+
+            if (running && !sleepBeforeReconnect()) {
+                break;
+            }
+        }
+        log.info("Stopped Kafka consumer for tags topic '{}'", topic);
+    }
+
+    /**
+     * Внутренний цикл чтения. Выходит наружу только на остановке ({@link WakeupException})
+     * либо на сбое, который лечится пересозданием consumer'а.
+     */
+    private void consumeUntilStopped(KafkaConsumer<String, String> c, String topic) {
+        while (running) {
+            ConsumerRecords<String, String> records = c.poll(Duration.ofMillis(POLL_TIMEOUT_MS));
+            for (ConsumerRecord<String, String> record : records) {
+                try {
+                    eventPublisher.publishEvent(
+                            new KafkaTagMessageEvent(record.key(), extractValue(record.value())));
+                } catch (Exception e) {
+                    log.warn("Failed to dispatch kafka message from topic {}: {}", topic, e.getMessage());
                 }
             }
-        } catch (WakeupException ignored) {
-            // штатная остановка
-        } catch (Exception e) {
-            log.error("Kafka consumer for tags topic '{}' failed: {}", topic, e.getMessage(), e);
-        } finally {
-            log.info("Stopped Kafka consumer for tags topic '{}'", topic);
+        }
+    }
+
+    /** @return {@code false}, если ожидание прервано и поток надо завершать */
+    private static boolean sleepBeforeReconnect() {
+        try {
+            Thread.sleep(RECONNECT_DELAY_MS);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
