@@ -9,6 +9,13 @@ public class RuntimeProperties {
 
     private String editorBaseUrl;
     private long flushIntervalMs = 40L;
+
+    /**
+     * Потоки отправки WS-кадров (см. {@code OutboundFlusher}). Отправка блокирующая и
+     * упирается в сеть клиента, поэтому потоков нужно больше, чем ядер: медленный
+     * клиент занимает поток, но не должен задерживать остальные сессии.
+     */
+    private int flushThreads = Math.max(4, Runtime.getRuntime().availableProcessors());
     private final Script script = new Script();
     private final Session session = new Session();
     private final Ws ws = new Ws();
@@ -27,6 +34,14 @@ public class RuntimeProperties {
 
     public void setFlushIntervalMs(long flushIntervalMs) {
         this.flushIntervalMs = flushIntervalMs;
+    }
+
+    public int getFlushThreads() {
+        return flushThreads;
+    }
+
+    public void setFlushThreads(int flushThreads) {
+        this.flushThreads = flushThreads;
     }
 
     public Script getScript() {
