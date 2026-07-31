@@ -12,10 +12,36 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+/**
+ * Единственная точка проверки подписи токена в системе: сервисы за gateway не разбирают JWT
+ * и принимают личность из заголовков {@code X-User-Id}/{@code X-Username}. Это верно только
+ * потому, что их порты больше не публикуются наружу (см. docker-compose) — снаружи в контур
+ * можно попасть лишь через этот фильтр, а заголовки он проставляет сам, затирая присланные
+ * клиентом.
+ * <p>
+ * Проверка стоит на HTTP-запросе, в том числе на запросе апгрейда WebSocket, — то есть один раз
+ * на подключение, а не на каждый кадр телеметрии. Дальше gateway кадры только пересылает.
+ */
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
+    /** Логин/регистрация — до выдачи токена проверять нечего. */
+    private static final String AUTH_PREFIX = "/api/auth";
+
+    /** WebSocket мониторинга (raw, без STOMP). */
+    private static final String RUNTIME_WS_PREFIX = "/ws/runtime/";
+
+    /** STOMP-эндпоинт канала. */
+    private static final String WS_PREFIX = "/ws";
+
+    /**
+     * Браузерный WebSocket не умеет слать заголовок {@code Authorization} на апгрейде,
+     * поэтому для WS токен принимается из query. Только для WS: для обычных запросов это
+     * означало бы токен в access-логах и в истории браузера.
+     */
+    private static final String WS_TOKEN_PARAM = "token";
 
     private final JwtService jwtService;
 
@@ -29,20 +55,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         String path = exchange.getRequest().getURI().getPath();
 
-        // Пропускаем login/register
-        if (path.startsWith("/api/auth")) {
+        if (path.startsWith(AUTH_PREFIX)) {
             return chain.filter(exchange);
         }
 
-        String authHeader = exchange.getRequest()
-                .getHeaders()
-                .getFirst(HttpHeaders.AUTHORIZATION);
-
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return unauthorized(exchange);
+        // STOMP канала проксируется, но пока не аутентифицируется: у него другой клиент
+        // (SockJS) и своя схема передачи токена, это отдельный шаг плана (B7). Экспозиция
+        // при этом не выросла — раньше тот же эндпоинт был доступен напрямую на :8082.
+        if (isChannelWebSocket(path)) {
+            return chain.filter(exchange);
         }
 
-        String token = authHeader.substring(7);
+        String token = path.startsWith(RUNTIME_WS_PREFIX)
+                ? exchange.getRequest().getQueryParams().getFirst(WS_TOKEN_PARAM)
+                : bearerToken(exchange);
+
+        if (token == null || token.isBlank()) {
+            return unauthorized(exchange);
+        }
 
         try {
             Claims claims = jwtService.extractClaims(token);
@@ -58,6 +88,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return unauthorized(exchange);
             }
 
+            // header() именно заменяет значение, а не добавляет: присланный клиентом
+            // X-Username затирается, подделать личность через заголовок нельзя.
             ServerHttpRequest mutatedRequest = exchange.getRequest()
                     .mutate()
                     .header("X-User-Id", userId.toString())
@@ -74,6 +106,19 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             log.debug("JWT rejected for path {}: {}", path, e.getMessage());
             return unauthorized(exchange);
         }
+    }
+
+    /** {@code /ws/...}, но не {@code /ws/runtime/...}. */
+    private static boolean isChannelWebSocket(String path) {
+        return (path.equals(WS_PREFIX) || path.startsWith(WS_PREFIX + "/"))
+                && !path.startsWith(RUNTIME_WS_PREFIX);
+    }
+
+    private String bearerToken(ServerWebExchange exchange) {
+        String authHeader = exchange.getRequest()
+                .getHeaders()
+                .getFirst(HttpHeaders.AUTHORIZATION);
+        return (authHeader != null && authHeader.startsWith("Bearer ")) ? authHeader.substring(7) : null;
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {

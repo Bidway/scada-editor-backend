@@ -355,11 +355,12 @@ WS-соединение (сам consumer единого Kafka-топика пр�
 
 ## WebSocket
 
-Подключение напрямую к `ws://localhost:8082/ws` (STOMP).
+Подключение через gateway: `ws://localhost:8080/ws` (STOMP). Порт 8082 наружу не
+публикуется. Аутентификации на этом эндпоинте пока нет — отдельный шаг плана (B7).
 
 ```javascript
 const client = new Client({
-  brokerURL: 'ws://localhost:8082/ws'
+  brokerURL: 'ws://localhost:8080/ws'
 });
 client.activate();
 
@@ -373,12 +374,17 @@ client.subscribe('/topic/param/10', (msg) => {
 
 ### WebSocket `runtime` (режим мониторинга)
 
-Подключение напрямую к `ws://localhost:8085/ws/runtime/{sessionId}` (`sessionId` из ответа
-`POST /api/runtime/sessions`). Raw WebSocket, без STOMP/SockJS — рассчитан на большой поток
-частых обновлений тегов.
+Подключение через gateway: `ws://localhost:8080/ws/runtime/{sessionId}?token=<jwt>`
+(`sessionId` из ответа `POST /api/runtime/sessions`). Raw WebSocket, без STOMP/SockJS —
+рассчитан на большой поток частых обновлений тегов.
+
+Токен обязателен и идёт в query: браузерный WebSocket не умеет слать `Authorization`
+на апгрейде. Подпись проверяет gateway, runtime получает уже проверенную личность
+заголовком `X-Username`. Без токена — `401` на апгрейде (браузер покажет это как
+`onerror` + close `1006` без причины).
 
 ```javascript
-const ws = new WebSocket(`ws://localhost:8085/ws/runtime/${sessionId}`);
+const ws = new WebSocket(`ws://localhost:8080/ws/runtime/${sessionId}?token=${jwt}`);
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);

@@ -78,11 +78,11 @@
 
 | Сервис | Порт | Назначение |
 |--------|------|-----------|
-| gateway | 8080 | Единая точка входа для всех HTTP |
-| auth | 8081 | Регистрация / логин |
-| channel | 8082 | SCADA-узлы, параметры, WebSocket |
-| editor | 8083 | Компоненты, шаблоны, undo |
-| runtime | 8085 | Режим мониторинга: сессии, WebSocket `/ws/runtime/{sessionId}` |
+| gateway | 8080 | Единая точка входа: HTTP **и WebSocket**, единственный опубликованный порт |
+| auth | 8081 | Регистрация / логин (порт только внутри сети compose) |
+| channel | 8082 | SCADA-узлы, параметры, WebSocket (порт только внутри сети compose) |
+| editor | 8083 | Компоненты, шаблоны, undo (порт только внутри сети compose) |
+| runtime | 8085 | Режим мониторинга: сессии, WebSocket `/ws/runtime/{sessionId}` (порт только внутри сети compose) |
 | PostgreSQL | 5432 | База данных |
 | Redis | 6379 | Блокировки узлов |
 | Kafka | 9092 (внешний), 19092 (внутри сети docker-compose) | Живые значения тегов |
@@ -109,9 +109,18 @@ routes:
   - id: channel-service  →  /api/channel/** →  http://channel:8082
   - id: editor-service   →  /api/editor/**  →  http://editor:8083
   - id: runtime-service  →  /api/runtime/** →  http://runtime:8085
+  - id: runtime-ws       →  /ws/runtime/**  →  http://runtime:8085   # raw WebSocket
+  - id: channel-ws       →  /ws/**          →  http://channel:8082   # STOMP/SockJS, order: 1
 ```
 
-> **WebSocket** (`/ws/**`, `/ws/runtime/**`) пока не проксируется через Gateway — клиент подключается напрямую к `channel:8082` / `runtime:8085`.
+> **WebSocket проксируется через Gateway.** Апгрейд распознаётся по заголовку `Upgrade`,
+> схему `http` → `ws` подставляет `WebsocketRoutingFilter`; тело кадров gateway не разбирает,
+> только пересылает. Порядок маршрутов важен: `/ws/**` перекрывает `/ws/runtime/**`, поэтому
+> у `channel-ws` стоит `order: 1`.
+>
+> Лимит `spring.cloud.gateway.httpclient.websocket.max-frame-payload-length` поднят с дефолтных
+> 64 КБ: кадр мониторинга — это батч за окно флаша по всем тегам экрана, и превышение лимита
+> означает не усечение, а закрытие соединения с кодом 1009.
 
 ## Security в downstream-сервисах
 

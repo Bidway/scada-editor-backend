@@ -52,6 +52,11 @@ services:
       timeout: 10s
       retries: 10
 
+  # Порты прикладных сервисов наружу НЕ публикуются: подпись токена проверяет только
+  # gateway, а сервисы принимают личность из заголовков X-User-Id/X-Username. Опубликованный
+  # порт делал бы эту модель фиктивной — запрос с самодельным X-Username шёл бы в обход
+  # проверки. Внутри сети compose сервисы по-прежнему доступны друг другу по имени.
+  # Единственный вход снаружи — gateway:8080.
   auth:
     build: ./auth
     environment:
@@ -63,8 +68,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,8 +87,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
-    ports:
-      - "8082:8082"
+    expose:
+      - "8082"
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,8 +106,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
-    ports:
-      - "8083:8083"
+    expose:
+      - "8083"
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,9 +123,10 @@ services:
       KAFKA_TAGS_TOPIC: ${KAFKA_TAGS_TOPIC:-scada.tags}
       EDITOR_HOST: editor
       EDITOR_PORT: 8083
-      JWT_SECRET: ${JWT_SECRET}
-    ports:
-      - "8085:8085"
+      # JWT_SECRET здесь больше не нужен: runtime не разбирает токены — личность на
+      # WS-handshake приходит от gateway заголовком X-Username.
+    expose:
+      - "8085"
     depends_on:
       redis:
         condition: service_healthy

@@ -69,8 +69,8 @@ POST http://localhost:8085/api/runtime/sessions
 → { "sessionId": "...", "wsPath": "/ws/runtime/...", "projectTree": {...} }
 ```
 
-**WebSocket:** `ws://localhost:8085/ws/runtime/{sessionId}` — **напрямую на :8085**,
-gateway роутит только `/api/**` и WS через себя не пускает.
+**WebSocket:** `ws://localhost:8080/ws/runtime/{sessionId}?token=<jwt>` — **через gateway**,
+он проксирует и `/api/**`, и `/ws/**`. Порты сервисов наружу не публикуются.
 
 Сервер → фронт (батч раз в ~40мс):
 ```json
@@ -170,7 +170,7 @@ async function createSession() {
 
 function openWs(sessionId, sink) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://localhost:8085/ws/runtime/${sessionId}`);
+    const ws = new WebSocket(`ws://localhost:8080/ws/runtime/${sessionId}?token=${jwt}`);
     ws.onmessage = (e) => { sink.push(e.data); console.log(`  <- WS       ${e.data}`); };
     ws.onopen = () => resolve(ws);
     ws.onerror = () => reject(new Error('ws error'));
