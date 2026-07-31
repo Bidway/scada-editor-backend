@@ -12,6 +12,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Применение набора значений (рецепт, параметры станции и т.п.): тянет резолв из editor по
@@ -30,6 +34,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RecipeApplyService {
 
+    /**
+     * Общий дедлайн ожидания подтверждений: {@code delivery.timeout.ms} продюсера (5 с)
+     * плюс запас. Отправка конвейерная, поэтому от числа строк не зависит.
+     */
+    private static final long ACK_TIMEOUT_MS = 7000;
+
     private final EditorClient editorClient;
     private final CommandProducer commandProducer;
     private final RuntimeSessionService sessionService;
@@ -43,9 +53,9 @@ public class RecipeApplyService {
         List<ResolvedRecipeValue> values = resolved.valuesOrEmpty();
         List<String> unmatched = resolved.unmatchedOrEmpty();
 
-        int sent = 0;
         int localApplied = 0;
         List<String> failedRows = new ArrayList<>();
+        List<PendingCommand> pending = new ArrayList<>();
         for (ResolvedRecipeValue value : values) {
             Object coerced;
             try {
@@ -57,25 +67,35 @@ public class RecipeApplyService {
                 failedRows.add(value.rowName());
                 continue;
             }
-            boolean applied;
             if (value.isLocal()) {
-                applied = hasSession(sessionId)
+                boolean applied = hasSession(sessionId)
                         && sessionService.applyLocalProperty(
                                 sessionId, resolved.componentId(), value.rowName(), coerced);
                 if (applied) {
                     localApplied++;
-                } else if (!hasSession(sessionId)) {
-                    log.warn("Recipe {} has local row '{}' but request carries no sessionId",
-                            recipeId, value.rowName());
+                } else {
+                    if (!hasSession(sessionId)) {
+                        log.warn("Recipe {} has local row '{}' but request carries no sessionId",
+                                recipeId, value.rowName());
+                    }
+                    failedRows.add(value.rowName());
                 }
             } else {
-                applied = commandProducer.send(value.tagId(), coerced);
-                if (applied) {
-                    sent++;
-                }
+                // Команды уходят в брокер конвейером; исход каждой узнаём ниже, когда
+                // дождёмся подтверждений, — иначе отчёт оператору был бы выдан раньше,
+                // чем команда покинула процесс.
+                pending.add(new PendingCommand(
+                        value.rowName(), commandProducer.send(value.tagId(), coerced)));
             }
-            if (!applied) {
-                failedRows.add(value.rowName());
+        }
+
+        int sent = 0;
+        awaitAcknowledgements(pending, recipeId);
+        for (PendingCommand command : pending) {
+            if (command.delivered()) {
+                sent++;
+            } else {
+                failedRows.add(command.rowName());
             }
         }
 
@@ -88,6 +108,43 @@ public class RecipeApplyService {
 
     private static boolean hasSession(String sessionId) {
         return sessionId != null && !sessionId.isBlank();
+    }
+
+    /**
+     * Команда, отправленная в брокер, и строка набора, которой она принадлежит.
+     * {@link #delivered()} опрашивается уже после общего ожидания, поэтому
+     * незавершённый к дедлайну future честно считается недоставленным.
+     */
+    private record PendingCommand(String rowName, CompletableFuture<Boolean> future) {
+        boolean delivered() {
+            return Boolean.TRUE.equals(future.getNow(false));
+        }
+    }
+
+    /**
+     * Ждёт подтверждений брокера по всем отправленным командам. Отправка конвейерная,
+     * поэтому дедлайн общий, а не на каждую команду: он покрывает {@code delivery.timeout.ms}
+     * продюсера с запасом. Исключения не пробрасываем — исход каждой команды разбирается
+     * по её future.
+     */
+    private static void awaitAcknowledgements(List<PendingCommand> pending, Long recipeId) {
+        if (pending.isEmpty()) {
+            return;
+        }
+        CompletableFuture<?>[] futures = pending.stream()
+                .map(PendingCommand::future)
+                .toArray(CompletableFuture[]::new);
+        try {
+            CompletableFuture.allOf(futures).get(ACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            log.warn("Recipe {}: broker did not acknowledge all commands within {} ms",
+                    recipeId, ACK_TIMEOUT_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Recipe {}: interrupted while waiting for command acknowledgements", recipeId);
+        } catch (ExecutionException e) {
+            log.warn("Recipe {}: command acknowledgement failed: {}", recipeId, e.getMessage());
+        }
     }
 
     /**
