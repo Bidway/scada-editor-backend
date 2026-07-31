@@ -3,6 +3,12 @@ package com.example.runtime.kafka;
 /**
  * Публикуется {@link TagKafkaConsumer} на каждое прочитанное сообщение единого
  * Kafka-топика проекта. {@code key} — это {@code Node.idNode} узла-источника значения.
+ * <p>
+ * {@code rawValue} — <b>нераспакованное</b> тело сообщения. Распаковка (конверт драйвера
+ * против голого скаляра) намеренно отложена до {@link TagValueRouter}, который сначала
+ * проверяет, подписан ли кто-нибудь на этот тег. В топике живут значения всех тегов
+ * установки, а на экранах операторов — сотни; парсить JSON до проверки подписки значило
+ * бы выполнять эту работу впустую для подавляющего большинства сообщений.
  */
-public record KafkaTagMessageEvent(String key, String value) {
+public record KafkaTagMessageEvent(String key, String rawValue) {
 }

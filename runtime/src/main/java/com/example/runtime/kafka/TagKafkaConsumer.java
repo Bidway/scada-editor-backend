@@ -1,8 +1,6 @@
 package com.example.runtime.kafka;
 
 import com.example.runtime.config.KafkaProperties;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -39,18 +37,15 @@ public class TagKafkaConsumer {
 
     private final KafkaProperties kafkaProperties;
     private final ApplicationEventPublisher eventPublisher;
-    private final ObjectMapper objectMapper;
 
     private volatile boolean running = true;
     private volatile KafkaConsumer<String, String> consumer;
     private Thread thread;
 
     public TagKafkaConsumer(KafkaProperties kafkaProperties,
-                            ApplicationEventPublisher eventPublisher,
-                            ObjectMapper objectMapper) {
+                            ApplicationEventPublisher eventPublisher) {
         this.kafkaProperties = kafkaProperties;
         this.eventPublisher = eventPublisher;
-        this.objectMapper = objectMapper;
     }
 
     @PostConstruct
@@ -127,8 +122,10 @@ public class TagKafkaConsumer {
             ConsumerRecords<String, String> records = c.poll(Duration.ofMillis(POLL_TIMEOUT_MS));
             for (ConsumerRecord<String, String> record : records) {
                 try {
+                    // Тело не разбираем: в топике значения всех тегов установки, а подписаны
+                    // единицы. Распаковку делает TagValueRouter — после проверки подписки.
                     eventPublisher.publishEvent(
-                            new KafkaTagMessageEvent(record.key(), extractValue(record.value())));
+                            new KafkaTagMessageEvent(record.key(), record.value()));
                 } catch (Exception e) {
                     log.warn("Failed to dispatch kafka message from topic {}: {}", topic, e.getMessage());
                 }
@@ -147,25 +144,4 @@ public class TagKafkaConsumer {
         }
     }
 
-    /**
-     * Достаёт значение тега из сообщения. В топике сосуществуют два формата:
-     * драйвер устройства шлёт JSON-конверт (значение в поле {@code value}), а ручные
-     * публикации — голый скаляр. Конверт распаковывается, всё остальное отдаётся как
-     * есть, поэтому дальше по цепочке значение всегда остаётся сырой строкой
-     * ({@code "72.7"}, {@code "true"}) — модель тега целиком строковая.
-     */
-    private String extractValue(String raw) {
-        if (raw == null || raw.isEmpty() || raw.charAt(0) != '{') {
-            return raw;
-        }
-        try {
-            JsonNode value = objectMapper.readTree(raw).get("value");
-            if (value == null) {
-                return raw;
-            }
-            return value.isNull() ? null : value.asText();
-        } catch (Exception e) {
-            return raw;
-        }
-    }
 }

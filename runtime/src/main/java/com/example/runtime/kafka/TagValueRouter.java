@@ -7,6 +7,8 @@ import com.example.runtime.session.RuntimeSessionStore;
 import com.example.runtime.session.TagCommandService;
 import com.example.runtime.stream.PropertyUpdate;
 import com.example.runtime.stream.TagUpdate;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -35,16 +37,19 @@ public class TagValueRouter {
     private final RuntimeSessionStore sessionStore;
     private final ScriptEngineService scriptEngineService;
     private final TagCommandService tagCommandService;
+    private final ObjectMapper objectMapper;
 
     /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последняя сессия. */
     private final Map<String, TagRuntimeState> tagStates = new ConcurrentHashMap<>();
 
     public TagValueRouter(RuntimeSessionStore sessionStore,
                           ScriptEngineService scriptEngineService,
-                          TagCommandService tagCommandService) {
+                          TagCommandService tagCommandService,
+                          ObjectMapper objectMapper) {
         this.sessionStore = sessionStore;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -90,11 +95,15 @@ public class TagValueRouter {
         if (tagId == null) {
             return;
         }
+        // Проверка подписки идёт ПЕРЕД распаковкой тела: в топике значения всех тегов
+        // установки, а подписаны те сотни, что открыты на экранах операторов. Разбор
+        // JSON до этой проверки был бы работой впустую для подавляющего большинства
+        // сообщений — это самая горячая точка приёма телеметрии.
         TagRuntimeState state = tagStates.get(tagId);
         if (state == null) {
             return;
         }
-        String value = event.value();
+        String value = extractValue(event.rawValue(), tagId);
         state.lastValue = value;
 
         long ts = System.currentTimeMillis();
@@ -178,6 +187,34 @@ public class TagValueRouter {
      */
     private static final Pattern NUMERIC =
             Pattern.compile("[+-]?(0|[1-9]\\d*)(\\.\\d+)?([eE][+-]?\\d+)?");
+
+    /**
+     * Достаёт значение тега из сообщения. В топике сосуществуют два формата:
+     * драйвер устройства шлёт JSON-конверт (значение в поле {@code value}), а ручные
+     * публикации — голый скаляр. Конверт распаковывается, всё остальное отдаётся как
+     * есть, поэтому дальше по цепочке значение всегда остаётся сырой строкой
+     * ({@code "72.7"}, {@code "true"}) — модель тега целиком строковая.
+     * <p>
+     * Вызывается только для подписанных тегов, поэтому и разбор, и предупреждение о
+     * битом теле ограничены тем, что реально смотрят операторы: залить лог потоком в
+     * миллион сообщений здесь нечем.
+     */
+    private String extractValue(String raw, String tagId) {
+        if (raw == null || raw.isEmpty() || raw.charAt(0) != '{') {
+            return raw;
+        }
+        try {
+            JsonNode value = objectMapper.readTree(raw).get("value");
+            if (value == null) {
+                return raw;
+            }
+            return value.isNull() ? null : value.asText();
+        } catch (Exception e) {
+            // Раньше битый конверт молча уезжал оператору на экран как значение тега.
+            log.warn("Tag '{}': malformed message envelope, using raw payload: {}", tagId, e.getMessage());
+            return raw;
+        }
+    }
 
     private Object coerce(String value) {
         if (value == null) {
