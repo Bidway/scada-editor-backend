@@ -13,6 +13,9 @@ public class PropertyCreateDto {
     private String description;
     private String value_type;
     private String default_value;
+    // Номер строки/поля для представления. Не прислан — сервер проставит по позиции
+    // в массиве properties[] (см. ComponentScriptBindingApplier.applyProperties).
+    private Integer position;
     private boolean logging;
     // Сырой JS, исполняемый runtime при изменении привязанного тега (тот же формат,
     // что и Script компонента). Без JSON-обёртки — см. ScriptEngineService.

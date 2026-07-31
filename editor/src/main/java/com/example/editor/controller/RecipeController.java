@@ -2,7 +2,7 @@ package com.example.editor.controller;
 
 import com.example.editor.dto.recipe.RecipeCreateDto;
 import com.example.editor.dto.recipe.RecipeResponseDto;
-import com.example.editor.dto.recipe.ResolvedRecipeValueDto;
+import com.example.editor.dto.recipe.ResolvedRecipeDto;
 import com.example.editor.service.RecipeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * CRUD рецептов (наборов уставок) для таблиц-компонентов. Рецепты задаются заранее (design-time);
- * рантайм применяет их через {@code GET /{id}/resolved} + запись значений в теги (см. runtime).
+ * CRUD именованных наборов значений для таблиц-компонентов — рецептов, параметров станции и
+ * т.п. (различаются полем {@code type}). Наборы задаются заранее (design-time); рантайм
+ * применяет их через {@code GET /{id}/resolved} — запись в теги, а для строк без тега — в
+ * состояние сессии (см. runtime).
  */
 @RestController
 @RequestMapping("/api/editor/recipes")
@@ -47,7 +49,7 @@ public class RecipeController {
     }
 
     @GetMapping("/{id}/resolved")
-    public List<ResolvedRecipeValueDto> resolved(@PathVariable Long id) {
+    public ResolvedRecipeDto resolved(@PathVariable Long id) {
         return service.resolve(id);
     }
 }

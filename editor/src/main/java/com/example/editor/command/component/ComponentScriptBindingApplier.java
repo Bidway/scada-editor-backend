@@ -31,35 +31,55 @@ public class ComponentScriptBindingApplier {
      * ({@code properties != null}): при {@code null} существующие свойства не трогаем, чтобы не
      * ломать их ведение через отдельный {@code ComponentPropertyController}. Прислали список —
      * полная замена (wholesale), поэтому обновление таблицы должно нести все строки сразу.
+     * <p>
+     * Имена приводятся {@code trim}'ом и обязаны быть уникальными в пределах компонента: имя —
+     * ключ, по которому значения наборов (рецепты, параметры станции) находят свою строку, а
+     * {@code writeTag} в скриптах адресует свойство тоже по имени. Два одноимённых свойства
+     * сделали бы обе привязки неоднозначными.
+     * <p>
+     * {@code position} — номер для представления: если фронт его не прислал, проставляем по
+     * позиции в массиве. Полная замена не позволяет отличить переименование строки от замены,
+     * поэтому здесь значения наборов не переносятся — для переименования есть точечный
+     * {@code ComponentPropertyController} (см. {@code ComponentPropertyServiceImpl.update}).
      */
     public void applyProperties(Component entity, ComponentCreateDto dto) {
         if (dto.getProperties() == null) {
             return;
         }
         entity.getProperties().clear();
+        Set<String> seenNames = new HashSet<>();
+        int index = 0;
         for (PropertyCreateDto p : dto.getProperties()) {
             if (p.getName() == null || p.getName().isBlank()) {
                 throw new IllegalStateException("Property name is required");
             }
+            String name = p.getName().trim();
+            if (!seenNames.add(name)) {
+                throw new IllegalStateException(
+                        "Duplicate property name '" + name + "' in component " + entity.getId()
+                                + "; names must be unique within a component");
+            }
             if (p.getProperty_type() == null || p.getProperty_type().isBlank()) {
-                throw new IllegalStateException("Property property_type is required for '" + p.getName() + "'");
+                throw new IllegalStateException("Property property_type is required for '" + name + "'");
             }
             if (p.getValue_type() == null || p.getValue_type().isBlank()) {
-                throw new IllegalStateException("Property value_type is required for '" + p.getName() + "'");
+                throw new IllegalStateException("Property value_type is required for '" + name + "'");
             }
             entity.getProperties().add(
                     ComponentProperty.builder()
-                            .name(p.getName())
+                            .name(name)
                             .tagId(p.getTag_id())
                             .propertyType(p.getProperty_type())
                             .description(p.getDescription())
                             .valueType(p.getValue_type())
                             .defaultValue(p.getDefault_value())
+                            .position(p.getPosition() != null ? p.getPosition() : index)
                             .logging(p.isLogging())
                             .onChange(p.getOnChange())
                             .component(entity)
                             .build()
             );
+            index++;
         }
     }
 

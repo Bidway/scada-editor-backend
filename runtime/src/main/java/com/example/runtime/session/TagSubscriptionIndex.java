@@ -124,12 +124,23 @@ public class TagSubscriptionIndex {
      * автор схемы), поэтому первое совпадение и есть искомое.
      */
     public String tagIdOfComponentProperty(Long componentId, String propertyName) {
+        Long propertyId = propertyIdOfComponentProperty(componentId, propertyName);
+        return propertyId == null ? null : propertyTagIds.get(propertyId);
+    }
+
+    /**
+     * Свойство компонента по имени. Имя — единственный адрес строки, переживающий пересохранение
+     * таблицы: id свойств при нём пересоздаются, поэтому применение набора значений ищет
+     * локальные строки именно так, а не по id, пришедшему из editor.
+     */
+    public Long propertyIdOfComponentProperty(Long componentId, String propertyName) {
         if (propertyName == null) {
             return null;
         }
+        String name = propertyName.trim();
         for (Long propertyId : propertyIdsOfComponent(componentId)) {
-            if (propertyName.equals(propertyNames.get(propertyId))) {
-                return propertyTagIds.get(propertyId);
+            if (name.equals(propertyNames.get(propertyId))) {
+                return propertyId;
             }
         }
         return null;

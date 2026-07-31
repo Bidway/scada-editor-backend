@@ -5,14 +5,17 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Резолв значения рецепта для применения рантаймом: тег, значение и тип значения
- * (взят из ComponentProperty таблицы по tag_id — нужен рантайму для коэрсинга перед записью).
+ * Значение набора, дополненное данными строки таблицы, — то, что нужно рантайму для применения.
+ * {@code tag_id} равен {@code null} у локальной строки: такое значение не пишется в ПЛК, а
+ * кладётся в состояние свойства в сессии мониторинга. {@code value_type} нужен для коэрсинга
+ * перед записью.
  */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class ResolvedRecipeValueDto {
-    private String tag_id;
+    private String row_name;
     private String value;
     private String value_type;
+    private String tag_id;
 }
