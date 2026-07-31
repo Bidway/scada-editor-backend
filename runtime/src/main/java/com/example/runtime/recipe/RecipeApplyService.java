@@ -47,7 +47,16 @@ public class RecipeApplyService {
         int localApplied = 0;
         List<String> failedRows = new ArrayList<>();
         for (ResolvedRecipeValue value : values) {
-            Object coerced = coerce(value.value(), value.valueType());
+            Object coerced;
+            try {
+                coerced = coerce(value.value(), value.valueType());
+            } catch (IllegalArgumentException e) {
+                // Негодное значение — это дефект строки набора, а не всего рецепта:
+                // остальные уставки применяем, эту помечаем как неудавшуюся.
+                log.warn("Recipe {} row '{}': {}", recipeId, value.rowName(), e.getMessage());
+                failedRows.add(value.rowName());
+                continue;
+            }
             boolean applied;
             if (value.isLocal()) {
                 applied = hasSession(sessionId)
@@ -85,6 +94,11 @@ public class RecipeApplyService {
      * Строку набора приводим к Java-типу по объявленному {@code value_type} строки —
      * {@link CommandProducer} по фактическому типу выведет dataType для драйвера. Непарсящееся
      * под тип значение отдаём строкой (решит драйвер).
+     * <p>
+     * Исключение — boolean: здесь молча отдать строку нельзя. Дискретный тег — это клапан или
+     * пуск/стоп механизма, и {@code Boolean.valueOf} на нераспознанном значении вернул бы
+     * {@code false}, то есть <b>противоположную</b> уставку, без единого признака ошибки.
+     * Поэтому набор допустимых написаний задан явно, а всё остальное — ошибка строки.
      */
     private Object coerce(String value, String valueType) {
         if (value == null) {
@@ -107,12 +121,39 @@ public class RecipeApplyService {
                     return Long.parseLong(raw);
                 case "bool":
                 case "boolean":
-                    return Boolean.valueOf(raw);
+                    return parseBoolean(raw);
                 default:
                     return value;
             }
         } catch (NumberFormatException e) {
             return value;
+        }
+    }
+
+    /**
+     * Разбор булевой уставки по явному списку написаний. В отличие от {@link Boolean#valueOf},
+     * не превращает всё неизвестное в {@code false}, а сигнализирует об ошибке.
+     *
+     * @throws IllegalArgumentException если значение не опознано — строка уйдёт в failed,
+     *                                  и в ПЛК не будет записано ничего
+     */
+    private static boolean parseBoolean(String raw) {
+        switch (raw.toLowerCase()) {
+            case "true":
+            case "1":
+            case "on":
+            case "yes":
+            case "да":
+                return true;
+            case "false":
+            case "0":
+            case "off":
+            case "no":
+            case "нет":
+                return false;
+            default:
+                throw new IllegalArgumentException(
+                        "Значение '" + raw + "' не является булевым: ожидается true/false, 1/0, on/off, yes/no, да/нет");
         }
     }
 }
