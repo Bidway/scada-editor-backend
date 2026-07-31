@@ -35,10 +35,11 @@
                     └───────────────────────────────────────────────────────────────────┘
 ```
 
-Два разных транспорта, потому что:
-- REST рантайма идёт **через gateway** (там проверяется JWT/Bearer);
-- WebSocket-upgrade gateway **не проксирует**, поэтому WS фронт открывает **напрямую**
-  на рантайм-сервис (`NEXT_PUBLIC_RUNTIME_WS_URL`, по умолчанию `ws://localhost:8085`).
+Оба транспорта идут **через gateway** — он единственный опубликованный порт и единственное
+место, где проверяется подпись токена:
+- REST — заголовок `Authorization: Bearer <jwt>`;
+- WebSocket — токен в query (`?token=<jwt>`), потому что браузер не умеет слать заголовок
+  на апгрейде. Базовый origin — `NEXT_PUBLIC_RUNTIME_WS_URL`, теперь `ws://localhost:8080`.
 
 ---
 
@@ -108,7 +109,8 @@ Authorization: Bearer <jwt>          (нужен только на этом ша
 После ответа сессии фронт открывает raw WebSocket (НЕ SockJS/STOMP):
 
 ```
-ws://localhost:8085 + wsPath        // напр. ws://localhost:8085/ws/runtime/<sessionId>
+ws://localhost:8080 + wsPath + "?token=" + jwt
+// напр. ws://localhost:8080/ws/runtime/<sessionId>?token=eyJhbGciOi...
 ```
 
 ### Фронт → сервер (что отправляем)
@@ -296,7 +298,8 @@ runScript("Открыть клапан");   // → WS ACTION → серверн�
 ## Быстрый чек-лист для фронта
 
 - [ ] `POST /api/runtime/sessions {projectId}` → взять `wsPath`, отрисовать `projectTree`.
-- [ ] Открыть raw WS на `NEXT_PUBLIC_RUNTIME_WS_URL + wsPath` (напрямую на :8085).
+- [ ] Открыть raw WS на `NEXT_PUBLIC_RUNTIME_WS_URL + wsPath + "?token=" + jwt`
+      (через gateway, `ws://localhost:8080`).
 - [ ] Принимать `UPDATE`: `tags ?? []`, `properties ?? []`; маршрут по `tagId` / `propertyId`.
 - [ ] Слать `PING` раз в ~20 с; на `onclose` — заново `POST` (новый sessionId).
 - [ ] **Реализовать `runScript` → `sendAction(Number(script.id))`** (раздел 3.1).

@@ -1,76 +1,73 @@
 package com.example.runtime.ws;
 
 import com.example.runtime.config.RuntimeProperties;
-import com.example.runtime.security.JwtService;
-import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Map;
 
 /**
- * Аутентификация WebSocket на этапе handshake. Браузерный WebSocket не умеет слать заголовок
- * {@code Authorization}, поэтому токен ожидается в query: {@code /ws/runtime/{sessionId}?token=<jwt>}.
- * Проверка — тем же секретом, что и в gateway (см. {@link JwtService}); аутентификация один раз
- * на подключение, а не на каждый фрейм, поэтому горячий путь потока тегов не страдает.
+ * Личность подключающегося на этапе handshake. Подпись токена проверяет gateway — он же
+ * единственный вход в контур (порты сервисов наружу не публикуются), поэтому сюда доходит уже
+ * проверенный запрос с заголовками {@code X-User-Id}/{@code X-Username}. Собственного разбора JWT
+ * в runtime больше нет: это снимало бы ту же подпись вторым секретом в третьем сервисе.
  * <p>
- * Включается флагом {@code runtime.ws.require-auth} (по умолчанию {@code true}). Отключение
- * оставлено на случай локального прогона/стенда, где фронт ещё не передаёт токен.
+ * Аутентификация выполняется один раз на подключение, а не на каждый кадр, поэтому горячий путь
+ * потока тегов не затрагивается.
+ * <p>
+ * Отключается флагом {@code runtime.ws.require-auth} — для локального прогона runtime без gateway,
+ * когда заголовки проставить некому.
  */
 @Component
 @Slf4j
 public class RuntimeHandshakeInterceptor implements HandshakeInterceptor {
 
-    private final JwtService jwtService;
+    /** Проставляются gateway после проверки токена; клиентские значения он затирает. */
+    public static final String USER_ID_HEADER = "X-User-Id";
+    public static final String USERNAME_HEADER = "X-Username";
+
+    public static final String USER_ID_ATTRIBUTE = "userId";
+    public static final String USERNAME_ATTRIBUTE = "username";
+
     private final boolean requireAuth;
 
-    public RuntimeHandshakeInterceptor(JwtService jwtService, RuntimeProperties properties) {
-        this.jwtService = jwtService;
+    public RuntimeHandshakeInterceptor(RuntimeProperties properties) {
         this.requireAuth = properties.getWs().isRequireAuth();
     }
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        if (!requireAuth) {
+        String username = request.getHeaders().getFirst(USERNAME_HEADER);
+        String userId = request.getHeaders().getFirst(USER_ID_HEADER);
+
+        if (username == null || username.isBlank()) {
+            if (requireAuth) {
+                // Либо запрос пришёл мимо gateway, либо gateway не проставил заголовки.
+                // Оба случая — отказ: иначе сессия оператора осталась бы без владельца.
+                log.warn("WebSocket handshake rejected: no authenticated user ({})",
+                        request.getURI().getPath());
+                response.setStatusCode(HttpStatus.UNAUTHORIZED);
+                return false;
+            }
             return true;
         }
-        String path = request.getURI().getPath();
-        String token = tokenFromQuery(request);
-        if (token == null) {
-            log.warn("WebSocket handshake rejected: missing token ({})", path);
-            response.setStatusCode(HttpStatus.UNAUTHORIZED);
-            return false;
+
+        attributes.put(USERNAME_ATTRIBUTE, username);
+        if (userId != null && !userId.isBlank()) {
+            attributes.put(USER_ID_ATTRIBUTE, userId);
         }
-        try {
-            Claims claims = jwtService.extractClaims(token);
-            attributes.put("userId", claims.get("userId"));
-            attributes.put("username", claims.getSubject());
-            return true;
-        } catch (Exception e) {
-            log.warn("WebSocket handshake rejected: invalid token ({}): {}", path, e.getMessage());
-            response.setStatusCode(HttpStatus.UNAUTHORIZED);
-            return false;
-        }
+        return true;
     }
 
     @Override
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                WebSocketHandler wsHandler, Exception exception) {
         // Ничего: результат уже определён в beforeHandshake.
-    }
-
-    private String tokenFromQuery(ServerHttpRequest request) {
-        MultiValueMap<String, String> params =
-                UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
-        String token = params.getFirst("token");
-        return (token == null || token.isBlank()) ? null : token;
     }
 }

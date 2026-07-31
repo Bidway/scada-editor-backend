@@ -57,7 +57,10 @@ public class RuntimeProperties {
     }
 
     public static class Ws {
-        /** Требовать валидный JWT (query-параметр {@code token}) на WS-handshake. */
+        /**
+         * Требовать на WS-handshake личность, проверенную gateway (заголовок {@code X-Username}).
+         * Отключается только для локального прогона runtime без gateway.
+         */
         private boolean requireAuth = true;
 
         public boolean isRequireAuth() {

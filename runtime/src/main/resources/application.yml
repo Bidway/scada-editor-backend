@@ -11,9 +11,6 @@ springdoc:
 server:
   port: 8085
 
-jwt:
-  secret: ${JWT_SECRET:f8d7e2c6a1b3f9e5d8c4a7b2e1f3c5d6a8b4e7f2c9d1a3b5e6f8c2d4e7f9a0b1}
-
 runtime:
   # Разовое (не горячий путь) обращение к editor — только при старте сессии мониторинга.
   # Дерево проекта приходит уже со связями (ComponentProperty.tagId = путь узла = Kafka-key),
@@ -39,8 +36,9 @@ runtime:
     # приём телеметрии важнее, чем гарантия исполнения каждого onChange.
     on-change-queue-capacity: ${RUNTIME_SCRIPT_ONCHANGE_QUEUE:1000}
   ws:
-    # Проверять JWT (query-параметр token) на WS-handshake. Для локального прогона без
-    # токена на фронте можно временно отключить: RUNTIME_WS_REQUIRE_AUTH=false.
+    # Требовать на WS-handshake личность, проверенную gateway (заголовок X-Username).
+    # Подпись токена снимает gateway — он единственный вход в контур. Для локального
+    # прогона runtime без gateway: RUNTIME_WS_REQUIRE_AUTH=false.
     require-auth: ${RUNTIME_WS_REQUIRE_AUTH:true}
 
 kafka:

@@ -7,6 +7,14 @@ spring:
 
   cloud:
     gateway:
+      httpclient:
+        websocket:
+          # Кадр телеметрии — это батч обновлений за окно флаша (40 мс) по всем тегам,
+          # открытым на экране оператора. На плотной мнемосхеме батч легко перевалит
+          # за дефолтные 64 КБ Reactor Netty, а это не усечение, а закрытие соединения
+          # с кодом 1009. Одно значение задаёт лимит и для приёма кадров от runtime,
+          # и для приёма от браузера (см. GatewayAutoConfiguration).
+          max-frame-payload-length: ${WS_MAX_FRAME_BYTES:4194304}
       routes:
         - id: auth-service
           uri: http://${AUTH_HOST:localhost}:8081
@@ -27,6 +35,22 @@ spring:
           uri: http://${RUNTIME_HOST:localhost}:8085
           predicates:
             - Path=/api/runtime/**
+
+        # WebSocket мониторинга. Апгрейд распознаётся по заголовку Upgrade, схема
+        # http -> ws подставляется автоматически (WebsocketRoutingFilter), тело кадров
+        # не разбирается — gateway их только пересылает.
+        - id: runtime-ws
+          uri: http://${RUNTIME_HOST:localhost}:8085
+          predicates:
+            - Path=/ws/runtime/**
+
+        # STOMP/SockJS канала. Порядок важен: /ws/** перекрывает /ws/runtime/**,
+        # поэтому маршрут разбирается последним.
+        - id: channel-ws
+          uri: http://${CHANNEL_HOST:localhost}:8082
+          order: 1
+          predicates:
+            - Path=/ws/**
 
 jwt:
   secret: ${JWT_SECRET:f8d7e2c6a1b3f9e5d8c4a7b2e1f3c5d6a8b4e7f2c9d1a3b5e6f8c2d4e7f9a0b1}
