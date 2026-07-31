@@ -41,6 +41,9 @@ public class TagCommandService {
                     propertyName, componentId);
             return;
         }
+        // Future намеренно не ждём: writeTag вызывается из скрипта, а тот исполняется на
+        // треде Kafka-consumer'а — блокировка здесь останавливала бы приём телеметрии.
+        // Исход доставки виден в логах CommandProducer.
         commandProducer.send(idNode, value);
     }
 }

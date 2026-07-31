@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Обратное направление: запись значения тега в ПЛК. Команда уходит в топик команд
@@ -78,16 +79,27 @@ public class CommandProducer {
     }
 
     /**
-     * Отправляет команду записи тега. Возвращает {@code false}, если отправлять нечего
-     * (пустой {@code idNode}) или сериализация не удалась; исключение наружу не
-     * выбрасывается, чтобы сбой одной команды не ронял исполнение скрипта целиком.
+     * Отправляет команду записи тега.
+     * <p>
+     * Результат — <b>подтверждение брокера</b>, а не факт постановки в буфер: future
+     * завершается {@code true} только после ack. Раньше метод возвращал {@code true}
+     * сразу после {@code producer.send(...)}, и вызывающий считал команду применённой
+     * ещё до того, как она ушла из процесса, — сбой доставки всплывал в колбэке уже
+     * после ответа оператору.
+     * <p>
+     * Исключение наружу не выбрасывается: сбой одной команды не должен ронять ни
+     * исполнение скрипта, ни применение остальных строк набора. Вызывающий, которому
+     * важен исход (например {@code RecipeApplyService}), дожидается future; тем, кому
+     * не важен ({@code writeTag} из скрипта), достаточно проигнорировать результат —
+     * блокировки при этом не возникает.
      *
      * @param idNode путь узла через точку — наш единственный идентификатор тега
      * @param value  значение как его передал скрипт (boolean / number / string)
+     * @return future с {@code true}, если брокер подтвердил запись
      */
-    public boolean send(String idNode, Object value) {
+    public CompletableFuture<Boolean> send(String idNode, Object value) {
         if (idNode == null || idNode.isBlank()) {
-            return false;
+            return CompletableFuture.completedFuture(false);
         }
         String topic = kafkaProperties.getCommandsTopic();
         try {
@@ -101,17 +113,21 @@ public class CommandProducer {
 
             ProducerRecord<String, String> record =
                     new ProducerRecord<>(topic, idNode, objectMapper.writeValueAsString(command));
+
+            CompletableFuture<Boolean> acknowledged = new CompletableFuture<>();
             producer.send(record, (metadata, exception) -> {
                 if (exception != null) {
                     log.warn("Command for tag '{}' was not delivered: {}", idNode, exception.getMessage());
+                    acknowledged.complete(false);
                 } else {
-                    log.info("Command sent: idNode='{}', value={}", idNode, value);
+                    log.debug("Command sent: idNode='{}'", idNode);
+                    acknowledged.complete(true);
                 }
             });
-            return true;
+            return acknowledged;
         } catch (Exception e) {
             log.warn("Failed to publish command for tag '{}': {}", idNode, e.getMessage());
-            return false;
+            return CompletableFuture.completedFuture(false);
         }
     }
 
