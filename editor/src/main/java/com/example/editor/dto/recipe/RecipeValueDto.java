@@ -2,9 +2,9 @@ package com.example.editor.dto.recipe;
 
 import lombok.Data;
 
-/** Значение рецепта на строку: тег и значение уставки. */
+/** Значение набора на строку таблицы: имя строки (ключ) и само значение. */
 @Data
 public class RecipeValueDto {
-    private String tag_id;
+    private String row_name;
     private String value;
 }

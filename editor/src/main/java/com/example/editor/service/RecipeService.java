@@ -2,7 +2,7 @@ package com.example.editor.service;
 
 import com.example.editor.dto.recipe.RecipeCreateDto;
 import com.example.editor.dto.recipe.RecipeResponseDto;
-import com.example.editor.dto.recipe.ResolvedRecipeValueDto;
+import com.example.editor.dto.recipe.ResolvedRecipeDto;
 
 import java.util.List;
 
@@ -18,6 +18,10 @@ public interface RecipeService {
 
     RecipeResponseDto get(Long id);
 
-    /** Значения рецепта, дополненные value_type строки (по tag_id) — для применения рантаймом. */
-    List<ResolvedRecipeValueDto> resolve(Long id);
+    /**
+     * Значения набора, дополненные тегом и типом строки (сопоставление по имени строки), —
+     * для применения рантаймом. Строки набора, которых в таблице больше нет, возвращаются
+     * отдельным списком, а не отбрасываются.
+     */
+    ResolvedRecipeDto resolve(Long id);
 }

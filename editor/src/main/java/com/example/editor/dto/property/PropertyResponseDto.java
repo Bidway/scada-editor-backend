@@ -12,6 +12,7 @@ public class PropertyResponseDto {
     private String description;
     private String value_type;
     private String default_value;
+    private Integer position;
     private boolean logging;
     // Сырой JS (см. PropertyCreateDto.onChange) — отдаётся runtime как есть.
     private String onChange;

@@ -10,7 +10,10 @@
 | [DATA_MODEL.md](DATA_MODEL.md) | Сущности БД, схемы, связи |
 | [COMMAND_PATTERN.md](COMMAND_PATTERN.md) | Command/Undo система — как это работает |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Как запустить, настроить, добавить новый функционал |
+| [STAND_SETUP.md](STAND_SETUP.md) | Перенос стенда на другой компьютер — что поставить, дамп БД, проверка |
 | [AUTH_TESTING.md](AUTH_TESTING.md) | Тесты микросервиса auth — структура, запуск, Testcontainers |
+| [REPORT_2026-07.md](REPORT_2026-07.md) | Отчёт о работе за 28.06–28.07.2026 |
+| [REPORT_2026-07_DETAILED.md](REPORT_2026-07_DETAILED.md) | Техническая расшифровка отчёта — решения, файлы, коммиты |
 
 ---
 

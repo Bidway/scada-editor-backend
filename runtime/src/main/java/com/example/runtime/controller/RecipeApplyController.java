@@ -25,9 +25,9 @@ public class RecipeApplyController {
 
     private final RecipeApplyService recipeApplyService;
 
-    @Operation(summary = "Применить рецепт: записать все уставки в теги → ПЛК")
+    @Operation(summary = "Применить набор: уставки — в теги → ПЛК, строки без тега — в сессию")
     @PostMapping("/apply")
     public ResponseEntity<ApplyRecipeResult> apply(@Valid @RequestBody ApplyRecipeRequest request) {
-        return ResponseEntity.ok(recipeApplyService.apply(request.getRecipeId()));
+        return ResponseEntity.ok(recipeApplyService.apply(request.getRecipeId(), request.getSessionId()));
     }
 }

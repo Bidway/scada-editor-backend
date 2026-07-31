@@ -3,25 +3,30 @@ package com.example.editor.service.Impl;
 import com.example.editor.dto.recipe.RecipeCreateDto;
 import com.example.editor.dto.recipe.RecipeResponseDto;
 import com.example.editor.dto.recipe.RecipeValueDto;
+import com.example.editor.dto.recipe.ResolvedRecipeDto;
 import com.example.editor.dto.recipe.ResolvedRecipeValueDto;
 import com.example.editor.exception.NotFoundException;
 import com.example.editor.model.component.ComponentProperty;
 import com.example.editor.model.recipe.Recipe;
+import com.example.editor.model.recipe.RecipeTypes;
 import com.example.editor.model.recipe.RecipeValue;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.recipe.RecipeRepository;
 import com.example.editor.service.RecipeService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
 @RequiredArgsConstructor
+@Slf4j
 public class RecipeServiceImpl implements RecipeService {
 
     private final RecipeRepository recipeRepository;
@@ -31,6 +36,7 @@ public class RecipeServiceImpl implements RecipeService {
     public RecipeResponseDto create(RecipeCreateDto dto) {
         Recipe recipe = new Recipe();
         recipe.setName(dto.getName());
+        recipe.setType(typeOrDefault(dto.getType()));
         recipe.setComponentId(dto.getComponent_id());
         applyValues(recipe, dto.getValues());
         return toDto(recipeRepository.save(recipe));
@@ -41,6 +47,7 @@ public class RecipeServiceImpl implements RecipeService {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
         recipe.setName(dto.getName());
+        recipe.setType(typeOrDefault(dto.getType()));
         recipe.setComponentId(dto.getComponent_id());
         applyValues(recipe, dto.getValues());
         return toDto(recipeRepository.save(recipe));
@@ -67,17 +74,48 @@ public class RecipeServiceImpl implements RecipeService {
                 .orElseThrow(() -> new NotFoundException("Recipe not found: " + id)));
     }
 
+    /**
+     * Сопоставление значений набора со строками таблицы по имени строки. Из строки берутся тег
+     * (может отсутствовать — тогда строка локальная) и value_type: рантайму он нужен для
+     * коэрсинга значения перед записью.
+     */
     @Override
-    public List<ResolvedRecipeValueDto> resolve(Long id) {
+    public ResolvedRecipeDto resolve(Long id) {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
-        // value_type берём из строк таблицы по tag_id — рантайму он нужен для коэрсинга перед записью.
-        Map<String, String> valueTypeByTag = propertyRepository.findByComponentId(recipe.getComponentId()).stream()
-                .filter(p -> p.getTagId() != null)
-                .collect(Collectors.toMap(ComponentProperty::getTagId, ComponentProperty::getValueType, (a, b) -> a));
-        return recipe.getValues().stream()
-                .map(v -> new ResolvedRecipeValueDto(v.getTagId(), v.getValue(), valueTypeByTag.get(v.getTagId())))
-                .toList();
+
+        Map<String, ComponentProperty> rowsByName = new HashMap<>();
+        for (ComponentProperty property : propertyRepository.findByComponentId(recipe.getComponentId())) {
+            String name = normalize(property.getName());
+            if (name == null) {
+                continue;
+            }
+            // Уникальность имён гарантируется при сохранении, но данные могли быть заведены
+            // до её появления — тогда лучше шумнуть, чем молча взять произвольную строку.
+            ComponentProperty duplicate = rowsByName.putIfAbsent(name, property);
+            if (duplicate != null) {
+                log.warn("Component {} has duplicate property name '{}' (ids {} and {}); "
+                                + "recipe values resolve to the first one",
+                        recipe.getComponentId(), name, duplicate.getId(), property.getId());
+            }
+        }
+
+        List<ResolvedRecipeValueDto> values = new ArrayList<>();
+        List<String> unmatched = new ArrayList<>();
+        for (RecipeValue value : recipe.getValues()) {
+            String rowName = normalize(value.getRowName());
+            ComponentProperty row = rowName == null ? null : rowsByName.get(rowName);
+            if (row == null) {
+                unmatched.add(value.getRowName());
+                continue;
+            }
+            values.add(new ResolvedRecipeValueDto(rowName, value.getValue(), row.getValueType(), row.getTagId()));
+        }
+        if (!unmatched.isEmpty()) {
+            log.warn("Recipe {} has {} value(s) with no matching row in component {}: {}",
+                    id, unmatched.size(), recipe.getComponentId(), unmatched);
+        }
+        return new ResolvedRecipeDto(recipe.getId(), recipe.getComponentId(), values, unmatched);
     }
 
     private void applyValues(Recipe recipe, List<RecipeValueDto> values) {
@@ -86,23 +124,41 @@ public class RecipeServiceImpl implements RecipeService {
             return;
         }
         for (RecipeValueDto v : values) {
+            String rowName = normalize(v.getRow_name());
+            if (rowName == null) {
+                throw new IllegalArgumentException("Recipe value requires row_name");
+            }
             recipe.getValues().add(RecipeValue.builder()
-                    .tagId(v.getTag_id())
+                    .rowName(rowName)
                     .value(v.getValue())
                     .recipe(recipe)
                     .build());
         }
     }
 
+    private static String typeOrDefault(String type) {
+        return (type == null || type.isBlank()) ? RecipeTypes.RECIPE : type.trim();
+    }
+
+    /** Имя строки — ключ привязки, поэтому сравнивается и хранится без краевых пробелов. */
+    private static String normalize(String name) {
+        if (name == null) {
+            return null;
+        }
+        String trimmed = name.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private RecipeResponseDto toDto(Recipe recipe) {
         RecipeResponseDto dto = new RecipeResponseDto();
         dto.setId(recipe.getId());
         dto.setName(recipe.getName());
+        dto.setType(recipe.getType());
         dto.setComponent_id(recipe.getComponentId());
         dto.setValues(recipe.getValues().stream()
                 .map(v -> {
                     RecipeValueDto d = new RecipeValueDto();
-                    d.setTag_id(v.getTagId());
+                    d.setRow_name(v.getRowName());
                     d.setValue(v.getValue());
                     return d;
                 })

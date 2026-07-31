@@ -16,6 +16,7 @@ public class EditorPropertyDto {
     private String description;
     private String value_type;
     private String default_value;
+    private Integer position;
     private boolean logging;
     private String onChange;
 

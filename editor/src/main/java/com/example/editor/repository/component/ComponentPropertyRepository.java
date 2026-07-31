@@ -13,4 +13,9 @@ public interface ComponentPropertyRepository extends JpaRepository<ComponentProp
     List<ComponentProperty> findByComponentId(Long componentId);
 
     List<ComponentProperty> findByPropertyType(String propertyType);
+
+    /** Проверка уникальности имени строки в пределах компонента — имя служит ключом наборов значений. */
+    boolean existsByComponentIdAndName(Long componentId, String name);
+
+    boolean existsByComponentIdAndNameAndIdNot(Long componentId, String name, Long id);
 }

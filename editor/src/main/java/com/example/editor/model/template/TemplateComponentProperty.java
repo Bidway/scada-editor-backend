@@ -32,6 +32,9 @@ public class TemplateComponentProperty {
 
     private String defaultValue;
 
+    /** Номер для представления — переносится в ComponentProperty при разворачивании шаблона. */
+    private Integer position;
+
     @Column(nullable = false)
     private Boolean logging = false;
 

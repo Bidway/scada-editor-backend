@@ -1,9 +1,11 @@
 package com.example.runtime.recipe;
 
 import com.example.runtime.client.EditorClient;
+import com.example.runtime.client.dto.ResolvedRecipe;
 import com.example.runtime.client.dto.ResolvedRecipeValue;
 import com.example.runtime.dto.ApplyRecipeResult;
 import com.example.runtime.kafka.CommandProducer;
+import com.example.runtime.session.RuntimeSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,10 +14,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Применение рецепта: тянет резолв уставок из editor по {@code recipeId} и пишет каждое значение
- * в его тег через {@link CommandProducer} — тот же путь, что {@code writeTag}: топик команд →
- * драйвер → ПЛК. Значения server-authoritative: оператор передаёт только id рецепта, произвольные
- * уставки с клиента не принимаются.
+ * Применение набора значений (рецепт, параметры станции и т.п.): тянет резолв из editor по
+ * {@code recipeId} и раскладывает значения по двум путям.
+ * <ul>
+ *   <li>Строка с тегом — запись через {@link CommandProducer}, тот же путь, что {@code writeTag}:
+ *       топик команд → драйвер → ПЛК.</li>
+ *   <li>Строка без тега (локальный параметр) — значение ложится в состояние свойства в сессии
+ *       мониторинга и уходит фронту; в ПЛК такой строке писать нечего.</li>
+ * </ul>
+ * Значения server-authoritative: оператор передаёт только id набора, произвольные уставки с
+ * клиента не принимаются.
  */
 @Service
 @Slf4j
@@ -24,32 +32,57 @@ public class RecipeApplyService {
 
     private final EditorClient editorClient;
     private final CommandProducer commandProducer;
+    private final RuntimeSessionService sessionService;
 
-    public ApplyRecipeResult apply(Long recipeId) {
-        List<ResolvedRecipeValue> values = editorClient.getResolvedRecipe(recipeId);
-        if (values == null) {
-            values = List.of();
+    public ApplyRecipeResult apply(Long recipeId, String sessionId) {
+        ResolvedRecipe resolved = editorClient.getResolvedRecipe(recipeId);
+        if (resolved == null) {
+            log.warn("Recipe {} resolved to nothing", recipeId);
+            return new ApplyRecipeResult(recipeId, 0, 0, 0, 0, List.of(), List.of());
         }
+        List<ResolvedRecipeValue> values = resolved.valuesOrEmpty();
+        List<String> unmatched = resolved.unmatchedOrEmpty();
+
         int sent = 0;
-        List<String> failedTags = new ArrayList<>();
-        for (ResolvedRecipeValue v : values) {
-            if (v.tagId() == null || v.tagId().isBlank()) {
-                continue;
-            }
-            boolean ok = commandProducer.send(v.tagId(), coerce(v.value(), v.valueType()));
-            if (ok) {
-                sent++;
+        int localApplied = 0;
+        List<String> failedRows = new ArrayList<>();
+        for (ResolvedRecipeValue value : values) {
+            Object coerced = coerce(value.value(), value.valueType());
+            boolean applied;
+            if (value.isLocal()) {
+                applied = hasSession(sessionId)
+                        && sessionService.applyLocalProperty(
+                                sessionId, resolved.componentId(), value.rowName(), coerced);
+                if (applied) {
+                    localApplied++;
+                } else if (!hasSession(sessionId)) {
+                    log.warn("Recipe {} has local row '{}' but request carries no sessionId",
+                            recipeId, value.rowName());
+                }
             } else {
-                failedTags.add(v.tagId());
+                applied = commandProducer.send(value.tagId(), coerced);
+                if (applied) {
+                    sent++;
+                }
+            }
+            if (!applied) {
+                failedRows.add(value.rowName());
             }
         }
-        ApplyRecipeResult result = new ApplyRecipeResult(recipeId, values.size(), sent, failedTags.size(), failedTags);
-        log.info("Recipe {} applied: {}/{} commands sent, {} failed", recipeId, sent, values.size(), failedTags.size());
+
+        ApplyRecipeResult result = new ApplyRecipeResult(
+                recipeId, values.size(), sent, localApplied, failedRows.size(), failedRows, unmatched);
+        log.info("Recipe {} applied: {} command(s) sent, {} local value(s) set, {} failed, {} unmatched row(s)",
+                recipeId, sent, localApplied, failedRows.size(), unmatched.size());
         return result;
     }
 
+    private static boolean hasSession(String sessionId) {
+        return sessionId != null && !sessionId.isBlank();
+    }
+
     /**
-     * Строку рецепта приводим к Java-типу по объявленному {@code value_type} строки —
+     * Строку набора приводим к Java-типу по объявленному {@code value_type} строки —
      * {@link CommandProducer} по фактическому типу выведет dataType для драйвера. Непарсящееся
      * под тип значение отдаём строкой (решит драйвер).
      */

@@ -17,6 +17,18 @@ public class ComponentProperty {
     private Long id;
     private String name;
 
+    /**
+     * Порядковый номер свойства — <b>только для представления</b>: первая колонка таблицы и
+     * порядок строк/полей в редакторе. Ключом привязки чего-либо к строке служить не может:
+     * при вставке строки в середину номера сдвигаются, и ссылка по номеру начинает указывать
+     * на соседнюю строку. Значения наборов привязаны к строке по {@code name}
+     * (см. {@code RecipeValue}).
+     * <p>
+     * Nullable: у свойств, созданных до появления поля, номера нет — при сортировке они уходят
+     * в конец (в Postgres {@code ORDER BY ... ASC} даёт NULLS LAST).
+     */
+    private Integer position;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "component_id", nullable = false)
     private Component component;

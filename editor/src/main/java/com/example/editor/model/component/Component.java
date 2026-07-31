@@ -49,7 +49,10 @@ public class Component {
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Script> scripts = new ArrayList<>();
 
+    // Порядок строк таблицы (и полей в редакторе) — по position; свойства без номера уходят
+    // в конец, между собой упорядочены по id, то есть по порядку создания.
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("position ASC, id ASC")
     private List<ComponentProperty> properties = new ArrayList<>();
 
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
