@@ -71,6 +71,15 @@ public class RuntimeProperties {
         private int contextPoolSize = 4;
         private long executionTimeoutMs = 200L;
 
+        /**
+         * Число полос исполнения onChange (см. {@code OnChangeDispatcher}). Сессия
+         * закрепляется за полосой, поэтому это же — предел параллелизма по сессиям.
+         */
+        private int onChangeThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
+
+        /** Глубина очереди одной полосы; при переполнении задача отбрасывается с warn. */
+        private int onChangeQueueCapacity = 1000;
+
         public int getContextPoolSize() {
             return contextPoolSize;
         }
@@ -85,6 +94,22 @@ public class RuntimeProperties {
 
         public void setExecutionTimeoutMs(long executionTimeoutMs) {
             this.executionTimeoutMs = executionTimeoutMs;
+        }
+
+        public int getOnChangeThreads() {
+            return onChangeThreads;
+        }
+
+        public void setOnChangeThreads(int onChangeThreads) {
+            this.onChangeThreads = onChangeThreads;
+        }
+
+        public int getOnChangeQueueCapacity() {
+            return onChangeQueueCapacity;
+        }
+
+        public void setOnChangeQueueCapacity(int onChangeQueueCapacity) {
+            this.onChangeQueueCapacity = onChangeQueueCapacity;
         }
     }
 }

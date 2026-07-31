@@ -1,5 +1,6 @@
 package com.example.runtime.kafka;
 
+import com.example.runtime.script.OnChangeDispatcher;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.OnChangeBinding;
 import com.example.runtime.session.RuntimeSession;
@@ -37,6 +38,7 @@ public class TagValueRouter {
     private final RuntimeSessionStore sessionStore;
     private final ScriptEngineService scriptEngineService;
     private final TagCommandService tagCommandService;
+    private final OnChangeDispatcher onChangeDispatcher;
     private final ObjectMapper objectMapper;
 
     /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последняя сессия. */
@@ -45,10 +47,12 @@ public class TagValueRouter {
     public TagValueRouter(RuntimeSessionStore sessionStore,
                           ScriptEngineService scriptEngineService,
                           TagCommandService tagCommandService,
+                          OnChangeDispatcher onChangeDispatcher,
                           ObjectMapper objectMapper) {
         this.sessionStore = sessionStore;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
+        this.onChangeDispatcher = onChangeDispatcher;
         this.objectMapper = objectMapper;
     }
 
@@ -117,6 +121,9 @@ public class TagValueRouter {
         if (session == null) {
             return;
         }
+        // Лёгкая часть остаётся на треде consumer'а: запись в буфер — это добавление в
+        // очередь, доли микросекунды, и оно должно происходить как можно ближе к моменту
+        // приёма, чтобы значение на экране было свежим.
         session.getOutboundBuffer().offerTag(new TagUpdate(tagId, value, ts));
 
         List<OnChangeBinding> onChangeBindings = session.getIndex().onChangeBindingsForTag(tagId);
@@ -124,9 +131,13 @@ public class TagValueRouter {
             return;
         }
         Object coercedValue = coerce(value);
-        for (OnChangeBinding binding : onChangeBindings) {
-            runOnChangeAndPublish(session, binding, coercedValue, ts);
-        }
+        // Тяжёлая часть уходит в пул: GraalVM с таймаутом до 200 мс на треде consumer'а
+        // останавливал бы приём телеметрии для всех сессий разом.
+        onChangeDispatcher.submit(sessionId, () -> {
+            for (OnChangeBinding binding : onChangeBindings) {
+                runOnChangeAndPublish(session, binding, coercedValue, ts);
+            }
+        });
     }
 
     private void runOnChangeAndPublish(RuntimeSession session, OnChangeBinding binding, Object tagValue, long ts) {
