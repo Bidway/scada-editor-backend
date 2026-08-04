@@ -31,12 +31,22 @@ import java.util.concurrent.CompletableFuture;
  * <pre>{@code
  *   { "commandId": "<uuid>",     // идемпотентность/трассировка
  *     "idNode":    "<path>",     // какой тег писать (= ключ сообщения)
+ *     "tagName":   "<path>",     // то же значение под именем поля шлюза
  *     "value":     <bool|num|str>,
- *     "dataType":  "BOOLEAN|NUMBER|STRING",  // подсказка драйверу, выведена из значения
  *     "requestedBy": "scada-runtime",
  *     "timestamp": "<ISO-8601>" }
  * }</pre>
  * Key сообщения = {@code idNode} — команды по одному тегу упорядочены между собой.
+ * <p>
+ * {@code tagName} дублирует {@code idNode} умышленно: у scada-gateway поле тега в
+ * {@code CommandMessage} называется именно так, и лишний ключ дешевле, чем ещё один
+ * словарь имён на проводе. {@code idNode} остаётся ведущим — это наш термин.
+ * <p>
+ * Поля {@code dataType} в команде <b>нет намеренно</b>. Тип узла знает только шлюз (он
+ * же держит конфигурацию тега: BOOLEAN, FLOAT, INT16…), а из значения, пришедшего из
+ * JS-скрипта, отличить INT от FLOAT невозможно. Неверная подсказка хуже отсутствующей:
+ * {@code writeTag} доверяет присланному типу больше, чем конфигурации, и запись
+ * отбивается сервером по несовпадению типа. Без поля шлюз берёт тип из тега.
  */
 @Component
 @Slf4j
@@ -106,8 +116,8 @@ public class CommandProducer {
             Map<String, Object> command = new LinkedHashMap<>();
             command.put("commandId", UUID.randomUUID().toString());
             command.put("idNode", idNode);
+            command.put("tagName", idNode);
             command.put("value", value);
-            command.put("dataType", dataTypeOf(value));
             command.put("requestedBy", REQUESTED_BY);
             command.put("timestamp", Instant.now().toString());
 
@@ -131,14 +141,4 @@ public class CommandProducer {
         }
     }
 
-    /** Обобщённая подсказка типа для драйвера — по фактическому Java-типу значения. */
-    private static String dataTypeOf(Object value) {
-        if (value instanceof Boolean) {
-            return "BOOLEAN";
-        }
-        if (value instanceof Number) {
-            return "NUMBER";
-        }
-        return "STRING";
-    }
 }
