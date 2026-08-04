@@ -30,3 +30,7 @@ Thumbs.db
 
 # Docker-образы (локально в deliver/images/, не в репозитории)
 deliver/images/*.tar.gz
+
+
+# Документация (только локально)
+docs/

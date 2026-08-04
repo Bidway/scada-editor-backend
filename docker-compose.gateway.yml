@@ -1,0 +1,95 @@
+# ============================================================================
+# Реальный источник телеметрии — проект scada-gateway (отдельный репозиторий,
+# путь задаётся SCADA_GATEWAY_PATH в .env). Заменяет лёгкий tools/kafka-sim:
+# шлюз опрашивает PLC-симулятор по OPC UA и Modbus и публикует значения всех
+# каналов BN1_MCA1, а не трёх тегов сцены.
+#
+# Запуск:
+#   docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d
+#
+# Перед первым запуском нужен собранный jar шлюза (его Dockerfile копирует
+# готовый target/*.jar, а не собирает внутри контейнера):
+#   cd "$SCADA_GATEWAY_PATH/SCADA-gateway" && ./mvnw -DskipTests package
+# start-all.ps1 делает это сам, если jar не найден.
+#
+# Отличия от docker-compose.yml соседнего проекта и почему:
+#   • его kafka НЕ поднимается — брокер один, наш. Два брокера с DNS-именем
+#     `kafka` в одной сети схлопнулись бы, а runtime читает только наш.
+#   • сервисы переименованы в scada-* — иначе коллизия имён postgres/gateway
+#     с нашими сервисами внутри одной сети compose.
+#   • топик телеметрии переопределён на наш KAFKA_TAGS_TOPIC: шлюз пишет туда,
+#     где его ждёт TagKafkaConsumer, вместо своего scada-telemetry.
+#   • топик команд у обоих одинаковый (scada-commands) — совпал без правок.
+#
+# Про запись в ПЛК: она требует правок на стороне scada-gateway, см.
+# docs/SCADA_GATEWAY_INTEGRATION.md. Без них телеметрия идёт, а команды
+# (кнопки, применение наборов значений) шлюз отбрасывает.
+# ============================================================================
+services:
+
+  # БД шлюза: его теги, контроллеры и журнал event_log. К нашей `savushkin`
+  # отношения не имеет — общая у них только база каналов по смыслу, не по данным.
+  scada-postgres:
+    image: postgres:16
+    container_name: scada-postgres
+    environment:
+      POSTGRES_DB: scada_db
+      POSTGRES_USER: scada_user
+      POSTGRES_PASSWORD: scada_password
+    volumes:
+      - scada_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"          # для разбора «а что шлюз думает про этот тег»
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scada_user -d scada_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  # PLC-симулятор: OPC UA + Modbus, реплей 5-суточного архива BN1_MCA1.
+  scada-simulator:
+    build:
+      context: ${SCADA_GATEWAY_PATH}/plc-simulator
+    container_name: scada-simulator
+    environment:
+      # Сервер анонсирует этот адрес клиентам, и Milo после discovery идёт именно
+      # по нему — адрес должен резолвиться СО СТОРОНЫ КЛИЕНТА. В сети compose это
+      # имя сервиса; когда шлюз запускают на хосте (start-all.ps1), нужен localhost,
+      # поэтому адрес вынесен в переменную.
+      OPCUA_ENDPOINT: "${SCADA_SIM_ENDPOINT:-opc.tcp://scada-simulator:4840}"
+      MODBUS_PORT: "5020"
+    ports:
+      - "4840:4840"          # опционально: OPC UA с хоста
+      - "5020:5020"          # опционально: Modbus с хоста
+    restart: unless-stopped
+
+  scada-gateway:
+    build:
+      context: ${SCADA_GATEWAY_PATH}/SCADA-gateway
+    container_name: scada-gateway
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://scada-postgres:5432/scada_db"
+      SPRING_DATASOURCE_USERNAME: "scada_user"
+      SPRING_DATASOURCE_PASSWORD: "scada_password"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "${SCADA_GATEWAY_KAFKA:-kafka:19092}"
+      # Наш топик вместо его scada-telemetry: key сообщения у шлюза и так
+      # tag.getName() = путь узла, то есть ровно то, по чему роутит TagValueRouter.
+      KAFKA_TOPICS_TELEMETRY: "${KAFKA_TAGS_TOPIC:-scada.tags}"
+      KAFKA_TOPICS_COMMANDS: "${KAFKA_COMMANDS_TOPIC:-scada-commands}"
+      SIM_HOST: "scada-simulator"
+    ports:
+      - "8888:8888"          # actuator/health и /api/events шлюза
+    # depends_on на kafka сознательно нет: файл должен оставаться валидным и в
+    # одиночку — на стенде start-all.ps1 поднимает отсюда только scada-postgres и
+    # scada-simulator, а брокер живёт на хосте. Ссылка на несуществующий сервис
+    # уронила бы разбор файла целиком. Продюсер и listener переживают недоступный
+    # брокер и ретраятся сами.
+    depends_on:
+      scada-postgres:
+        condition: service_healthy
+      scada-simulator:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  scada_pgdata:

@@ -6,8 +6,9 @@
       2. Поднимает Redis   (порт 6379)
       3. Поднимает Kafka   (порт 9092, KRaft, конфиг config\server.properties)
       4. Ждёт готовности инфраструктуры по портам
-      5. Запускает Kafka-симулятор (tools\kafka-sim) в своём окне:
-         телеметрия сцены в scada.tags + выполнение команд из scada-commands
+      5. Поднимает источник телеметрии — по умолчанию РЕАЛЬНЫЙ шлюз scada-gateway:
+         его postgres и PLC-симулятор в Docker, сам шлюз — на хосте своим окном.
+         Флаг -Sim переключает обратно на лёгкий tools\kafka-sim.
       6. Запускает 5 сервисов через gradlew bootRun, каждый в своём окне:
          auth:8081  channel:8082  editor:8083  runtime:8085  gateway:8080
       7. Запускает фронтенд (npm run dev) в своём окне (порт 5173)
@@ -18,7 +19,8 @@
       .\start-all.ps1
       .\start-all.ps1 -RedisHome C:\redis -KafkaHome C:\kafka_2.13-4.3.1
       .\start-all.ps1 -ServicesOnly      # только сервисы, инфраструктуру не трогать
-      .\start-all.ps1 -NoSim             # без Kafka-симулятора
+      .\start-all.ps1 -Sim               # лёгкий kafka-sim вместо реального шлюза
+      .\start-all.ps1 -NoSim             # вообще без источника телеметрии
 #>
 
 param(
@@ -27,7 +29,9 @@ param(
     [string]$RedisHome   = 'C:\redis',
     [string]$PgService   = 'postgresql-x64-17',
     [string]$FrontendDir = 'Z:\Project Java\scada-editor-frontend',
+    [string]$GatewayDir  = 'Z:\Project Java\scada-gateway',
     [switch]$ServicesOnly,
+    [switch]$Sim,
     [switch]$NoSim
 )
 
@@ -131,9 +135,17 @@ if (-not $ServicesOnly) {
     Wait-Port 9092 'Kafka'      90 | Out-Null
 }
 
-# ---------- 4.5. Kafka-симулятор (телеметрия сцены + выполнение команд) ----------
+# ---------- 4.5. Источник телеметрии ----------
+# По умолчанию — реальный шлюз scada-gateway: его БД и PLC-симулятор поднимаются
+# в Docker (порты 5433 / 4840 / 5020 на хост), а сам шлюз запускается на хосте.
+# Так он ходит в наш брокер по localhost:9092 и не упирается в advertised.listeners
+# хостовой Kafka, который из контейнера не резолвится.
+# -Sim возвращает лёгкий tools\kafka-sim (3 тега сцены, без Docker и OPC UA).
 if (-not $NoSim) {
-    if (Test-Port 9092) {
+    if (-not (Test-Port 9092)) {
+        Warn "Kafka (9092) не слушает — источник телеметрии пропущен (подними Kafka или запусти без -ServicesOnly)"
+    }
+    elseif ($Sim) {
         $simDir = Join-Path $ProjectRoot 'tools\kafka-sim'
         if (-not (Test-Path (Join-Path $simDir 'sim.mjs'))) {
             Warn "Симулятор не найден в $simDir — пропускаю"
@@ -144,11 +156,63 @@ if (-not $NoSim) {
                 & npm install --no-audit --no-fund | Out-Null
                 Pop-Location
             }
-            Info "Запускаю Kafka-симулятор (телеметрия + выполнение команд) ..."
+            Info "Запускаю лёгкий Kafka-симулятор (телеметрия сцены + выполнение команд) ..."
             Start-InWindow 'kafka-sim' $simDir 'node sim.mjs'
         }
-    } else {
-        Warn "Kafka (9092) не слушает — симулятор пропущен (подними Kafka или запусти без -ServicesOnly)"
+    }
+    elseif (-not (Test-Path (Join-Path $GatewayDir 'SCADA-gateway\pom.xml'))) {
+        Warn "scada-gateway не найден в $GatewayDir — источник телеметрии пропущен (укажи -GatewayDir или запусти с -Sim)"
+    }
+    elseif (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Warn "docker не найден в PATH — БД шлюза и PLC-симулятор не поднять (запусти с -Sim)"
+    }
+    else {
+        # Симулятор анонсирует свой endpoint клиентам; шлюз идёт по нему с хоста,
+        # поэтому имя сервиса compose здесь не годится — только localhost.
+        $env:SCADA_SIM_ENDPOINT = 'opc.tcp://localhost:4840'
+        $env:SCADA_GATEWAY_PATH = $GatewayDir -replace '\\', '/'
+
+        Info "Поднимаю БД шлюза и PLC-симулятор (docker compose) ..."
+        Push-Location $ProjectRoot
+        & docker compose -f docker-compose.gateway.yml up -d scada-postgres scada-simulator
+        Pop-Location
+
+        $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
+                   -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+        if (-not $jar) {
+            Info "Jar шлюза не найден — собираю (mvnw -DskipTests package), это займёт минуту ..."
+            Push-Location (Join-Path $GatewayDir 'SCADA-gateway')
+            & .\mvnw.cmd -q -DskipTests package
+            Pop-Location
+            $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
+                       -ErrorAction SilentlyContinue |
+                   Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+        }
+
+        if (-not $jar) {
+            Err "Сборка шлюза не дала jar — посмотри вывод maven выше"
+        } elseif (Test-Port 8888) {
+            # У лёгкого симулятора порта нет, и повторный прогон скрипта плодил вторую
+            # копию (см. STAND_SETUP «Известные грабли»). У шлюза порт есть — пользуемся.
+            Ok "scada-gateway уже работает (8888)"
+        } else {
+            Info "Жду БД шлюза (5433) и OPC UA симулятора (4840) ..."
+            Wait-Port 5433 'scada-postgres' 60 | Out-Null
+            Wait-Port 4840 'scada-simulator (OPC UA)' 90 | Out-Null
+
+            # Переопределяем только то, что в application.yaml прибито к их стенду:
+            # адрес БД (у нас 5433 на хосте) и топик телеметрии (наш scada.tags).
+            # SIM_HOST/modbus.host уже дефолтятся в 127.0.0.1 — это и есть хост.
+            $gwArgs = @(
+                '-jar', "`"$($jar.FullName)`"",
+                '--spring.datasource.url=jdbc:postgresql://localhost:5433/scada_db',
+                '--spring.kafka.bootstrap-servers=localhost:9092',
+                '--kafka.topics.telemetry=scada.tags'
+            ) -join ' '
+            Info "Запускаю scada-gateway (телеметрия BN1_MCA1 -> scada.tags, порт 8888) ..."
+            Start-InWindow 'scada-gateway' (Join-Path $GatewayDir 'SCADA-gateway') "java $gwArgs"
+        }
     }
 }
 
