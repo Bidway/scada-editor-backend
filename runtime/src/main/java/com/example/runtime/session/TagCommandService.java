@@ -43,7 +43,14 @@ public class TagCommandService {
         }
         // Future намеренно не ждём: writeTag вызывается из скрипта, а тот исполняется на
         // треде Kafka-consumer'а — блокировка здесь останавливала бы приём телеметрии.
-        // Исход доставки виден в логах CommandProducer.
-        commandProducer.send(idNode, value);
+        // Но исход всё же дожидаемся колбэком: отказ шлюза («узел только на чтение»,
+        // «нет связи») иначе нигде не всплыл бы — кнопка на мнемосхеме выглядела бы
+        // сработавшей, а в ПЛК не менялось бы ничего.
+        commandProducer.send(idNode, value).thenAccept(outcome -> {
+            if (!outcome.applied()) {
+                log.warn("writeTag('{}') по тегу '{}': {} — {}",
+                        propertyName, idNode, outcome.status(), outcome.message());
+            }
+        });
     }
 }

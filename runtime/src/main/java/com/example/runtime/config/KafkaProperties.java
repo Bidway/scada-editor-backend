@@ -18,6 +18,20 @@ public class KafkaProperties {
     /** Топик команд шлюза (обратное направление: запись тега в ПЛК). Имя задаёт шлюз. */
     private String commandsTopic = "scada-commands";
 
+    /** Топик исходов команд: шлюз отвечает сюда, применилась запись в ПЛК или нет. */
+    private String commandResultsTopic = "scada-command-results";
+
+    /**
+     * Сколько ждать ответа шлюза на команду, прежде чем считать исход неизвестным.
+     * <p>
+     * Шлюз пишет в ПЛК синхронно и отвечает быстро — как при успехе, так и при отказе
+     * (отсутствующий канал он отбивает вообще без обращения к контроллеру). Секунды
+     * здесь — запас на очередь в топике, а не на работу с железом. Значение должно
+     * оставаться заметно меньше дедлайна применения набора, иначе отчёт оператору
+     * упрётся в свой таймаут раньше, чем разрешатся ожидания отдельных команд.
+     */
+    private long commandTimeoutMs = 5000;
+
     /**
      * Сколько потоков читают топик тегов. Порядок по каждому тегу сохраняется при любом
      * значении: key сообщения — tagId, поэтому один тег всегда лежит в одной партиции.
@@ -64,6 +78,22 @@ public class KafkaProperties {
 
     public void setCommandsTopic(String commandsTopic) {
         this.commandsTopic = commandsTopic;
+    }
+
+    public String getCommandResultsTopic() {
+        return commandResultsTopic;
+    }
+
+    public void setCommandResultsTopic(String commandResultsTopic) {
+        this.commandResultsTopic = commandResultsTopic;
+    }
+
+    public long getCommandTimeoutMs() {
+        return commandTimeoutMs;
+    }
+
+    public void setCommandTimeoutMs(long commandTimeoutMs) {
+        this.commandTimeoutMs = commandTimeoutMs;
     }
 
     public int getConcurrency() {

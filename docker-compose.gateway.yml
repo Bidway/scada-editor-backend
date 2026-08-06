@@ -76,6 +76,14 @@ services:
       # tag.getName() = путь узла, то есть ровно то, по чему роутит TagValueRouter.
       KAFKA_TOPICS_TELEMETRY: "${KAFKA_TAGS_TOPIC:-scada.tags}"
       KAFKA_TOPICS_COMMANDS: "${KAFKA_COMMANDS_TOPIC:-scada-commands}"
+      KAFKA_TOPICS_COMMAND_RESULTS: "${KAFKA_COMMAND_RESULTS_TOPIC:-scada-command-results}"
+      # Кадры с quality=BAD при обрыве связи. У шлюза выключены по умолчанию, и не зря:
+      # значение null, дошедшее до JS-скрипта, — falsy, и биндинг вида
+      # setState(tag ? 'Открыт' : 'Закрыт') нарисовал бы клапан ЗАКРЫТЫМ вместо «нет
+      # данных». Включаем, потому что у нас недостоверное значение до скриптов не
+      # доходит вовсе (TagValueRouter), а фронт рисует по quality из кадра. Без этого
+      # тег на обрыве замирает на последнем значении и выглядит живым.
+      GATEWAY_SEND_BAD_FRAMES: "${GATEWAY_SEND_BAD_FRAMES:-true}"
       SIM_HOST: "scada-simulator"
     ports:
       - "8888:8888"          # actuator/health и /api/events шлюза
