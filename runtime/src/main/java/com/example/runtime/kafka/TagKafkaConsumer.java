@@ -125,9 +125,19 @@ public class TagKafkaConsumer {
                     consumeUntilStopped(c, topic);
                 } catch (WakeupException ignored) {
                     // штатная остановка через stop()
-                } catch (Exception e) {
+                } catch (Throwable e) {
+                    // Throwable, а не Exception: сбой загрузки нативной библиотеки —
+                    // UnsatisfiedLinkError, то есть Error. Так уже случилось вживую с
+                    // snappy на Alpine: телеметрия шлюза сжата, разжать её не удалось,
+                    // Error пролетел мимо catch(Exception) и убил поток окончательно.
+                    // Приложение осталось «живым» — HTTP отвечал, WebSocket-ы висели, —
+                    // а данные просто перестали идти, и оператор смотрел на замерший
+                    // экран как на актуальный. Для мониторинга это хуже падения процесса.
+                    // Здесь любой сбой лечится пересозданием consumer'а: если причина
+                    // неустранима, она будет громко повторяться в логе раз в RECONNECT_DELAY_MS,
+                    // а не молчать.
                     log.error("Kafka tag consumer #{} on topic '{}' failed, reconnecting in {} ms: {}",
-                            index, topic, RECONNECT_DELAY_MS, e.getMessage(), e);
+                            index, topic, RECONNECT_DELAY_MS, e.toString(), e);
                 } finally {
                     this.consumer = null;
                 }

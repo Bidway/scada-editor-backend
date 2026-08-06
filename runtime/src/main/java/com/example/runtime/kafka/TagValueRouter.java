@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,10 +72,12 @@ public class TagValueRouter {
                 return s;
             });
 
-            String lastValue = state.lastValue;
-            if (lastValue != null) {
-                session.getOutboundBuffer().offerTag(new TagUpdate(tagId, lastValue, System.currentTimeMillis()));
-            }
+            // Кадр отдаётся всегда, даже когда значения ещё не было: тег с value=null и
+            // quality=BAD — это штатное «нет данных», а не пустой экран без объяснения.
+            // Холодный старт реального шлюза длится до полутора минут (последовательный
+            // обход 2471 канала при auto.offset.reset=latest), и всё это время оператор
+            // должен видеть, что данных нет, а не гадать.
+            session.getOutboundBuffer().offerTag(toUpdate(tagId, state.snapshot));
         }
     }
 
@@ -87,10 +90,14 @@ public class TagValueRouter {
         }
     }
 
-    /** Последнее известное значение тега (для снимка по требованию перед загрузкой рецепта). */
+    /**
+     * Последнее <b>достоверное</b> значение тега (для снимка по требованию перед загрузкой
+     * рецепта). Значение, прочитанное с плохим качеством, сюда не попадает: в набор лучше
+     * записать устаревшее, но реально снятое с ПЛК число, чем то, которого там не было.
+     */
     public String lastValue(String tagId) {
         TagRuntimeState state = tagStates.get(tagId);
-        return state != null ? state.lastValue : null;
+        return state != null ? state.snapshot.value() : null;
     }
 
     @EventListener
@@ -107,16 +114,42 @@ public class TagValueRouter {
         if (state == null) {
             return;
         }
-        String value = extractValue(event.rawValue(), tagId);
-        state.lastValue = value;
+        Envelope envelope = parse(event.rawValue(), tagId);
 
-        long ts = System.currentTimeMillis();
+        // Недостоверное чтение НЕ затирает последнее хорошее значение — оно лишь снимает
+        // с него признак актуальности. Иначе обрыв связи стирал бы с мнемосхемы всё, что
+        // оператор знал о процессе секунду назад.
+        TagRuntimeState.Snapshot previous = state.snapshot;
+        TagRuntimeState.Snapshot snapshot = envelope.good()
+                ? new TagRuntimeState.Snapshot(
+                        envelope.value(),
+                        true,
+                        envelope.sourceTs() != null ? envelope.sourceTs() : System.currentTimeMillis())
+                : previous.asBad();
+        state.snapshot = snapshot;
+
+        // onChange — «при изменении», а не «при сообщении». Шлюз шлёт значение каждого
+        // тега каждый цикл опроса, меняется оно или нет; без этой проверки каждый
+        // подписанный тег заводил бы GraalVM раз в две секунды впустую.
+        //
+        // Раньше проверки не было, и именно ложное срабатывание служило единственным
+        // признаком, что команда доехала: значение возвращалось телеметрией и
+        // перерисовывало компонент, даже не изменившись. Теперь исход команды приходит
+        // из scada-command-results (см. CommandResultConsumer), и опираться на побочный
+        // эффект больше не нужно.
+        //
+        // Возврат из BAD в GOOD с тем же значением изменением не считается: во время
+        // недостоверности скрипты не запускались, поэтому состояние компонента всё это
+        // время и отражало это самое значение — пересчитывать нечего.
+        boolean valueChanged = !java.util.Objects.equals(previous.value(), snapshot.value());
+
         for (String sessionId : state.sessionIds) {
-            dispatchToSession(sessionId, tagId, value, ts);
+            dispatchToSession(sessionId, tagId, snapshot, valueChanged);
         }
     }
 
-    private void dispatchToSession(String sessionId, String tagId, String value, long ts) {
+    private void dispatchToSession(String sessionId, String tagId,
+                                   TagRuntimeState.Snapshot snapshot, boolean valueChanged) {
         RuntimeSession session = sessionStore.get(sessionId);
         if (session == null) {
             return;
@@ -124,13 +157,30 @@ public class TagValueRouter {
         // Лёгкая часть остаётся на треде consumer'а: запись в буфер — это добавление в
         // очередь, доли микросекунды, и оно должно происходить как можно ближе к моменту
         // приёма, чтобы значение на экране было свежим.
-        session.getOutboundBuffer().offerTag(new TagUpdate(tagId, value, ts));
+        session.getOutboundBuffer().offerTag(toUpdate(tagId, snapshot));
+
+        // Недостоверное значение до скриптов не доходит вообще. Значение тега не
+        // «изменилось» — оно стало неизвестным, а это не событие процесса, на которое
+        // скрипт должен реагировать. Пропусти мы null внутрь, типичный биндинг
+        // setState(tag ? 'Открыт' : 'Закрыт') при потере связи уверенно нарисовал бы
+        // клапан ЗАКРЫТЫМ: null в JS — falsy. Замерший тег плохо, тег с уверенно
+        // неверным состоянием — хуже. Компонент остаётся как есть, а «нет данных»
+        // рисует фронт по quality из кадра.
+        if (!snapshot.good() || !valueChanged) {
+            return;
+        }
 
         List<OnChangeBinding> onChangeBindings = session.getIndex().onChangeBindingsForTag(tagId);
         if (onChangeBindings.isEmpty()) {
             return;
         }
-        Object coercedValue = coerce(value);
+        // Свойству — время его вычисления, а не метка измерения из snapshot.ts(). Это
+        // разные величины: тег датируется моментом снятия с ПЛК (и потому не монотонен —
+        // часы контроллера свои), а свойство порождается скриптом здесь и сейчас.
+        // Смешав их, мы протащили бы дрейф часов ПЛК в properties[], про который фронту
+        // не сказано ни слова.
+        long ts = System.currentTimeMillis();
+        Object coercedValue = coerce(snapshot.value());
         // Тяжёлая часть уходит в пул: GraalVM с таймаутом до 200 мс на треде consumer'а
         // останавливал бы приём телеметрии для всех сессий разом.
         onChangeDispatcher.submit(sessionId, () -> {
@@ -200,31 +250,110 @@ public class TagValueRouter {
             Pattern.compile("[+-]?(0|[1-9]\\d*)(\\.\\d+)?([eE][+-]?\\d+)?");
 
     /**
-     * Достаёт значение тега из сообщения. В топике сосуществуют два формата:
-     * драйвер устройства шлёт JSON-конверт (значение в поле {@code value}), а ручные
-     * публикации — голый скаляр. Конверт распаковывается, всё остальное отдаётся как
-     * есть, поэтому дальше по цепочке значение всегда остаётся сырой строкой
-     * ({@code "72.7"}, {@code "true"}) — модель тега целиком строковая.
+     * Разобранное тело сообщения телеметрии.
+     *
+     * @param value    значение тега сырой строкой ({@code "72.7"}, {@code "true"}) —
+     *                 модель тега по всей цепочке строковая
+     * @param good     достоверно ли значение
+     * @param sourceTs момент снятия значения с контроллера (epoch ms), {@code null} —
+     *                 источник времени не прислан, берём момент приёма
+     */
+    private record Envelope(String value, boolean good, Long sourceTs) {
+
+        static Envelope raw(String value) {
+            return new Envelope(value, true, null);
+        }
+    }
+
+    /**
+     * Достаёт значение, качество и метку времени из сообщения. В топике сосуществуют
+     * три формата, и все три разбираются одним кодом:
+     * <ul>
+     *   <li>текущий контракт шлюза — {@code {value, quality, timestamp}};</li>
+     *   <li>прежний 13-польный {@code TelemetryMessage} — берётся {@code value},
+     *       качества и времени в нём фактически не было;</li>
+     *   <li>голый скаляр от ручных публикаций и {@code kafka-sim}.</li>
+     * </ul>
+     * Совместимость держится на том, что отсутствующее {@code quality} трактуется как
+     * достоверное: иначе выкладка шлюза и runtime стали бы связаны по порядку, а старый
+     * формат мгновенно погасил бы все теги на экранах.
      * <p>
      * Вызывается только для подписанных тегов, поэтому и разбор, и предупреждение о
      * битом теле ограничены тем, что реально смотрят операторы: залить лог потоком в
      * миллион сообщений здесь нечем.
      */
-    private String extractValue(String raw, String tagId) {
+    private Envelope parse(String raw, String tagId) {
         if (raw == null || raw.isEmpty() || raw.charAt(0) != '{') {
-            return raw;
+            return Envelope.raw(raw);
         }
         try {
-            JsonNode value = objectMapper.readTree(raw).get("value");
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode value = root.get("value");
             if (value == null) {
-                return raw;
+                return Envelope.raw(raw);
             }
-            return value.isNull() ? null : value.asText();
+            return new Envelope(
+                    value.isNull() ? null : value.asText(),
+                    isGood(root.get("quality")),
+                    sourceTs(root.get("timestamp")));
         } catch (Exception e) {
             // Раньше битый конверт молча уезжал оператору на экран как значение тега.
             log.warn("Tag '{}': malformed message envelope, using raw payload: {}", tagId, e.getMessage());
-            return raw;
+            return Envelope.raw(raw);
         }
+    }
+
+    /**
+     * Достоверно <b>только</b> {@code "GOOD"}. Проверять на равенство {@code "BAD"}
+     * нельзя: контракт расширяемый, и у OPC UA рядом есть {@code UNCERTAIN} — он тоже
+     * не является основанием что-то показывать оператору как факт.
+     */
+    private static boolean isGood(JsonNode quality) {
+        return quality == null || quality.isNull() || TagUpdate.GOOD.equalsIgnoreCase(quality.asText());
+    }
+
+    /**
+     * Граница «это секунды, а не миллисекунды». {@code 1e11} мс — это 1973 год, а
+     * {@code 1e11} с — 5138-й: между осмысленными датами в двух единицах зазор в тысячи
+     * лет, поэтому порог надёжен и не требует договорённости с отправителем.
+     */
+    private static final double EPOCH_SECONDS_CEILING = 1e11;
+
+    /**
+     * Метка времени источника, приведённая к epoch ms. Принимаются три написания:
+     * <ul>
+     *   <li>строка ISO-8601 — то, что описано в контракте;</li>
+     *   <li>дробное число — Jackson без {@code JavaTimeModule} сериализует {@code Instant}
+     *       как epoch-<b>секунды</b> с наносекундной дробью ({@code 1785935496.271793106});</li>
+     *   <li>целое число — epoch ms от простых публикаций.</li>
+     * </ul>
+     * Второй случай реален: именно так шлюз пишет сегодня. Приняв его за миллисекунды,
+     * мы датировали бы все значения январём 1970-го, и «возраст значения» на экране
+     * оператора составил бы 56 лет.
+     * <p>
+     * Разбор не должен ронять приём телеметрии, поэтому любая неудача означает лишь
+     * фолбэк на момент приёма; на уровень {@code warn} это не выносится — при ~1200
+     * сообщениях в секунду кривой формат залил бы лог целиком.
+     */
+    private Long sourceTs(JsonNode timestamp) {
+        if (timestamp == null || timestamp.isNull()) {
+            return null;
+        }
+        if (timestamp.isNumber()) {
+            double raw = timestamp.asDouble();
+            return raw < EPOCH_SECONDS_CEILING ? Math.round(raw * 1000) : (long) raw;
+        }
+        try {
+            return Instant.parse(timestamp.asText()).toEpochMilli();
+        } catch (Exception e) {
+            log.debug("Unparseable telemetry timestamp '{}', falling back to receive time", timestamp.asText());
+            return null;
+        }
+    }
+
+    private static TagUpdate toUpdate(String tagId, TagRuntimeState.Snapshot snapshot) {
+        return new TagUpdate(tagId, snapshot.value(), snapshot.ts(),
+                snapshot.good() ? TagUpdate.GOOD : TagUpdate.BAD);
     }
 
     private Object coerce(String value) {

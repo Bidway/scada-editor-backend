@@ -20,27 +20,25 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Обратное направление: запись значения тега в ПЛК. Команда уходит в топик команд
- * ({@link KafkaProperties#getCommandsTopic()}), откуда её забирает драйвер устройства
- * и пишет в контроллер тем протоколом, которым этот тег читается (OPC UA или Modbus —
- * решается на стороне драйвера по {@code idNode}, здесь это неважно).
+ * ({@link KafkaProperties#getCommandsTopic()}), откуда её забирает шлюз и пишет в
+ * контроллер тем протоколом, которым этот тег читается. OPC UA или Modbus — решает
+ * шлюз по своей конфигурации тега; здесь это принципиально неважно, протокол наружу
+ * не торчит.
  * <p>
- * Модель тега — <b>только строка</b>: {@code idNode} (путь узла через точку, он же
- * {@code ComponentProperty.tag_id}, он же Kafka-key телеметрии). Никаких числовых
- * идентификаторов: команда самодостаточна и описывает тег ровно так же, как телеметрия
- * его называет. Тело — компактный JSON:
+ * Модель тега — <b>только строка</b>: путь узла через точку, он же
+ * {@code ComponentProperty.tag_id}, он же Kafka-key телеметрии. Никаких числовых
+ * идентификаторов: у шлюза их два ({@code channel_id} и внутренний PK), они не равны
+ * друг другу, и наружу публикуется не тот, что нужен для записи. Тело — компактный JSON:
  * <pre>{@code
- *   { "commandId": "<uuid>",     // идемпотентность/трассировка
- *     "idNode":    "<path>",     // какой тег писать (= ключ сообщения)
- *     "tagName":   "<path>",     // то же значение под именем поля шлюза
+ *   { "commandId": "<uuid>",     // корреляция ответа + идемпотентность на стороне шлюза
+ *     "tagName":   "<path>",     // какой тег писать — адрес команды
  *     "value":     <bool|num|str>,
  *     "requestedBy": "scada-runtime",
  *     "timestamp": "<ISO-8601>" }
  * }</pre>
- * Key сообщения = {@code idNode} — команды по одному тегу упорядочены между собой.
- * <p>
- * {@code tagName} дублирует {@code idNode} умышленно: у scada-gateway поле тега в
- * {@code CommandMessage} называется именно так, и лишний ключ дешевле, чем ещё один
- * словарь имён на проводе. {@code idNode} остаётся ведущим — это наш термин.
+ * Key сообщения = тот же путь: команды по одному тегу упорядочены между собой. Адрес при
+ * этом берётся из тела, а не из ключа — команда без ключа всё равно доедет и останется
+ * адресуемой, тогда как потерянный ключ означал бы запись непонятно куда.
  * <p>
  * Поля {@code dataType} в команде <b>нет намеренно</b>. Тип узла знает только шлюз (он
  * же держит конфигурацию тега: BOOLEAN, FLOAT, INT16…), а из значения, пришедшего из
@@ -57,12 +55,16 @@ public class CommandProducer {
 
     private final KafkaProperties kafkaProperties;
     private final ObjectMapper objectMapper;
+    private final PendingCommandRegistry pendingCommands;
 
     private KafkaProducer<String, String> producer;
 
-    public CommandProducer(KafkaProperties kafkaProperties, ObjectMapper objectMapper) {
+    public CommandProducer(KafkaProperties kafkaProperties,
+                           ObjectMapper objectMapper,
+                           PendingCommandRegistry pendingCommands) {
         this.kafkaProperties = kafkaProperties;
         this.objectMapper = objectMapper;
+        this.pendingCommands = pendingCommands;
     }
 
     @PostConstruct
@@ -91,11 +93,12 @@ public class CommandProducer {
     /**
      * Отправляет команду записи тега.
      * <p>
-     * Результат — <b>подтверждение брокера</b>, а не факт постановки в буфер: future
-     * завершается {@code true} только после ack. Раньше метод возвращал {@code true}
-     * сразу после {@code producer.send(...)}, и вызывающий считал команду применённой
-     * ещё до того, как она ушла из процесса, — сбой доставки всплывал в колбэке уже
-     * после ответа оператору.
+     * Результат — <b>исход записи в ПЛК</b>, а не подтверждение брокера. Ack означает
+     * лишь «Kafka приняла сообщение»: команда, которую шлюз затем отбросил (канала нет,
+     * узел только на чтение, контроллер отвалился), при подсчёте по ack выглядела для
+     * оператора точно так же, как применённая. Теперь future завершается ответом шлюза
+     * из {@code scada-command-results} — либо, если ответа нет,
+     * {@link CommandOutcome#NO_CONFIRMATION} по таймауту.
      * <p>
      * Исключение наружу не выбрасывается: сбой одной команды не должен ронять ни
      * исполнение скрипта, ни применение остальных строк набора. Вызывающий, которому
@@ -105,17 +108,18 @@ public class CommandProducer {
      *
      * @param idNode путь узла через точку — наш единственный идентификатор тега
      * @param value  значение как его передал скрипт (boolean / number / string)
-     * @return future с {@code true}, если брокер подтвердил запись
+     * @return future с исходом команды; никогда не завершается исключением
      */
-    public CompletableFuture<Boolean> send(String idNode, Object value) {
+    public CompletableFuture<CommandOutcome> send(String idNode, Object value) {
         if (idNode == null || idNode.isBlank()) {
-            return CompletableFuture.completedFuture(false);
+            return CompletableFuture.completedFuture(
+                    CommandOutcome.failure(CommandOutcome.NO_TAG, "Свойство не привязано к тегу"));
         }
         String topic = kafkaProperties.getCommandsTopic();
+        String commandId = UUID.randomUUID().toString();
         try {
             Map<String, Object> command = new LinkedHashMap<>();
-            command.put("commandId", UUID.randomUUID().toString());
-            command.put("idNode", idNode);
+            command.put("commandId", commandId);
             command.put("tagName", idNode);
             command.put("value", value);
             command.put("requestedBy", REQUESTED_BY);
@@ -124,20 +128,31 @@ public class CommandProducer {
             ProducerRecord<String, String> record =
                     new ProducerRecord<>(topic, idNode, objectMapper.writeValueAsString(command));
 
-            CompletableFuture<Boolean> acknowledged = new CompletableFuture<>();
+            // Ожидание регистрируется ДО отправки: шлюз пишет в ПЛК синхронно и способен
+            // ответить раньше, чем вернётся управление из send(). Зарегистрируй мы после —
+            // результат пришёл бы на ещё не существующее ожидание и был бы отброшен как
+            // чужой, а команда завершилась бы по таймауту.
+            CompletableFuture<CommandOutcome> outcome = pendingCommands.awaiting(commandId, idNode);
+
             producer.send(record, (metadata, exception) -> {
                 if (exception != null) {
                     log.warn("Command for tag '{}' was not delivered: {}", idNode, exception.getMessage());
-                    acknowledged.complete(false);
+                    pendingCommands.complete(commandId, CommandOutcome.failure(
+                            CommandOutcome.NOT_DELIVERED, "Брокер не принял команду: " + exception.getMessage()));
                 } else {
-                    log.debug("Command sent: idNode='{}'", idNode);
-                    acknowledged.complete(true);
+                    // Ack брокера — это НЕ применение команды: дальше её должен забрать
+                    // шлюз, записать в ПЛК и ответить в scada-command-results. Ожидание
+                    // здесь намеренно не разрешается.
+                    log.debug("Command sent: tag='{}', commandId={}", idNode, commandId);
                 }
             });
-            return acknowledged;
+            return outcome;
         } catch (Exception e) {
             log.warn("Failed to publish command for tag '{}': {}", idNode, e.getMessage());
-            return CompletableFuture.completedFuture(false);
+            pendingCommands.complete(commandId, CommandOutcome.failure(
+                    CommandOutcome.NOT_DELIVERED, "Не удалось сформировать команду: " + e.getMessage()));
+            return CompletableFuture.completedFuture(CommandOutcome.failure(
+                    CommandOutcome.NOT_DELIVERED, "Не удалось сформировать команду: " + e.getMessage()));
         }
     }
 
