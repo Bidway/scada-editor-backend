@@ -131,6 +131,36 @@ function Test-Docker {
 }
 
 <#
+    Работает ли контейнер с таким именем. Вызывать только когда Docker уже проверен:
+    сам по себе docker inspect при мёртвом демоне висит на таймауте.
+#>
+function Test-ContainerRunning([string]$Name) {
+    $state = docker inspect -f '{{.State.Running}}' $Name 2>$null
+    return ($LASTEXITCODE -eq 0 -and "$state".Trim() -eq 'true')
+}
+
+<#
+    Адрес, который OPC UA сервер симулятора анонсирует клиентам.
+
+    Milo (клиент шлюза) после discovery идёт не по адресу, куда подключался, а по тому,
+    который сервер анонсировал в EndpointDescription. Значит адрес обязан резолвиться
+    СО СТОРОНЫ ШЛЮЗА, и правильный ответ зависит от того, где шлюз работает:
+      * шлюз на хосте        -> localhost:4840 (порт симулятора проброшен наружу);
+      * шлюз в контейнере    -> scada-simulator:4840 (имя сервиса в сети compose).
+
+    Ошибиться здесь особенно дорого, потому что отказ тихий: connect падает внутри
+    супервизора, в лог идёт только «переподключаю ... (client=false, stale=true)», и
+    ни одной ошибки. При этом Modbus discovery не делает и ходит прямо на SIM_HOST —
+    он продолжает работать как ни в чём не бывало. Наружу это выглядит не как «шлюз
+    сломан», а как «часть тегов пропала»: у BN1_MCA1 по OPC UA идут все 594 канала
+    V_*/ST/M, то есть ровно те, что стоят на мнемосхемах.
+#>
+function Resolve-SimEndpoint([bool]$GatewayInContainer) {
+    if ($GatewayInContainer) { return 'opc.tcp://scada-simulator:4840' }
+    return 'opc.tcp://localhost:4840'
+}
+
+<#
     JDK 21 для сборки шлюза. Наши модули собираются под 17, а pom шлюза требует 21,
     и mvnw берёт версию из JAVA_HOME. Если в PATH стоит другая (часто 19), сборка
     падает на «release version 21 not supported» — поэтому ищем 21-ю отдельно и
@@ -198,7 +228,27 @@ if ($Status) {
     if (Test-Docker) {
         Write-Host ''
         Info 'Контейнеры:'
-        docker ps --format '  {{.Names}}  {{.Status}}'
+        # Out-Host — иначе вывод docker уходит в pipeline и печатается уже после
+        # следующих Write-Host, перемешивая порядок строк в отчёте.
+        docker ps --format '  {{.Names}}  {{.Status}}' | Out-Host
+
+        # Рассинхрон анонса OPC UA виден только так: в логах шлюза он не ошибка, а
+        # бесконечное «переподключаю ... (client=false)», Modbus при этом идёт как ни в
+        # чём не бывало, и снаружи пропажа 594 opcua-каналов выглядит как «часть тегов
+        # не приходит». Сверяем, что симулятор анонсирует адрес, резолвимый для шлюза.
+        if (Test-ContainerRunning 'scada-simulator') {
+            Write-Host ''
+            $announced = (docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' scada-simulator 2>$null |
+                          Select-String -Pattern '^OPCUA_ENDPOINT=(.*)$').Matches.Groups[1].Value
+            $inContainer = Test-ContainerRunning 'scada-gateway'
+            $expected = Resolve-SimEndpoint $inContainer
+            $where = if ($inContainer) { 'в контейнере' } else { 'на хосте (или не запущен)' }
+            Info "Анонс OPC UA симулятора: $announced   (шлюз $where, ожидается $expected)"
+            if ($announced -and $announced -ne $expected) {
+                Err 'Анонс не резолвится со стороны шлюза — все теги OPC UA молча не идут.'
+                Err "Лечится: `$env:SCADA_SIM_ENDPOINT='$expected'; docker compose -f docker-compose.gateway.yml up -d scada-simulator"
+            }
+        }
     }
     return
 }
@@ -242,6 +292,10 @@ if ($Mode -eq 'docker') {
     $composeArgs = @('-f', 'docker-compose.yml')
     if (-not $NoSim -and -not $Sim) {
         $env:SCADA_GATEWAY_PATH = $GatewayDir -replace '\\', '/'
+        # Задаём явно, а не полагаемся на дефолт compose: в этой же сессии PowerShell
+        # переменная могла остаться от прогона в host-режиме (там анонс — localhost),
+        # и симулятор поднялся бы с адресом, который из контейнера шлюза не резолвится.
+        $env:SCADA_SIM_ENDPOINT = Resolve-SimEndpoint $true
         $composeArgs += @('-f', 'docker-compose.gateway.yml')
 
         # Образ шлюза тоже копирует готовый jar — собираем его тем же правилом.
@@ -377,67 +431,86 @@ if ($Mode -eq 'host') {
             Err 'Docker не запущен — БД шлюза и PLC-симулятор не поднять. Запусти Docker Desktop или используй -Sim.'
         }
         else {
-            # Симулятор анонсирует свой endpoint клиентам, и Milo после discovery идёт
-            # именно по нему: адрес обязан резолвиться СО СТОРОНЫ КЛИЕНТА. Шлюз здесь на
-            # хосте, поэтому имя сервиса compose не годится — только localhost.
-            $env:SCADA_SIM_ENDPOINT = 'opc.tcp://localhost:4840'
+            # Где окажется шлюз, решает не режим запуска, а факт: контейнер scada-gateway
+            # объявлен с restart: unless-stopped, поэтому однажды поднятый в docker-режиме
+            # он переживает перезагрузку и держит порт 8888 на host-стенде тоже. Раньше
+            # host-ветка безусловно анонсировала симулятору localhost, считая шлюз хостовым,
+            # и при живом контейнере весь OPC UA молча отваливался (см. Resolve-SimEndpoint).
+            $gatewayInContainer = Test-ContainerRunning 'scada-gateway'
+            $env:SCADA_SIM_ENDPOINT = Resolve-SimEndpoint $gatewayInContainer
             $env:SCADA_GATEWAY_PATH = $GatewayDir -replace '\\', '/'
+
+            if ($gatewayInContainer) {
+                Warn 'Шлюз работает в контейнере (scada-gateway), хотя режим host.'
+                Warn "Подстраиваю анонс симулятора под него: $env:SCADA_SIM_ENDPOINT"
+                Warn 'Нужен нативный шлюз — сначала: docker rm -f scada-gateway'
+            }
 
             Info 'Поднимаю БД шлюза и PLC-симулятор (docker compose) ...'
             Push-Location $ProjectRoot
             & docker compose -f docker-compose.gateway.yml up -d scada-postgres scada-simulator
             Pop-Location
 
-            $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
-                       -ErrorAction SilentlyContinue |
-                   Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
-            if (-not $jar) {
-                $jdk = Resolve-Jdk21
-                if (-not $jdk) {
-                    Err 'Не нашёл JDK 21 — шлюз требует именно её (наши модули под 17). Поставь JDK 21 или задай JAVA_HOME.'
-                } else {
-                    Info "Jar шлюза не найден — собираю (JDK 21: $jdk), это займёт минуту ..."
-                    $saved = $env:JAVA_HOME
-                    $env:JAVA_HOME = $jdk
-                    Push-Location (Join-Path $GatewayDir 'SCADA-gateway')
-                    & .\mvnw.cmd -q -DskipTests package
-                    Pop-Location
-                    $env:JAVA_HOME = $saved
-                    $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
-                               -ErrorAction SilentlyContinue |
-                           Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
-                }
+            # Порт 8888 держат оба варианта шлюза, поэтому одной проверки порта мало:
+            # контейнер отличаем по имени. Заодно это экономит минуту на сборке jar,
+            # который при живом контейнере всё равно не понадобится.
+            if ($gatewayInContainer) {
+                Ok 'scada-gateway работает в контейнере (8888) — нативный не запускаю'
+                Info 'Если симулятор пересоздавался, OPC UA у шлюза переподключится сам (до ~1 минуты)'
             }
+            elseif (Test-Port 8888) {
+                Ok 'scada-gateway уже работает на хосте (8888)'
+            }
+            else {
+                $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
+                           -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+                if (-not $jar) {
+                    $jdk = Resolve-Jdk21
+                    if (-not $jdk) {
+                        Err 'Не нашёл JDK 21 — шлюз требует именно её (наши модули под 17). Поставь JDK 21 или задай JAVA_HOME.'
+                    } else {
+                        Info "Jar шлюза не найден — собираю (JDK 21: $jdk), это займёт минуту ..."
+                        $saved = $env:JAVA_HOME
+                        $env:JAVA_HOME = $jdk
+                        Push-Location (Join-Path $GatewayDir 'SCADA-gateway')
+                        & .\mvnw.cmd -q -DskipTests package
+                        Pop-Location
+                        $env:JAVA_HOME = $saved
+                        $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
+                                   -ErrorAction SilentlyContinue |
+                               Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+                    }
+                }
 
-            if (-not $jar) {
-                Err 'Сборка шлюза не дала jar — смотри вывод maven выше'
-            } elseif (Test-Port 8888) {
-                Ok 'scada-gateway уже работает (8888)'
-            } else {
-                Info 'Жду БД шлюза (5433) и OPC UA симулятора (4840) ...'
-                Wait-Port 5433 'scada-postgres' 60 | Out-Null
-                Wait-Port 4840 'scada-simulator (OPC UA)' 90 | Out-Null
-                Repair-GatewayDb
+                if (-not $jar) {
+                    Err 'Сборка шлюза не дала jar — смотри вывод maven выше'
+                } else {
+                    Info 'Жду БД шлюза (5433) и OPC UA симулятора (4840) ...'
+                    Wait-Port 5433 'scada-postgres' 60 | Out-Null
+                    Wait-Port 4840 'scada-simulator (OPC UA)' 90 | Out-Null
+                    Repair-GatewayDb
 
-                # Переопределяем только то, что в application.yaml прибито к их стенду:
-                # адрес БД (у нас 5433 на хосте) и топик телеметрии (наш scada.tags).
-                # SIM_HOST/modbus.host уже дефолтятся в 127.0.0.1 — это и есть хост.
-                #
-                # send-bad-frames у шлюза выключен по умолчанию: кадр с value=null опасен
-                # для потребителя, который передаёт значение прямо в скрипт (null в JS —
-                # falsy, и клапан нарисовался бы ЗАКРЫТЫМ вместо «нет данных»). У нас
-                # недостоверное значение до скриптов не доходит, а фронт рисует по
-                # quality, поэтому включаем: иначе тег на обрыве замирает на последнем
-                # значении и выглядит живым.
-                $gwArgs = @(
-                    '-jar', "`"$($jar.FullName)`"",
-                    '--spring.datasource.url=jdbc:postgresql://localhost:5433/scada_db',
-                    '--spring.kafka.bootstrap-servers=localhost:9092',
-                    '--kafka.topics.telemetry=scada.tags',
-                    '--gateway.send-bad-frames=true'
-                ) -join ' '
-                Info 'Запускаю scada-gateway (BN1_MCA1 -> scada.tags, порт 8888) ...'
-                Start-InWindow 'scada-gateway' (Join-Path $GatewayDir 'SCADA-gateway') "java $gwArgs"
+                    # Переопределяем только то, что в application.yaml прибито к их стенду:
+                    # адрес БД (у нас 5433 на хосте) и топик телеметрии (наш scada.tags).
+                    # SIM_HOST/modbus.host уже дефолтятся в 127.0.0.1 — это и есть хост.
+                    #
+                    # send-bad-frames у шлюза выключен по умолчанию: кадр с value=null опасен
+                    # для потребителя, который передаёт значение прямо в скрипт (null в JS —
+                    # falsy, и клапан нарисовался бы ЗАКРЫТЫМ вместо «нет данных»). У нас
+                    # недостоверное значение до скриптов не доходит, а фронт рисует по
+                    # quality, поэтому включаем: иначе тег на обрыве замирает на последнем
+                    # значении и выглядит живым.
+                    $gwArgs = @(
+                        '-jar', "`"$($jar.FullName)`"",
+                        '--spring.datasource.url=jdbc:postgresql://localhost:5433/scada_db',
+                        '--spring.kafka.bootstrap-servers=localhost:9092',
+                        '--kafka.topics.telemetry=scada.tags',
+                        '--gateway.send-bad-frames=true'
+                    ) -join ' '
+                    Info 'Запускаю scada-gateway (BN1_MCA1 -> scada.tags, порт 8888) ...'
+                    Start-InWindow 'scada-gateway' (Join-Path $GatewayDir 'SCADA-gateway') "java $gwArgs"
+                }
             }
         }
     }
