@@ -50,7 +50,7 @@ param(
     [switch]$Stop
 )
 
-if (-not $ProjectRoot) { $ProjectRoot = 'Z:\GitKraken\scada-editor-backend' }
+if (-not $ProjectRoot) { $ProjectRoot = 'Z:\Claude\Projects\scada-editor-backend' }
 $ErrorActionPreference = 'Continue'
 
 $Services = @(
