@@ -1,8 +1,8 @@
 package com.example.editor.command.undo;
 
 import com.example.editor.config.command.CommandLog;
-import com.example.editor.config.command.CommandResult;
-import com.example.editor.config.command.UndoHandler;
+import com.example.shared.command.CommandResult;
+import com.example.shared.command.UndoHandler;
 import com.example.editor.model.component.ComponentProperty;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class DeletePropertyUndoHandler implements UndoHandler {
+public class DeletePropertyUndoHandler implements UndoHandler<CommandLog> {
 
     private final ComponentPropertyRepository propertyRepo;
     private final ObjectMapper mapper;

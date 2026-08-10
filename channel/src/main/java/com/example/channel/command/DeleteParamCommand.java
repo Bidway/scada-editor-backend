@@ -1,8 +1,8 @@
 package com.example.channel.command;
 
-import com.example.channel.config.command.Command;
+import com.example.shared.command.Command;
 import com.example.channel.config.command.CommandBatch;
-import com.example.channel.config.command.CommandResult;
+import com.example.shared.command.CommandResult;
 import com.example.channel.model.NodeParam;
 import com.example.channel.repository.ParamRepository;
 import com.fasterxml.jackson.databind.JsonNode;

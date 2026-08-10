@@ -1,5 +1,6 @@
 package com.example.editor.config.command;
 
+import com.example.shared.command.CommandResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import lombok.Data;

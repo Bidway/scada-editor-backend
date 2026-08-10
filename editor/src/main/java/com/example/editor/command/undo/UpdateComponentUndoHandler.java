@@ -1,8 +1,8 @@
 package com.example.editor.command.undo;
 
 import com.example.editor.config.command.CommandLog;
-import com.example.editor.config.command.CommandResult;
-import com.example.editor.config.command.UndoHandler;
+import com.example.shared.command.CommandResult;
+import com.example.shared.command.UndoHandler;
 import com.example.editor.model.component.Component;
 import com.example.editor.repository.component.ComponentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 
 @org.springframework.stereotype.Component
 @RequiredArgsConstructor
-public class UpdateComponentUndoHandler implements UndoHandler {
+public class UpdateComponentUndoHandler implements UndoHandler<CommandLog> {
 
     private final ComponentRepository componentRepo;
     private final ObjectMapper mapper;

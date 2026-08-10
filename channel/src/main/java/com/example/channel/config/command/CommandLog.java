@@ -1,5 +1,6 @@
 package com.example.channel.config.command;
 
+import com.example.shared.command.CommandResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;

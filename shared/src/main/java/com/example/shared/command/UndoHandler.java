@@ -1,6 +1,13 @@
 package com.example.shared.command;
 
-public interface UndoHandler {
+/**
+ * Обработчик отмены команды. Тип записи журнала — параметр: {@code CommandLog} у каждого
+ * сервиса свой, он привязан к схеме БД модуля и в shared не переезжает. Без параметра
+ * пришлось бы объявить log как Object и кастовать его в каждой реализации.
+ */
+public interface UndoHandler<L> {
+
     boolean supports(String commandType);
-    CommandResult<?> undo(Object log, String userName);
+
+    CommandResult<?> undo(L log, String userName);
 }
