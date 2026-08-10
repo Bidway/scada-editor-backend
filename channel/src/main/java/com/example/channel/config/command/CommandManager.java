@@ -10,24 +10,22 @@ public class CommandManager {
     public CommandManager(CommandLogRepository commandRepository) {
         this.commandRepository = commandRepository;
     }
-//    @Transactional
-//    public <T> T execute(Command<T> command){
-//        CommandResult<T> result = command.execute();
-//        if(result != null && result.getUserId()!=null)
-//        commandRepository.save(CommandLog.from(result));
-//        return result != null ? result.getResult() : null;
-//    }
+    /**
+     * Выполняет команду и пишет её в журнал. Возвращает результат, а не обёртку:
+     * CommandResult нужен только на участке между Command и журналом (scada-2zq).
+     */
     @Transactional
-    public <T> CommandResult<T> execute(Command<T> command) {
-        CommandResult<T> result = command.execute(); // <-- здесь мы получаем CommandResult<T>
+    public <T> T execute(Command<T> command) {
+        CommandResult<T> result = command.execute();
         if (result != null) {
             commandRepository.save(CommandLog.from(result));
         }
-        return result; // <-- возвращаем CommandResult<T>
+        return result != null ? result.getResult() : null;
     }
+
     @Transactional
     public void executeUndo(UndoHandler handler, CommandLog log,String userName){
-        CommandResult result = handler.undo(log, userName);
+        CommandResult<?> result = handler.undo(log, userName);
         if(result != null)
             commandRepository.save(CommandLog.from(result));
     }
