@@ -1,0 +1,64 @@
+# EditorConfig — базовые соглашения об оформлении файлов. Понимают IntelliJ, VS Code
+# и Eclipse без плагинов. Линтера и форматтера в проекте нет и не планируется
+# (решение по scada-2p9): здесь только механические вещи, о которых не спорят.
+#
+# Про переводы строк. В репозитории всё хранится как LF — на этой машине включён
+# core.autocrlf=true, и git нормализует CRLF при коммите. Но autocrlf машинный, в
+# репозитории его нет, поэтому LF задан здесь явно: иначе на машине без autocrlf
+# новые файлы поехали бы в CRLF. Рабочее дерево сейчас смешанное (203 файла CRLF,
+# 122 LF), выправлять его разом не нужно — git всё равно приводит к LF на коммите,
+# так что дифы от этого файла не вырастут.
+#
+# Полностью проблему переводов строк .editorconfig не решает: он про редакторы, а
+# не про git. Репозиторный ответ — .gitattributes с `* text=auto`, см. scada-dql.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Windows-скрипты: PowerShell и cmd здесь родные, им оставляем CRLF.
+[*.{ps1,psm1,psd1,bat,cmd}]
+end_of_line = crlf
+
+# Два пробела — так написаны все application.yml и docker-compose.
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.json]
+indent_size = 2
+
+# В Markdown два пробела в конце строки — это перенос строки, вырезать их нельзя.
+[*.md]
+trim_trailing_whitespace = false
+
+# Обёртка Gradle генерируется самим Gradle, руками не правится и обязана остаться
+# sh-скриптом с LF: gradlew вызывается в том числе из Docker-сборок.
+[gradlew]
+end_of_line = lf
+
+[*.sh]
+end_of_line = lf
+
+# Чужие и генерируемые деревья: оформление там не наше, приводить его к своему —
+# только шум в дифах. plc-sim-venv — закоммиченный Python-virtualenv (scada-1ee).
+[tools/plc-sim-venv/**]
+charset = unset
+end_of_line = unset
+indent_style = unset
+indent_size = unset
+trim_trailing_whitespace = unset
+insert_final_newline = unset
+
+[**/node_modules/**]
+charset = unset
+end_of_line = unset
+indent_style = unset
+indent_size = unset
+trim_trailing_whitespace = unset
+insert_final_newline = unset
