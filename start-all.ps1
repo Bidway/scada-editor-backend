@@ -35,8 +35,8 @@ param(
     [string]$KafkaHome   = 'C:\kafka_2.13-4.3.1',
     [string]$RedisHome   = 'C:\redis',
     [string]$PgService   = 'postgresql-x64-17',
-    [string]$FrontendDir = 'Z:\Project Java\scada-editor-frontend',
-    [string]$GatewayDir  = 'Z:\Project Java\scada-gateway',
+    [string]$FrontendDir = 'Z:\Claude\Projects\scada-editor-frontend',
+    [string]$GatewayDir  = 'Z:\Claude\Projects\scada-gateway',
     # next dev слушает 3000. Раньше здесь стояло 5173 (Vite) — проверка «фронт уже
     # работает» смотрела в пустой порт и плодила вторую копию при каждом прогоне.
     [int]$FrontendPort   = 3000,
