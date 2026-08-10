@@ -1,6 +1,7 @@
 # Секреты
 .env
 .env.*
+!.env.example
 
 # Gradle / сборка
 .gradle/
