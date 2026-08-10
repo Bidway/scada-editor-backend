@@ -1,0 +1,12 @@
+# Redis лежит на classpath (spring-boot-starter-data-redis), но в editor не используется:
+# ни @EnableCaching, ни @Cacheable в коде нет. Автоконфигурацию выключаем, чтобы тестовый
+# контекст не пытался найти живой сервер.
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
