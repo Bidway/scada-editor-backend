@@ -1,15 +1,15 @@
 package com.example.editor.command.undo;
 
 import com.example.editor.config.command.CommandLog;
-import com.example.editor.config.command.CommandResult;
-import com.example.editor.config.command.UndoHandler;
+import com.example.shared.command.CommandResult;
+import com.example.shared.command.UndoHandler;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class CreatePropertyUndoHandler implements UndoHandler {
+public class CreatePropertyUndoHandler implements UndoHandler<CommandLog> {
 
     private final ComponentPropertyRepository propertyRepo;
 
