@@ -31,6 +31,7 @@ dependencies {
     testImplementation("org.mockito:mockito-core")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:testcontainers")
+    testImplementation("org.testcontainers:postgresql")
 
 
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -60,6 +61,12 @@ dependencies {
 }
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Docker Desktop на этой машине слушает testcontainers-совместимый API на
+    // dockerDesktopLinuxEngine, а не на дефолтном docker_engine — без этого
+    // NpipeSocketClientProviderStrategy падает на BadRequestException. См. auth/build.gradle.kts.
+    // Второй кусок той же проблемы — версия API, см. src/test/resources/docker-java.properties.
+    environment("DOCKER_HOST", "npipe:////./pipe/dockerDesktopLinuxEngine")
+    environment("TESTCONTAINERS_RYUK_DISABLED", "true")
 }
 
 // Отключаем «плоский» jar: сервис деплоится как исполняемый bootJar и как
