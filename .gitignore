@@ -40,3 +40,7 @@ docs/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Рабочий каталог subagent-driven-development: журнал, брифы, отчёты, пакеты ревью.
+# Черновики одного прогона плана — в историю не нужны.
+.superpowers/

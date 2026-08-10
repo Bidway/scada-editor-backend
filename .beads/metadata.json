@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "embedded",
-  "dolt_database": "scada_editor_backend",
-  "project_id": "c5baeebd-59b0-45a3-8998-ea01ea4a4bf8"
-}
