@@ -20,8 +20,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @Transactional
@@ -118,21 +120,54 @@ public class RecipeServiceImpl implements RecipeService {
         return new ResolvedRecipeDto(recipe.getId(), recipe.getComponentId(), values, unmatched);
     }
 
+    /**
+     * Синхронизация значений набора. Значение существующей строки правится на месте, а не
+     * пересоздаётся: ключ здесь — имя строки, и оно же единственное, чем значение связано с
+     * таблицей. Тот же приём, что у свойств, скриптов, состояний и обработчиков компонента
+     * (см. {@code ComponentScriptBindingApplier}); ссылок по {@code RecipeValue.id} в контуре
+     * нет, поэтому падений прежний clear + insert не давал — но правка одной уставки
+     * переписывала весь набор целиком.
+     * <p>
+     * Два значения на одну строку отвергаются: резолв набора берёт строку по имени, и второе
+     * значение всё равно осталось бы недостижимым.
+     */
     private void applyValues(Recipe recipe, List<RecipeValueDto> values) {
-        recipe.getValues().clear();
         if (values == null) {
+            recipe.getValues().clear();
             return;
         }
+        Map<String, RecipeValue> existingByRow = new HashMap<>();
+        for (RecipeValue existing : recipe.getValues()) {
+            existingByRow.put(existing.getRowName(), existing);
+        }
+
+        List<RecipeValue> incoming = new ArrayList<>();
+        Set<String> seenRows = new HashSet<>();
         for (RecipeValueDto v : values) {
             String rowName = normalize(v.getRow_name());
             if (rowName == null) {
                 throw new IllegalArgumentException("Recipe value requires row_name");
             }
-            recipe.getValues().add(RecipeValue.builder()
-                    .rowName(rowName)
-                    .value(v.getValue())
-                    .recipe(recipe)
-                    .build());
+            if (!seenRows.add(rowName)) {
+                throw new IllegalArgumentException(
+                        "Duplicate value for row '" + rowName + "' in recipe " + recipe.getId()
+                                + "; a row can have only one value in a set");
+            }
+            RecipeValue target = existingByRow.get(rowName);
+            if (target == null) {
+                target = new RecipeValue();
+                target.setRecipe(recipe);
+                target.setRowName(rowName);
+            }
+            target.setValue(v.getValue());
+            incoming.add(target);
+        }
+
+        recipe.getValues().removeIf(existing -> !seenRows.contains(existing.getRowName()));
+        for (RecipeValue target : incoming) {
+            if (target.getId() == null) {
+                recipe.getValues().add(target);
+            }
         }
     }
 
