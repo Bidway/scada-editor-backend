@@ -23,6 +23,11 @@ import java.time.LocalDateTime;
  * ради которого аудит и заводится: «кто удалил набор» — вопрос, на который нужно отвечать
  * после того, как набора уже нет.
  * <p>
+ * {@code componentId} дублирует то, что можно было бы получить через {@code recipeId} →
+ * набор → компонент: он позволяет отвечать на вопрос «что меняли по этому компоненту», не
+ * собирая сначала список его наборов, и по той же причине, что и {@code recipeId}, переживает
+ * удаление набора.
+ * <p>
  * Снимок набора целиком не хранится: набор маленький, а спрашивают у него не «как выглядел»,
  * а «кто тронул эту строку».
  */
@@ -50,10 +55,10 @@ public class RecipeChange {
     @Column(name = "row_name")
     private String rowName;
 
-    @Column(name = "old_value")
+    @Column(name = "old_value", columnDefinition = "text")
     private String oldValue;
 
-    @Column(name = "new_value")
+    @Column(name = "new_value", columnDefinition = "text")
     private String newValue;
 
     /** Кто. Приходит из заголовка X-Username, который проставляет gateway. */
