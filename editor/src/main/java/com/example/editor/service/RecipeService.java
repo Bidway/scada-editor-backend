@@ -8,11 +8,11 @@ import java.util.List;
 
 public interface RecipeService {
 
-    RecipeResponseDto create(RecipeCreateDto dto);
+    RecipeResponseDto create(RecipeCreateDto dto, String userName);
 
-    RecipeResponseDto update(Long id, RecipeCreateDto dto);
+    RecipeResponseDto update(Long id, RecipeCreateDto dto, String userName);
 
-    void delete(Long id);
+    void delete(Long id, String userName);
 
     List<RecipeResponseDto> listByComponent(Long componentId);
 
