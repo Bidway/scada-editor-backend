@@ -115,10 +115,6 @@ public class UndoService {
         commandManager.executeUndo(handler, log, userName);
     }
 
-    private void markUndone(CommandLog log) {
-        markUndone(log, LocalDateTime.now());
-    }
-
     private void markUndone(CommandLog log, LocalDateTime undoneAt) {
         log.setUndoneAt(undoneAt);
         commandLogRepository.save(log);
