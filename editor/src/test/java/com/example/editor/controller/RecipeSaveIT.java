@@ -48,6 +48,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
 
     private long createRecipe(long componentId, String valuesJson) throws Exception {
         String body = mockMvc.perform(post("/api/editor/recipes")
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия A\",\"component_id\":" + componentId
                                 + ",\"values\":" + valuesJson + "}"))
@@ -78,6 +79,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
         assertThat(before).containsKeys("Уставка", "Режим");
 
         mockMvc.perform(put("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия A\",\"component_id\":" + componentId
                                 + ",\"values\":[{\"row_name\":\"Уставка\",\"value\":\"42\"},"
@@ -98,6 +100,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
                 + "{\"row_name\":\"Режим\",\"value\":\"1\"}]");
 
         mockMvc.perform(put("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия A\",\"component_id\":" + componentId
                                 + ",\"values\":[{\"row_name\":\"Уставка\",\"value\":\"10\"}]}"))
@@ -115,6 +118,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
         long componentId = componentWithTwoRows();
 
         mockMvc.perform(post("/api/editor/recipes")
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия B\",\"component_id\":" + componentId
                                 + ",\"values\":[{\"row_name\":\"Уставка\",\"value\":\"1\"},"

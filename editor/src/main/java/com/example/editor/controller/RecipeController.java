@@ -24,18 +24,23 @@ public class RecipeController {
     private final RecipeService service;
 
     @PostMapping
-    public RecipeResponseDto create(@Valid @RequestBody RecipeCreateDto dto) {
-        return service.create(dto);
+    public RecipeResponseDto create(
+            @Valid @RequestBody RecipeCreateDto dto,
+            @RequestHeader("X-Username") String userName) {
+        return service.create(dto, userName);
     }
 
     @PutMapping("/{id}")
-    public RecipeResponseDto update(@PathVariable Long id, @Valid @RequestBody RecipeCreateDto dto) {
-        return service.update(id, dto);
+    public RecipeResponseDto update(
+            @PathVariable Long id,
+            @Valid @RequestBody RecipeCreateDto dto,
+            @RequestHeader("X-Username") String userName) {
+        return service.update(id, dto, userName);
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
-        service.delete(id);
+    public void delete(@PathVariable Long id, @RequestHeader("X-Username") String userName) {
+        service.delete(id, userName);
     }
 
     @GetMapping

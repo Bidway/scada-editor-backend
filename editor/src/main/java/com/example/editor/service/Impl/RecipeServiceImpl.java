@@ -35,7 +35,7 @@ public class RecipeServiceImpl implements RecipeService {
     private final ComponentPropertyRepository propertyRepository;
 
     @Override
-    public RecipeResponseDto create(RecipeCreateDto dto) {
+    public RecipeResponseDto create(RecipeCreateDto dto, String userName) {
         Recipe recipe = new Recipe();
         recipe.setName(dto.getName());
         recipe.setType(typeOrDefault(dto.getType()));
@@ -45,7 +45,7 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
-    public RecipeResponseDto update(Long id, RecipeCreateDto dto) {
+    public RecipeResponseDto update(Long id, RecipeCreateDto dto, String userName) {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
         recipe.setName(dto.getName());
@@ -56,7 +56,7 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
-    public void delete(Long id) {
+    public void delete(Long id, String userName) {
         if (!recipeRepository.existsById(id)) {
             throw new NotFoundException("Recipe not found: " + id);
         }
