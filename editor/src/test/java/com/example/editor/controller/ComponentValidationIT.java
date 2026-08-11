@@ -54,6 +54,13 @@ class ComponentValidationIT extends EditorApiTestSupport {
     }
 
     @Test
+    void blankStateName_isRejected() throws Exception {
+        long sceneId = newScene();
+        expectRejected("[{\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"states\":[{\"name\":\"  \",\"image\":{},\"isDefault\":true}]}]");
+    }
+
+    @Test
     void duplicateEventTypes_areRejected() throws Exception {
         long sceneId = newScene();
         expectRejected("[{\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
