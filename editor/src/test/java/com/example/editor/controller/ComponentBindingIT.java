@@ -9,7 +9,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -97,6 +100,50 @@ class ComponentBindingIT extends EditorApiTestSupport {
                                 + "\"bindings\":[{\"component_property_name\":\"Нет такой\","
                                 + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void bindingToPropertyOfAnotherComponent_isRejectedWithOwnershipMessage() throws Exception {
+        long sceneId = newScene();
+        JsonNode other = saveComponents("[{\"name\":\"Клапан\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"}]}]").get(0);
+        long foreignPropertyId = propertyId(other, "Уставка");
+
+        mockMvc.perform(post("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"name\":\"Насос\",\"type\":\"valve\","
+                                + "\"parent_id\":" + sceneId + ","
+                                + "\"bindings\":[{\"component_property_id\":" + foreignPropertyId + ","
+                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("does not belong to component")));
+    }
+
+    @Test
+    void bindingToOwnPropertyDroppedFromRequest_isRejectedWithDistinctMessage() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents("[{\"name\":\"Насос\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Скорость\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"},"
+                + "{\"name\":\"Уставка\",\"value_type\":\"double\",\"property_type\":\"Тег\"}]}]").get(0);
+        long componentId = created.get("id").asLong();
+        long setpointId = propertyId(created, "Уставка");
+
+        mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+                                + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                                + "\"properties\":[{\"name\":\"Скорость\",\"value_type\":\"double\","
+                                + "\"property_type\":\"Тег\"}],"
+                                + "\"bindings\":[{\"component_property_id\":" + setpointId + ","
+                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("not among the properties sent")));
     }
 
     @Test
