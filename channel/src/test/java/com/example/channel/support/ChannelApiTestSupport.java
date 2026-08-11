@@ -2,6 +2,7 @@ package com.example.channel.support;
 
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandLogRepository;
+import com.example.channel.dto.nodeDto.CreateNodeDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,10 +41,14 @@ public abstract class ChannelApiTestSupport extends PostgresTestContainerSupport
     protected CommandLogRepository commandLogRepository;
 
     protected JsonNode createNode(String idNode, long type) throws Exception {
+        CreateNodeDto dto = new CreateNodeDto();
+        dto.setIdNode(idNode);
+        dto.setType(type);
+
         String body = mockMvc.perform(post("/api/channel/node")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"idNode\":\"" + idNode + "\",\"type\":" + type + "}"))
+                        .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body);
