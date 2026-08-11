@@ -8,5 +8,5 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: false

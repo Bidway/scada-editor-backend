@@ -18,6 +18,15 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Останавливает контейнер хук завершения JVM. Обычно это делает Ryuk, но в этом окружении
  * он выключен (TESTCONTAINERS_RYUK_DISABLED в editor/build.gradle.kts), и без хука
  * контейнер утёк бы после каждого прогона.
+ * <p>
+ * <b>Схема в контейнере общая на весь прогон и между классами не сбрасывается.</b> Это
+ * работает только пока Spring кэширует один контекст на все IT-классы — а он кэширует его
+ * ровно потому, что все они аннотированы идентично ({@code @SpringBootTest} +
+ * {@code @AutoConfigureMockMvc} + {@code @ActiveProfiles("test")}). Поэтому в
+ * {@code application-test.yml} {@code ddl-auto} обязан быть {@code update}, а не
+ * {@code create}: второй контекст (например, от класса с {@code @MockBean} или другим
+ * профилем) со схемой {@code create} дропнет и пересоздаст её посреди прогона, вычистив
+ * данные, записанные предыдущими классами.
  */
 public abstract class PostgresTestContainerSupport {
 
