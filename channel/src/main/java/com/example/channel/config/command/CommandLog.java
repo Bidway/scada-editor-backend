@@ -43,7 +43,7 @@ public class CommandLog {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    public static CommandLog from(CommandResult r) {
+    public static CommandLog from(CommandResult<?> r) {
         CommandLog log = new CommandLog();
         log.userName = r.getUserName();
         log.entityType = r.getEntityType();
@@ -54,20 +54,6 @@ public class CommandLog {
         log.payload = r.getPayload();
         log.undoPayload = r.getUndoPayload();
         return log;
-    }
-
-    public CommandResult toResult() {
-        return new CommandResult(
-                userName,
-                entityType,
-                entityId,
-                commandType,
-                batchId,
-                sequence,
-                payload,
-                undoPayload,
-                null
-        );
     }
 }
 
