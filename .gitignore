@@ -16,6 +16,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Python virtualenv (tools/plc-sim-venv) — машинозависимые бинарники, не для git
+tools/plc-sim-venv/
+
 # IDE
 .idea/
 *.iml
