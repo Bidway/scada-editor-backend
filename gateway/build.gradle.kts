@@ -34,6 +34,10 @@ dependencies {
 
     // тесты
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Spring Boot 3.3 не тянет launcher транзитивно, а Gradle 9 больше не подставляет его
+    // сам — без этой строки :gateway:test падает с "Failed to load JUnit Platform".
+    // Остальные модули на 3.5.7, где starter-test тянет его сам (scada-oee).
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Source: https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-webflux
     implementation("org.springframework.boot:spring-boot-starter-webflux")
