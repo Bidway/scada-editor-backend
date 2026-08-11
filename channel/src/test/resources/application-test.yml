@@ -1,0 +1,16 @@
+# В отличие от editor (там Redis на classpath, но не используется — ни @EnableCaching,
+# ни @Cacheable в коде нет), в channel LockServiceImpl жёстко требует бин
+# RedisTemplate<String, String> конструктором (блокировки узлов). Исключение
+# RedisAutoConfiguration по образцу editor валит контекст NoSuchBeanDefinitionException —
+# проверено эмпирически. Поэтому автоконфигурацию НЕ выключаем: Lettuce-подключение ленивое,
+# бины поднимаются без живого Redis, реальное обращение к серверу происходит только внутри
+# LockService.tryLock/unlock, которые smoke-тест не вызывает. RedisRepositoriesAutoConfiguration
+# исключаем — Redis-репозиториев (@RedisHash) в модуле нет, сканировать нечего.
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  jpa:
+    hibernate:
+      ddl-auto: create
+    show-sql: false
