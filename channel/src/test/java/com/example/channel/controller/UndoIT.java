@@ -121,5 +121,8 @@ class UndoIT extends ChannelApiTestSupport {
         assertThat(nodeExists("PARTIAL-A"))
                 .as("отмена создания A должна была примениться, несмотря на сбой соседней")
                 .isFalse();
+        assertThat(nodeExists("PARTIAL-B"))
+                .as("сбойный откат B не должен был снести узел, занявший его имя")
+                .isTrue();
     }
 }
