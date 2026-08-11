@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -142,5 +143,67 @@ class RecipeAuditIT extends EditorApiTestSupport {
 
         assertThat(removed).hasSize(1);
         assertThat(removed.get(0).getOldValue()).isEqualTo("1");
+    }
+
+    private List<RecipeChange> changesOfType(long recipeId, RecipeChangeType type) {
+        return recipeChangeRepository.findByRecipeIdOrderByIdAsc(recipeId).stream()
+                .filter(c -> c.getChangeType() == type)
+                .toList();
+    }
+
+    @Test
+    void creatingRecipe_recordsCreate() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId, TWO_VALUES);
+
+        List<RecipeChange> created = changesOfType(recipeId, RecipeChangeType.CREATE);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.get(0).getNewValue()).isEqualTo("Партия A");
+        assertThat(created.get(0).getUserName()).isEqualTo(USER);
+        assertThat(created.get(0).getRowName()).isNull();
+    }
+
+    @Test
+    void renamingRecipe_recordsOldAndNewName() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId, TWO_VALUES);
+
+        updateRecipe(recipeId, componentId, "Партия Б", TWO_VALUES);
+
+        List<RecipeChange> renamed = changesOfType(recipeId, RecipeChangeType.RENAME);
+
+        assertThat(renamed).hasSize(1);
+        assertThat(renamed.get(0).getOldValue()).isEqualTo("Партия A");
+        assertThat(renamed.get(0).getNewValue()).isEqualTo("Партия Б");
+    }
+
+    @Test
+    void savingWithSameName_recordsNoRename() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId, TWO_VALUES);
+
+        updateRecipe(recipeId, componentId, "Партия A", TWO_VALUES);
+
+        assertThat(changesOfType(recipeId, RecipeChangeType.RENAME)).isEmpty();
+    }
+
+    /**
+     * История обязана пережить удаление набора — иначе на вопрос «кто удалил» ответить
+     * будет некому. Поэтому у recipe_change нет внешнего ключа на recipe.
+     */
+    @Test
+    void deletingRecipe_recordsDeleteAndHistorySurvives() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId, TWO_VALUES);
+
+        mockMvc.perform(delete("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER))
+                .andExpect(status().isOk());
+
+        assertThat(changesOfType(recipeId, RecipeChangeType.DELETE)).hasSize(1);
+        assertThat(recipeChangeRepository.findByRecipeIdOrderByIdAsc(recipeId))
+                .as("вся история набора должна пережить его удаление")
+                .isNotEmpty();
     }
 }
