@@ -20,7 +20,3 @@ Dockerfile* text eol=lf
 *.jpeg binary
 *.ico binary
 *.vhdx binary
-
-# Журналы трекера beads: файлом управляет CLI `bd`, дописывая строки с LF.
-# Нормализация сделала бы смешанные переводы строк и шумный диф на каждую команду.
-.beads/** -text
