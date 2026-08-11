@@ -36,15 +36,17 @@ Thumbs.db
 deliver/images/*.tar.gz
 
 
-# Документация (только локально)
+# Документация и рабочие заметки — только локально
 docs/
+CLAUDE.md
 
-# Beads / Dolt files (added by bd init)
+# Локальный инструментарий и его данные: в репозитории не нужны, у каждого свои
 .dolt/
 *.db
+.beads/
 .beads-credential-key
-.beads/proxieddb/
-
-# Рабочий каталог subagent-driven-development: журнал, брифы, отчёты, пакеты ревью.
-# Черновики одного прогона плана — в историю не нужны.
+.claude/
 .superpowers/
+.codex/
+.agents/
+.cursor/
