@@ -4,6 +4,7 @@ import com.example.editor.command.component.*;
 import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
+import com.example.editor.dto.component.ComponentStateDto;
 import com.example.editor.dto.project.ProjectCreateDto;
 import com.example.editor.dto.project.ProjectCreateResponseDto;
 import com.example.editor.dto.project.ProjectsResponseDto;
@@ -24,7 +25,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -136,18 +142,7 @@ public class ComponentServiceImpl implements ComponentService {
         entity.setVersion(dto.getVersion());
         entity.setParent(parent);
 
-        entity.getStates().clear();
-        if (dto.getStates() != null) {
-            List<ComponentState> states = dto.getStates().stream()
-                    .map(s -> ComponentState.builder()
-                            .name(s.getName())
-                            .image(stripEvents(s.getImage()))
-                            .isDefault(s.getIsDefault())
-                            .component(entity)
-                            .build())
-                    .toList();
-            entity.getStates().addAll(states);
-        }
+        applyStates(entity, dto);
 
         entity.getChildren().clear();
         if (dto.getChildren() != null) {
@@ -170,6 +165,58 @@ public class ComponentServiceImpl implements ComponentService {
         ComponentScriptBindingApplier.applyProperties(entity, dto);
         ComponentScriptBindingApplier.apply(entity, dto, propertyRepository);
         return entity;
+    }
+
+    /**
+     * Синхронизация состояний компонента. Состояние с тем же именем переиспользуется, а не
+     * пересоздаётся: имя — его адрес ({@code setState('Открыт')} в биндингах и обработчиках),
+     * а прежний {@code clear()} с повторной вставкой менял id всех состояний при каждом
+     * сохранении сцены. Ссылок по id на состояния в контуре нет, поэтому падений это не давало —
+     * но графика самого частого объекта переписывалась целиком на каждое сохранение, а
+     * последовательность id росла без причины. Тот же приём, что для свойств, скриптов и
+     * обработчиков: см. {@code ComponentScriptBindingApplier}.
+     * <p>
+     * Имена состояний обязаны различаться: {@code setState} иначе не смог бы выбрать нужное.
+     */
+    private void applyStates(Component entity, ComponentCreateDto dto) {
+        if (dto.getStates() == null) {
+            entity.getStates().clear();
+            return;
+        }
+        Map<String, ComponentState> existingByName = new HashMap<>();
+        for (ComponentState existing : entity.getStates()) {
+            existingByName.put(existing.getName(), existing);
+        }
+
+        List<ComponentState> incoming = new ArrayList<>();
+        Set<String> seenNames = new HashSet<>();
+        for (ComponentStateDto s : dto.getStates()) {
+            if (s.getName() == null || s.getName().isBlank()) {
+                throw new IllegalStateException("State name is required");
+            }
+            String name = s.getName().trim();
+            if (!seenNames.add(name)) {
+                throw new IllegalStateException(
+                        "Duplicate state name '" + name + "' in component " + entity.getId()
+                                + "; setState() addresses states by name, so names must be unique");
+            }
+            ComponentState target = existingByName.get(name);
+            if (target == null) {
+                target = new ComponentState();
+                target.setComponent(entity);
+                target.setName(name);
+            }
+            target.setImage(stripEvents(s.getImage()));
+            target.setIsDefault(s.getIsDefault());
+            incoming.add(target);
+        }
+
+        entity.getStates().removeIf(existing -> !seenNames.contains(existing.getName()));
+        for (ComponentState target : incoming) {
+            if (target.getId() == null) {
+                entity.getStates().add(target);
+            }
+        }
     }
 
     /**

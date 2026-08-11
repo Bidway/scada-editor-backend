@@ -1,7 +1,7 @@
 package com.example.editor.command.component;
 
-import com.example.editor.config.command.Command;
-import com.example.editor.config.command.CommandResult;
+import com.example.shared.command.Command;
+import com.example.shared.command.CommandResult;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.mapper.ComponentMapper;

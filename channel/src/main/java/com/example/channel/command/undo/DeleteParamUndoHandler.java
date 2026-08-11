@@ -1,8 +1,8 @@
 package com.example.channel.command.undo;
 
 import com.example.channel.config.command.CommandLog;
-import com.example.channel.config.command.CommandResult;
-import com.example.channel.config.command.UndoHandler;
+import com.example.shared.command.CommandResult;
+import com.example.shared.command.UndoHandler;
 import com.example.channel.model.NodeParam;
 import com.example.channel.repository.ParamRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class DeleteParamUndoHandler implements UndoHandler {
+public class DeleteParamUndoHandler implements UndoHandler<CommandLog> {
 
     private final ParamRepository paramRepo;
     private final ObjectMapper mapper;
@@ -22,7 +22,7 @@ public class DeleteParamUndoHandler implements UndoHandler {
     }
 
     @Override
-    public CommandResult undo(CommandLog log, String userName) {
+    public CommandResult<?> undo(CommandLog log, String userName) {
         NodeParam restored = mapper.convertValue(log.getUndoPayload(), NodeParam.class);
         restored.setId(null);
         paramRepo.save(restored);

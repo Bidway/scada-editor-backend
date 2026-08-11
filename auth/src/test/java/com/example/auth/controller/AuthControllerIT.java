@@ -73,7 +73,10 @@ class AuthControllerIT extends PostgresTestContainerSupport {
     void register_sameLoginAgain_returns400() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("login", "integrationUser", "password", "other"))))
+                        // Пароль обязан пройти @Size(min = 6): иначе запрос отобьёт Bean Validation,
+                        // и до проверки «такой логин уже есть» дело не дойдёт — тест проверял бы
+                        // валидацию вместо занятого логина (после включения валидации так и было).
+                        .content(objectMapper.writeValueAsString(Map.of("login", "integrationUser", "password", "otherPass"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("User exists"));
     }
