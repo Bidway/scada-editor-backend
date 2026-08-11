@@ -62,6 +62,29 @@ class ComponentBindingIT extends EditorApiTestSupport {
     }
 
     @Test
+    void removingBoundProperty_removesBindingWithoutForeignKeyViolation() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents("[{\"name\":\"Насос\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Скорость\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"},"
+                + "{\"name\":\"Уставка\",\"value_type\":\"double\",\"property_type\":\"Тег\"}],"
+                + "\"bindings\":[{\"component_property_name\":\"Уставка\","
+                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]").get(0);
+        long componentId = created.get("id").asLong();
+        assertThat(created.get("properties")).hasSize(2);
+        assertThat(created.get("bindings")).hasSize(1);
+
+        JsonNode updated = updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+                + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Скорость\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"}]}]").get(0);
+
+        assertThat(updated.get("properties")).hasSize(1);
+        assertThat(updated.get("bindings")).isEmpty();
+    }
+
+    @Test
     void bindingToUnknownName_isRejected() throws Exception {
         long sceneId = newScene();
         mockMvc.perform(post("/api/editor/components")
