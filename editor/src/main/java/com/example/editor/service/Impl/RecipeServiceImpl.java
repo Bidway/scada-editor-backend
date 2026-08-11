@@ -45,7 +45,10 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setName(dto.getName());
         recipe.setType(typeOrDefault(dto.getType()));
         recipe.setComponentId(dto.getComponent_id());
-        List<RecipeChange> changes = applyValues(recipe, dto.getValues());
+        // applyValues может вернуть List.of() (значения не переданы вовсе) — оборачиваем
+        // в изменяемый список, иначе add() ниже упадёт на UnsupportedOperationException.
+        List<RecipeChange> changes = new ArrayList<>(applyValues(recipe, dto.getValues()));
+        changes.add(createChange(dto.getName()));
         Recipe saved = recipeRepository.save(recipe);
         recordChanges(changes, saved, userName);
         return toDto(saved);
@@ -55,10 +58,14 @@ public class RecipeServiceImpl implements RecipeService {
     public RecipeResponseDto update(Long id, RecipeCreateDto dto, String userName) {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
+        String oldName = recipe.getName();
         recipe.setName(dto.getName());
         recipe.setType(typeOrDefault(dto.getType()));
         recipe.setComponentId(dto.getComponent_id());
-        List<RecipeChange> changes = applyValues(recipe, dto.getValues());
+        List<RecipeChange> changes = new ArrayList<>(applyValues(recipe, dto.getValues()));
+        if (!Objects.equals(oldName, dto.getName())) {
+            changes.add(renameChange(oldName, dto.getName()));
+        }
         Recipe saved = recipeRepository.save(recipe);
         recordChanges(changes, saved, userName);
         return toDto(saved);
@@ -82,9 +89,11 @@ public class RecipeServiceImpl implements RecipeService {
 
     @Override
     public void delete(Long id, String userName) {
-        if (!recipeRepository.existsById(id)) {
-            throw new NotFoundException("Recipe not found: " + id);
-        }
+        Recipe recipe = recipeRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
+        // Запись DELETE — до удаления набора: после recipeRepository.deleteById читать будет
+        // нечего (ни имени, ни componentId), а recordChanges требует их для доставки.
+        recordChanges(List.of(deleteChange(recipe.getName())), recipe, userName);
         recipeRepository.deleteById(id);
     }
 
@@ -221,6 +230,28 @@ public class RecipeServiceImpl implements RecipeService {
         change.setRowName(rowName);
         change.setOldValue(oldValue);
         change.setNewValue(newValue);
+        return change;
+    }
+
+    private static RecipeChange createChange(String name) {
+        RecipeChange change = new RecipeChange();
+        change.setChangeType(RecipeChangeType.CREATE);
+        change.setNewValue(name);
+        return change;
+    }
+
+    private static RecipeChange renameChange(String oldName, String newName) {
+        RecipeChange change = new RecipeChange();
+        change.setChangeType(RecipeChangeType.RENAME);
+        change.setOldValue(oldName);
+        change.setNewValue(newName);
+        return change;
+    }
+
+    private static RecipeChange deleteChange(String name) {
+        RecipeChange change = new RecipeChange();
+        change.setChangeType(RecipeChangeType.DELETE);
+        change.setOldValue(name);
         return change;
     }
 
