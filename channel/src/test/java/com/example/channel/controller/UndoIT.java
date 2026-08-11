@@ -38,9 +38,9 @@ class UndoIT extends ChannelApiTestSupport {
         createNode("UNDO-CREATE-1", 1L);
         assertThat(nodeExists("UNDO-CREATE-1")).isTrue();
 
-        String failed = undo(List.of(lastLogId()));
+        List<Long> failed = undo(List.of(lastLogId()));
 
-        assertThat(failed).isEqualTo("[]");
+        assertThat(failed).isEmpty();
         assertThat(nodeExists("UNDO-CREATE-1")).isFalse();
     }
 
@@ -50,9 +50,9 @@ class UndoIT extends ChannelApiTestSupport {
         deleteNode("UNDO-DELETE-1");
         assertThat(nodeExists("UNDO-DELETE-1")).isFalse();
 
-        String failed = undo(List.of(lastLogId()));
+        List<Long> failed = undo(List.of(lastLogId()));
 
-        assertThat(failed).isEqualTo("[]");
+        assertThat(failed).isEmpty();
         assertThat(nodeExists("UNDO-DELETE-1")).isTrue();
     }
 
@@ -65,17 +65,17 @@ class UndoIT extends ChannelApiTestSupport {
         createNode("UNDO-TWICE-1", 1L);
         long logId = lastLogId();
 
-        String firstFailed = undo(List.of(logId));
+        List<Long> firstFailed = undo(List.of(logId));
         assertThat(firstFailed)
                 .as("первая отмена должна пройти — иначе вторая упадёт по той же причине, а не из-за гарда")
-                .isEqualTo("[]");
+                .isEmpty();
         assertThat(nodeExists("UNDO-TWICE-1"))
                 .as("узел должен исчезнуть после первой отмены")
                 .isFalse();
 
-        String failed = undo(List.of(logId));
+        List<Long> failed = undo(List.of(logId));
 
-        assertThat(failed).contains(String.valueOf(logId));
+        assertThat(failed).contains(logId);
     }
 
     /**
@@ -113,11 +113,11 @@ class UndoIT extends ChannelApiTestSupport {
         // Узел с тем же idNode снова занят — восстановление из снимка нарушит уникальность
         createNode("PARTIAL-B", 1L);
 
-        String failed = undo(List.of(deleteBLogId, createALogId));
+        List<Long> failed = undo(List.of(deleteBLogId, createALogId));
 
         assertThat(failed)
                 .as("отмена удаления B должна была не удаться")
-                .contains(String.valueOf(deleteBLogId));
+                .contains(deleteBLogId);
         assertThat(nodeExists("PARTIAL-A"))
                 .as("отмена создания A должна была примениться, несмотря на сбой соседней")
                 .isFalse();

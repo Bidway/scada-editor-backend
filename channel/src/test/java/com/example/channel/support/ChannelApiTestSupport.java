@@ -2,6 +2,7 @@ package com.example.channel.support;
 
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandLogRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,14 +58,15 @@ public abstract class ChannelApiTestSupport extends PostgresTestContainerSupport
     }
 
     /** Ответ POST /api/channel/undo — список id, отмена которых не удалась. */
-    protected String undo(List<Long> logIds) throws Exception {
+    protected List<Long> undo(List<Long> logIds) throws Exception {
         String ids = logIds.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse("");
-        return mockMvc.perform(post("/api/channel/undo")
+        String body = mockMvc.perform(post("/api/channel/undo")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[" + ids + "]"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+        return objectMapper.readValue(body, new TypeReference<List<Long>>() {});
     }
 
     /** id записей журнала, новые первыми. */
