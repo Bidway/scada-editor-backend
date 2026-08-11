@@ -206,4 +206,31 @@ class RecipeAuditIT extends EditorApiTestSupport {
                 .as("вся история набора должна пережить его удаление")
                 .isNotEmpty();
     }
+
+    /**
+     * Ветка values == null (поле не прислано вовсе) сейчас стирает все значения набора молча —
+     * семантика спорна (см. scada-m2n), но то, что код делает уже сейчас, обязано быть видно
+     * в истории: по записи VALUE на каждое стёртое значение, новое значение пустое.
+     */
+    @Test
+    void savingWithoutValuesField_wipesAndRecordsEachRemoval() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId, TWO_VALUES);
+
+        mockMvc.perform(put("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Партия A\",\"component_id\":" + componentId + "}"))
+                .andExpect(status().isOk());
+
+        List<RecipeChange> removed = valueChanges(recipeId).stream()
+                .filter(c -> c.getNewValue() == null)
+                .toList();
+
+        assertThat(removed).hasSize(2);
+        assertThat(removed).extracting(RecipeChange::getRowName)
+                .containsExactlyInAnyOrder("Уставка", "Режим");
+        assertThat(removed).extracting(RecipeChange::getOldValue)
+                .containsExactlyInAnyOrder("10", "1");
+    }
 }

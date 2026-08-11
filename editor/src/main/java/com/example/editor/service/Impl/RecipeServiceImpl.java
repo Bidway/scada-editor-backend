@@ -175,8 +175,18 @@ public class RecipeServiceImpl implements RecipeService {
      */
     private List<RecipeChange> applyValues(Recipe recipe, List<RecipeValueDto> values) {
         if (values == null) {
+            // Семантика отсутствующего поля не решена (спорно: "не трогать" vs "стереть всё",
+            // см. scada-m2n) — здесь только фиксируем то, что код делает уже сейчас: стирает
+            // все значения набора молча. Не решение, а запись факта.
+            List<RecipeChange> wiped = recipe.getValues().stream()
+                    .map(v -> valueChange(v.getRowName(), v.getValue(), null))
+                    .toList();
+            if (!wiped.isEmpty()) {
+                log.warn("Recipe {} saved with values=null: wiping {} existing value(s)",
+                        recipe.getId(), wiped.size());
+            }
             recipe.getValues().clear();
-            return List.of();
+            return wiped;
         }
         Map<String, RecipeValue> existingByRow = new HashMap<>();
         for (RecipeValue existing : recipe.getValues()) {
