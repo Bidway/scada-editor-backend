@@ -47,7 +47,7 @@ public class NodeServiceImpl implements NodeService {
 
         Node savedNode = commandManager.execute(
                 new CreateNodeCommand(nodeRepository, node, mapper, userName, batch)
-        ).getResult();
+        );
 
         CreateNodeResponse response = new CreateNodeResponse();
         response.setBatchId(batch.getBatchId());
@@ -71,7 +71,7 @@ public class NodeServiceImpl implements NodeService {
 
             NodeParam savedParam = commandManager.execute(
                     new CreateParamCommand(paramRepository, nodeParam, mapper, userName, batch)
-            ).getResult();
+            );
 
             ParamDto dto = nodeMapper.toDto(savedParam, descriptions);
             response.getParams().add(dto);

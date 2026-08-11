@@ -1,6 +1,7 @@
 # Секреты
 .env
 .env.*
+!.env.example
 
 # Gradle / сборка
 .gradle/
@@ -14,6 +15,9 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Python virtualenv (tools/plc-sim-venv) — машинозависимые бинарники, не для git
+tools/plc-sim-venv/
 
 # IDE
 .idea/
@@ -32,11 +36,17 @@ Thumbs.db
 deliver/images/*.tar.gz
 
 
-# Документация (только локально)
+# Документация и рабочие заметки — только локально
 docs/
+CLAUDE.md
 
-# Beads / Dolt files (added by bd init)
+# Локальный инструментарий и его данные: в репозитории не нужны, у каждого свои
 .dolt/
 *.db
+.beads/
 .beads-credential-key
-.beads/proxieddb/
+.claude/
+.superpowers/
+.codex/
+.agents/
+.cursor/

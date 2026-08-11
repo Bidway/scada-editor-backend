@@ -1,15 +1,15 @@
 package com.example.editor.command.undo;
 
 import com.example.editor.config.command.CommandLog;
-import com.example.editor.config.command.CommandResult;
-import com.example.editor.config.command.UndoHandler;
+import com.example.shared.command.CommandResult;
+import com.example.shared.command.UndoHandler;
 import com.example.editor.repository.template.TemplateFacePlateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class CreateTemplateUndoHandler implements UndoHandler {
+public class CreateTemplateUndoHandler implements UndoHandler<CommandLog> {
 
     private final TemplateFacePlateRepository templateRepo;
 

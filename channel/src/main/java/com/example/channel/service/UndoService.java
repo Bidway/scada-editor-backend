@@ -3,7 +3,7 @@ package com.example.channel.service;
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandLogRepository;
 import com.example.channel.config.command.CommandManager;
-import com.example.channel.config.command.UndoHandler;
+import com.example.shared.command.UndoHandler;
 import com.example.channel.exception.NotFoundException;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -19,12 +19,12 @@ public class UndoService {
 
     private final CommandLogRepository commandLogRepository;
     private final CommandManager commandManager;
-    private final List<UndoHandler> handlers;
+    private final List<UndoHandler<CommandLog>> handlers;
 
     public UndoService(
             CommandLogRepository commandLogRepository,
             CommandManager commandManager,
-            List<UndoHandler> handlers
+            List<UndoHandler<CommandLog>> handlers
     ) {
         this.commandLogRepository = commandLogRepository;
         this.commandManager = commandManager;
@@ -98,7 +98,7 @@ public class UndoService {
             throw new IllegalStateException("Log already undone: " + log.getId());
         }
 
-        UndoHandler handler = handlers.stream()
+        UndoHandler<CommandLog> handler = handlers.stream()
                 .filter(h -> h.supports(log.getCommandType()))
                 .findFirst()
                 .orElseThrow(() ->

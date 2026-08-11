@@ -64,7 +64,7 @@ public class ParamServiceImpl implements ParamService {
 
         NodeParam saved = commandManager.execute(
                 new CreateParamCommand(paramRepository, param, mapper, userName, null)
-        ).getResult();
+        );
 
         List<Description> descriptions = descriptionRepository.findAll();
         return nodeMapper.toDto(saved, descriptions);
@@ -89,7 +89,7 @@ public class ParamServiceImpl implements ParamService {
 
             NodeParam updated = commandManager.execute(
                     new UpdateParamCommand(paramRepository, before, param, mapper, userName, batch)
-            ).getResult();
+            );
 
             messagingTemplate.convertAndSend("/topic/param/" + updated.getId(), updated.getValue());
         }

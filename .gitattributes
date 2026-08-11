@@ -1,0 +1,22 @@
+# Базовое правило: git сам решает текст/бинарник, в индексе — LF
+* text=auto
+
+# Всегда LF — ломается при CRLF в Linux-контейнерах (Docker, CI)
+*.sh text eol=lf
+gradlew text eol=lf
+Dockerfile* text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.properties text eol=lf
+
+# Всегда CRLF — Windows-скрипты, их в проекте много (start-all.ps1 и т.д.)
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Бинарные — переводы строк не трогать вообще
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.vhdx binary
