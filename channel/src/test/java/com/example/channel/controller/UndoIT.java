@@ -64,7 +64,14 @@ class UndoIT extends ChannelApiTestSupport {
     void undo_twice_reportsFailure() throws Exception {
         createNode("UNDO-TWICE-1", 1L);
         long logId = lastLogId();
-        undo(List.of(logId));
+
+        String firstFailed = undo(List.of(logId));
+        assertThat(firstFailed)
+                .as("первая отмена должна пройти — иначе вторая упадёт по той же причине, а не из-за гарда")
+                .isEqualTo("[]");
+        assertThat(nodeExists("UNDO-TWICE-1"))
+                .as("узел должен исчезнуть после первой отмены")
+                .isFalse();
 
         String failed = undo(List.of(logId));
 
