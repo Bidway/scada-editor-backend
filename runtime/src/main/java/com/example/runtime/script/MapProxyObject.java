@@ -36,6 +36,12 @@ public final class MapProxyObject implements ProxyObject {
      * настоящий массив/объект. Списки оборачиваются рекурсивно на месте, потому что
      * {@link ProxyArray#fromList} не оборачивает элементы при чтении сам; вложенные карты
      * разворачиваются лениво — этим же методом при следующем {@code getMember}.
+     * <p>
+     * Внимание: на каждый вызов строится новая копия ({@code new ArrayList<>}/
+     * {@code new LinkedHashMap<>}), а не живой вид поверх исходной коллекции. Запись по
+     * индексу/полю в уже прочитанное значение ({@code props.arr[0] = 1}, {@code props.obj.x = 1})
+     * уходит в копию и теряется — исходный {@code map} не меняется. Разобрано и заведено
+     * отдельно, см. scada-4yy; здесь не чиним осознанно.
      */
     private static Object wrap(Object value) {
         if (value instanceof List<?> list) {
