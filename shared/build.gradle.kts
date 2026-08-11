@@ -1,5 +1,5 @@
 plugins {
-    java
+    `java-library`
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -24,8 +24,9 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("com.fasterxml.jackson.core:jackson-databind")
+    // CommandResult отдаёт JsonNode из публичных геттеров — часть API модуля, а не деталь
+    // реализации, поэтому api, а не implementation.
+    api("com.fasterxml.jackson.core:jackson-databind")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 }
