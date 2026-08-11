@@ -73,7 +73,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
                                 + "\"property_type\":\"Тег\"}],"
                                 + "\"bindings\":[{\"component_property_name\":\"Нет такой\","
                                 + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -85,6 +85,6 @@ class ComponentBindingIT extends EditorApiTestSupport {
                         .content("[{\"name\":\"Насос\",\"type\":\"valve\","
                                 + "\"parent_id\":" + sceneId + ","
                                 + "\"bindings\":[{\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isBadRequest());
     }
 }

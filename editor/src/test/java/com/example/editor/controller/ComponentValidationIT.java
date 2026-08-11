@@ -25,7 +25,7 @@ class ComponentValidationIT extends EditorApiTestSupport {
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
