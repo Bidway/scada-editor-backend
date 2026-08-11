@@ -191,16 +191,20 @@ public class ComponentServiceImpl implements ComponentService {
         List<ComponentState> incoming = new ArrayList<>();
         Set<String> seenNames = new HashSet<>();
         for (ComponentStateDto s : dto.getStates()) {
-            if (!seenNames.add(s.getName())) {
+            if (s.getName() == null || s.getName().isBlank()) {
+                throw new IllegalStateException("State name is required");
+            }
+            String name = s.getName().trim();
+            if (!seenNames.add(name)) {
                 throw new IllegalStateException(
-                        "Duplicate state name '" + s.getName() + "' in component " + entity.getId()
+                        "Duplicate state name '" + name + "' in component " + entity.getId()
                                 + "; setState() addresses states by name, so names must be unique");
             }
-            ComponentState target = existingByName.get(s.getName());
+            ComponentState target = existingByName.get(name);
             if (target == null) {
                 target = new ComponentState();
                 target.setComponent(entity);
-                target.setName(s.getName());
+                target.setName(name);
             }
             target.setImage(stripEvents(s.getImage()));
             target.setIsDefault(s.getIsDefault());
