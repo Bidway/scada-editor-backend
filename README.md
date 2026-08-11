@@ -30,4 +30,5 @@ Gradle multi-module (Kotlin DSL), Java 17, Spring Boot.
   устройство проекта.
 - **beads** (`bd ready`, `bd list`) — задачи и известные долги. Не GitHub Issues и не файл
   в репозитории.
-- `.env.example` — переменные окружения для запуска в Docker.
+- `.env.example` — переменные окружения для запуска и локально (`bootRun`), и в Docker;
+  не все нужны обоим режимам.
