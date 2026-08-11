@@ -1,5 +1,6 @@
 package com.example.editor.support;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,11 +40,10 @@ public abstract class EditorApiTestSupport extends PostgresTestContainerSupport 
     }
 
     protected long createScene(String name, long projectId) throws Exception {
-        String payload = "{\"name\":\"" + name + "\",\"project_id\":" + projectId + "}";
         String body = mockMvc.perform(post("/api/editor/components/scene")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(payload))
+                        .content(objectMapper.writeValueAsString(new SceneRequest(name, projectId))))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body).get("id").asLong();
@@ -102,5 +102,8 @@ public abstract class EditorApiTestSupport extends PostgresTestContainerSupport 
     }
 
     private record NameOnly(String name) {
+    }
+
+    private record SceneRequest(String name, @JsonProperty("project_id") long projectId) {
     }
 }

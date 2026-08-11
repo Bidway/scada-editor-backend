@@ -11,9 +11,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -56,7 +58,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
 
     /** id значений набора по имени строки — через репозиторий, в ответе API их нет. */
     private Map<String, Long> valueIds(long recipeId) {
-        Map<String, Long> ids = new java.util.HashMap<>();
+        Map<String, Long> ids = new HashMap<>();
         for (RecipeValue v : recipeValueRepository.findAll()) {
             if (v.getRecipe() != null && recipeId == v.getRecipe().getId()) {
                 ids.put(v.getRowName(), v.getId());
@@ -131,9 +133,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
                 "[{\"row_name\":\"Уставка\",\"value\":\"10\"},"
                 + "{\"row_name\":\"Нет такой\",\"value\":\"5\"}]");
 
-        String body = mockMvc.perform(
-                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                                .get("/api/editor/recipes/" + recipeId + "/resolved"))
+        String body = mockMvc.perform(get("/api/editor/recipes/" + recipeId + "/resolved"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
