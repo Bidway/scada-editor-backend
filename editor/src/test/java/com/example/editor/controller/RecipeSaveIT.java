@@ -117,7 +117,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
                         .content("{\"name\":\"Партия B\",\"component_id\":" + componentId
                                 + ",\"values\":[{\"row_name\":\"Уставка\",\"value\":\"1\"},"
                                 + "{\"row_name\":\"Уставка\",\"value\":\"2\"}]}"))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isBadRequest());
     }
 
     /**
