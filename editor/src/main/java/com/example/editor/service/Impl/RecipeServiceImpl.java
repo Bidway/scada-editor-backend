@@ -45,10 +45,11 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setName(dto.getName());
         recipe.setType(typeOrDefault(dto.getType()));
         recipe.setComponentId(dto.getComponent_id());
-        // applyValues может вернуть List.of() (значения не переданы вовсе) — оборачиваем
-        // в изменяемый список, иначе add() ниже упадёт на UnsupportedOperationException.
-        List<RecipeChange> changes = new ArrayList<>(applyValues(recipe, dto.getValues()));
+        // CREATE — первым элементом: лента, отсортированная по id, должна показывать создание
+        // набора раньше значений, с которыми он создан, а не наоборот.
+        List<RecipeChange> changes = new ArrayList<>();
         changes.add(createChange(dto.getName()));
+        changes.addAll(applyValues(recipe, dto.getValues()));
         Recipe saved = recipeRepository.save(recipe);
         recordChanges(changes, saved, userName);
         return toDto(saved);

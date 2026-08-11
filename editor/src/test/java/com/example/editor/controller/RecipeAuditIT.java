@@ -202,9 +202,12 @@ class RecipeAuditIT extends EditorApiTestSupport {
                 .andExpect(status().isOk());
 
         assertThat(changesOfType(recipeId, RecipeChangeType.DELETE)).hasSize(1);
-        assertThat(recipeChangeRepository.findByRecipeIdOrderByIdAsc(recipeId))
-                .as("вся история набора должна пережить его удаление")
-                .isNotEmpty();
+        assertThat(changesOfType(recipeId, RecipeChangeType.CREATE))
+                .as("запись о создании набора должна пережить его удаление")
+                .hasSize(1);
+        assertThat(valueChanges(recipeId))
+                .as("записи о значениях набора должны пережить его удаление")
+                .hasSize(2);
     }
 
     /**

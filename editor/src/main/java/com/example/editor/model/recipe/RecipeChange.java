@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -32,7 +33,7 @@ import java.time.LocalDateTime;
  * а «кто тронул эту строку».
  */
 @Entity
-@Table(name = "recipe_change")
+@Table(name = "recipe_change", schema = "editor", indexes = @Index(columnList = "recipe_id"))
 @Getter
 @Setter
 public class RecipeChange {
