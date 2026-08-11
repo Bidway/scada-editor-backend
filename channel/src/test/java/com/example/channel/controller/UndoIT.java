@@ -87,4 +87,32 @@ class UndoIT extends ChannelApiTestSupport {
 
         assertThat(nodeExists("UNDO-BATCH-1")).isFalse();
     }
+
+    /**
+     * Сбой отмены одной записи не должен отменять уже применённые. Ловушка здесь в том, что
+     * ошибка на уровне БД помечает транзакцию rollback-only, и при общей транзакции на весь
+     * метод откатывается всё — при том что вызывающий по списку failed считает, что
+     * остальное прошло (scada-6ua).
+     */
+    @Test
+    void undo_whenOneFails_stillAppliesTheOthers() throws Exception {
+        createNode("PARTIAL-A", 1L);
+        long createALogId = lastLogId();
+
+        createNode("PARTIAL-B", 1L);
+        deleteNode("PARTIAL-B");
+        long deleteBLogId = lastLogId();
+
+        // Узел с тем же idNode снова занят — восстановление из снимка нарушит уникальность
+        createNode("PARTIAL-B", 1L);
+
+        String failed = undo(List.of(deleteBLogId, createALogId));
+
+        assertThat(failed)
+                .as("отмена удаления B должна была не удаться")
+                .contains(String.valueOf(deleteBLogId));
+        assertThat(nodeExists("PARTIAL-A"))
+                .as("отмена создания A должна была примениться, несмотря на сбой соседней")
+                .isFalse();
+    }
 }

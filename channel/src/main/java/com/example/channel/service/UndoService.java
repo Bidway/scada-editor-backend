@@ -6,6 +6,7 @@ import com.example.channel.config.command.CommandManager;
 import com.example.shared.command.UndoHandler;
 import com.example.channel.exception.NotFoundException;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -14,21 +15,25 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class UndoService {
 
     private final CommandLogRepository commandLogRepository;
     private final CommandManager commandManager;
     private final List<UndoHandler<CommandLog>> handlers;
+    private final UndoExecutor undoExecutor;
 
     public UndoService(
             CommandLogRepository commandLogRepository,
             CommandManager commandManager,
-            List<UndoHandler<CommandLog>> handlers
+            List<UndoHandler<CommandLog>> handlers,
+            UndoExecutor undoExecutor
     ) {
         this.commandLogRepository = commandLogRepository;
         this.commandManager = commandManager;
         this.handlers = handlers;
+        this.undoExecutor = undoExecutor;
     }
 
 
@@ -56,26 +61,26 @@ public class UndoService {
     }
 
     /**
-     * Undoes specific log entries (legacy). Continues on per-log failure; marks successfully undone logs.
+     * Отменяет записи независимо друг от друга: каждая отмена — в своей транзакции
+     * ({@link UndoExecutor#undoOne}), поэтому сбой одной не откатывает остальные, и
+     * возвращаемый список действительно перечисляет только неудавшиеся.
+     * Здесь без {@code @Transactional}: транзакционные границы задаёт {@link UndoExecutor}.
      */
-    @Transactional
     public List<Long> undoLogs(List<Long> commandLogIds, String userName) {
         List<Long> failedIds = new ArrayList<>();
 
-        List<CommandLog> logs = commandLogRepository.findAllById(commandLogIds)
+        List<Long> orderedIds = commandLogRepository.findAllById(commandLogIds)
                 .stream()
                 .sorted(Comparator.comparing(CommandLog::getId).reversed())
+                .map(CommandLog::getId)
                 .toList();
 
-        for (CommandLog log : logs) {
+        for (Long id : orderedIds) {
             try {
-                undoSingleLog(log, userName);
-                markUndone(log);
+                undoExecutor.undoOne(id, userName);
             } catch (Exception e) {
-                failedIds.add(log.getId());
-                System.err.println(
-                        "Undo failed for logId=" + log.getId() + " : " + e.getMessage()
-                );
+                failedIds.add(id);
+                log.warn("Не удалось отменить запись журнала {}: {}", id, e.getMessage());
             }
         }
 
