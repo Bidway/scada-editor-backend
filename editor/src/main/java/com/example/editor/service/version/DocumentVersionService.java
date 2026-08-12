@@ -1,5 +1,7 @@
 package com.example.editor.service.version;
 
+import com.example.editor.dto.version.DocumentVersionDto;
+import com.example.editor.exception.NotFoundException;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.DocumentVersion;
 import com.example.editor.model.version.VersionKind;
@@ -18,6 +20,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -63,6 +66,36 @@ public class DocumentVersionService {
         version.setCreatedAt(LocalDateTime.now());
         version.setRestoredFrom(restoredFrom);
         return repository.save(version);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentVersionDto> list(DocumentType targetType, Long targetId) {
+        return repository.findByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId)
+                .stream()
+                .map(v -> new DocumentVersionDto(v.getVersionNo(), v.getKind(), v.getUserName(),
+                        v.getCreatedAt(), v.getRestoredFrom()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public DocumentVersion require(DocumentType targetType, Long targetId, Integer versionNo) {
+        return repository.findByTargetTypeAndTargetIdAndVersionNo(targetType, targetId, versionNo)
+                .orElseThrow(() -> new NotFoundException(
+                        "Version " + versionNo + " not found for " + targetType + " " + targetId));
+    }
+
+    /**
+     * Состояние на момент времени — последняя версия, созданная не позже него. История состоит
+     * из точек сохранения, а не из непрерывной записи.
+     */
+    @Transactional(readOnly = true)
+    public JsonNode contentAt(DocumentType targetType, Long targetId, LocalDateTime moment) {
+        return repository
+                .findTopByTargetTypeAndTargetIdAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
+                        targetType, targetId, moment)
+                .map(DocumentVersion::getContent)
+                .orElseThrow(() -> new NotFoundException(
+                        "No version of " + targetType + " " + targetId + " existed at " + moment));
     }
 
     /**
