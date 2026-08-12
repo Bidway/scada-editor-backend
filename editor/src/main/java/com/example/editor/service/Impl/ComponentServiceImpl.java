@@ -16,9 +16,13 @@ import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentState;
 import com.example.editor.model.component.ComponentTypes;
+import com.example.editor.model.version.DocumentType;
+import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
+import com.example.editor.service.version.DocumentVersionService;
+import com.example.editor.service.version.SceneDocumentSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -28,8 +32,10 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -42,11 +48,17 @@ public class ComponentServiceImpl implements ComponentService {
     private final ObjectMapper mapper;
     private final CommandManager commandManager;
     private final ComponentMapper componentMapper;
+    private final DocumentVersionService versionService;
+    private final SceneDocumentSource sceneDocumentSource;
 
     @Override
-    public List<ComponentResponseDto> create(List<ComponentCreateDto> dtos, String userName) {
+    public List<ComponentResponseDto> create(List<ComponentCreateDto> dtos, String userName,
+                                             VersionKind kind) {
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
-        return commandManager.execute(new CreateComponentCommand(repository, prepared, componentMapper, mapper, userName));
+        List<ComponentResponseDto> response = commandManager.execute(
+                new CreateComponentCommand(repository, prepared, componentMapper, mapper, userName));
+        snapshotScenesOf(prepared, userName, kind);
+        return response;
     }
 
     @Override
@@ -75,14 +87,74 @@ public class ComponentServiceImpl implements ComponentService {
     }
 
     @Override
-    public List<ComponentResponseDto> update(List<ComponentCreateDto> dtos, String userName) {
-        List<Component> prepared = dtos.stream().map(dto -> updateComponent(dto)).toList();
-        return commandManager.execute(new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
+    public List<ComponentResponseDto> update(List<ComponentCreateDto> dtos, String userName,
+                                             VersionKind kind) {
+        List<Component> prepared = dtos.stream().map(this::updateComponent).toList();
+        List<ComponentResponseDto> response = commandManager.execute(
+                new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
+        snapshotScenesOf(prepared, userName, kind);
+        return response;
     }
 
+    /**
+     * Удаление компонента — такое же изменение сцены, как правка, и в истории обязано быть
+     * видно. Сцены вычисляем ДО удаления: после него подниматься будет не от кого.
+     */
     @Override
-    public void delete(List<Long> ids, String userName) {
+    public void delete(List<Long> ids, String userName, VersionKind kind) {
+        Set<Long> sceneIds = new LinkedHashSet<>();
+        for (Long id : ids) {
+            repository.findById(id)
+                    .map(this::sceneRootIdOf)
+                    .filter(Objects::nonNull)
+                    .ifPresent(sceneIds::add);
+        }
         commandManager.execute(new DeleteComponentCommand(repository, ids, userName, mapper));
+        snapshotScenes(sceneIds, userName, kind);
+    }
+
+    /**
+     * Сохранение принимает плоский список компонентов и про сцену ничего не знает — «сцена
+     * целиком» это договорённость фронта, а не форма API. Поэтому сцену для снимка ищем сами:
+     * поднимаемся по родителям до компонента с типом scene. Обычно она одна, но запрос вправе
+     * задеть несколько, и тогда снимков будет несколько.
+     */
+    private void snapshotScenesOf(List<Component> saved, String userName, VersionKind kind) {
+        Set<Long> sceneIds = new LinkedHashSet<>();
+        for (Component component : saved) {
+            Long sceneId = sceneRootIdOf(component);
+            if (sceneId != null) {
+                sceneIds.add(sceneId);
+            }
+        }
+        snapshotScenes(sceneIds, userName, kind);
+    }
+
+    /**
+     * {@code kind == null} — «снимок не делать». Нужно ровно одному вызывающему:
+     * восстановлению, которое удаляет лишние компоненты промежуточным шагом. Состояние между
+     * удалением и записью содержимого — не то, что кто-либо сохранял, и версией быть не должно.
+     */
+    private void snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind) {
+        if (kind == null) {
+            return;
+        }
+        for (Long sceneId : sceneIds) {
+            versionService.record(DocumentType.SCENE, sceneId,
+                    sceneDocumentSource.contentOf(sceneId), userName, kind, null);
+        }
+    }
+
+    /** Связь parent ленивая — подниматься можно только пока открыта сессия. */
+    private Long sceneRootIdOf(Component component) {
+        Component current = component;
+        while (current != null) {
+            if (ComponentTypes.SCENE.equals(current.getType())) {
+                return current.getId();
+            }
+            current = current.getParent();
+        }
+        return null;
     }
 
     @Override

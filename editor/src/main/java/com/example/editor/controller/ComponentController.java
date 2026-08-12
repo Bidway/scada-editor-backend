@@ -8,6 +8,7 @@ import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
+import com.example.editor.model.version.VersionKinds;
 import com.example.editor.service.ComponentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -24,8 +25,9 @@ public class ComponentController {
     @PostMapping
     public List<ComponentResponseDto> create(
             @RequestBody List<ComponentCreateDto> components,
-            @RequestHeader("X-Username") String userName) {
-        return service.create(components, userName);
+            @RequestHeader("X-Username") String userName,
+            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
+        return service.create(components, userName, VersionKinds.orManual(saveKind));
     }
 
     @PostMapping("/project")
@@ -55,8 +57,9 @@ public class ComponentController {
     @PutMapping
     public List<ComponentResponseDto> update(
             @RequestBody List<ComponentCreateDto> components,
-            @RequestHeader("X-Username") String userName) {
-        return service.update(components, userName);
+            @RequestHeader("X-Username") String userName,
+            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
+        return service.update(components, userName, VersionKinds.orManual(saveKind));
     }
 
     @DeleteMapping
