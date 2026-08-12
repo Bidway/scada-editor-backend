@@ -38,6 +38,7 @@ public class DocumentVersionService {
 
     private final DocumentVersionRepository repository;
     private final ObjectMapper objectMapper;
+    private final List<DocumentSource> sources;
 
     /**
      * Записывает снимок. Возвращает созданную версию либо прежнюю, если содержимое не менялось.
@@ -66,6 +67,41 @@ public class DocumentVersionService {
         version.setCreatedAt(LocalDateTime.now());
         version.setRestoredFrom(restoredFrom);
         return repository.save(version);
+    }
+
+    /**
+     * Восстановление дописывает историю, а не отматывает её: содержимое версии N уходит обратно
+     * в документ, и результат записывается новой версией с {@code kind = RESTORE} и ссылкой
+     * {@code restoredFrom = N}. Отсюда бесплатно получается «отменить отмену», а номера версий
+     * никогда не убывают.
+     * <p>
+     * Снимок делает и сам путь сохранения внутри {@code documentSource.restore} — он не знает,
+     * что его позвали ради восстановления, и пишет версию без {@code restoredFrom}. Второй
+     * вызов {@link #record} увидит совпадение хеша и вернёт ту же строку, поэтому ссылку
+     * проставляем здесь: одна версия на одно восстановление, а не две.
+     */
+    @Transactional
+    public DocumentVersion restore(DocumentType targetType, Long targetId, Integer versionNo,
+                                   String userName) {
+        DocumentVersion source = require(targetType, targetId, versionNo);
+        DocumentSource documentSource = sourceOf(targetType);
+        documentSource.restore(targetId, source.getContent(), userName);
+
+        DocumentVersion created = record(targetType, targetId, documentSource.contentOf(targetId),
+                userName, VersionKind.RESTORE, versionNo);
+        if (created.getRestoredFrom() == null) {
+            created.setKind(VersionKind.RESTORE);
+            created.setRestoredFrom(versionNo);
+            repository.save(created);
+        }
+        return created;
+    }
+
+    private DocumentSource sourceOf(DocumentType targetType) {
+        return sources.stream()
+                .filter(s -> s.type() == targetType)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No DocumentSource for " + targetType));
     }
 
     @Transactional(readOnly = true)

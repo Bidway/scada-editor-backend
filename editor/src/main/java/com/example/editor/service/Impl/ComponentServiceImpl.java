@@ -130,15 +130,7 @@ public class ComponentServiceImpl implements ComponentService {
         snapshotScenes(sceneIds, userName, kind);
     }
 
-    /**
-     * {@code kind == null} — «снимок не делать». Нужно ровно одному вызывающему:
-     * восстановлению, которое удаляет лишние компоненты промежуточным шагом. Состояние между
-     * удалением и записью содержимого — не то, что кто-либо сохранял, и версией быть не должно.
-     */
     private void snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind) {
-        if (kind == null) {
-            return;
-        }
         for (Long sceneId : sceneIds) {
             versionService.record(DocumentType.SCENE, sceneId,
                     sceneDocumentSource.contentOf(sceneId), userName, kind, null);
