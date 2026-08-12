@@ -166,6 +166,12 @@ public class RecipeServiceImpl implements RecipeService {
      * Два значения на одну строку отвергаются: резолв набора берёт строку по имени, и второе
      * значение всё равно осталось бы недостижимым.
      * <p>
+     * {@code values == null} — «поле не прислано, не трогать», как у свойств компонента
+     * (см. {@code ComponentScriptBindingApplier.applyProperties}). Пустой массив по-прежнему
+     * значит «стереть всё»: у клиента остаётся способ сказать и то, и другое. Прежнее поведение
+     * (отсутствие поля = стереть) делало из PUT ради одного переименования тихую потерю уставок,
+     * уходящих в ПЛК (scada-m2n).
+     * <p>
      * Заодно собирает историю правки значений ({@link RecipeChangeType#VALUE}) — здесь, и только
      * здесь, обе стороны (старое и новое значение) есть на руках одновременно. Запись попадает в
      * список, только если значение действительно поменялось (сравнение через
@@ -176,18 +182,7 @@ public class RecipeServiceImpl implements RecipeService {
      */
     private List<RecipeChange> applyValues(Recipe recipe, List<RecipeValueDto> values) {
         if (values == null) {
-            // Семантика отсутствующего поля не решена (спорно: "не трогать" vs "стереть всё",
-            // см. scada-m2n) — здесь только фиксируем то, что код делает уже сейчас: стирает
-            // все значения набора молча. Не решение, а запись факта.
-            List<RecipeChange> wiped = recipe.getValues().stream()
-                    .map(v -> valueChange(v.getRowName(), v.getValue(), null))
-                    .toList();
-            if (!wiped.isEmpty()) {
-                log.warn("Recipe {} saved with values=null: wiping {} existing value(s)",
-                        recipe.getId(), wiped.size());
-            }
-            recipe.getValues().clear();
-            return wiped;
+            return List.of();
         }
         Map<String, RecipeValue> existingByRow = new HashMap<>();
         for (RecipeValue existing : recipe.getValues()) {
