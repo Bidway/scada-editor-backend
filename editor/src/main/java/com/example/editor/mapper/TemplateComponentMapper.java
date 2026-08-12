@@ -59,13 +59,14 @@ public class TemplateComponentMapper {
      * добавляется. До scada-eap дерево строилось заново, и каждое сохранение шаблона выдавало
      * новые id всему поддереву — включая свойства, скрипты и состояния.
      * <p>
-     * Ключ сопоставления — имя: у {@link TemplateComponentCreateDto} нет id, только клиентский
-     * {@code key}, которого нет в базе. Поэтому одноимённые дети одного родителя отвергаются —
-     * иначе сопоставление было бы неоднозначным. Это строже, чем у обычных компонентов, где
-     * сопоставлять по имени не нужно: там id присылает фронт.
+     * Ключ сопоставления — имя плюс номер среди одноимённых соседей: у
+     * {@link TemplateComponentCreateDto} нет id, только клиентский {@code key}, которого нет в
+     * базе. Одноимённых детей отвергать нельзя — фронт называет фигуры типовыми именами, и в
+     * базе уже лежит шаблон с двумя детьми {@code Element} (circle и line).
      * <p>
-     * Цена выбора: переименование компонента шаблона неотличимо от «удалили один, добавили
-     * другой» — то же ограничение, что у свойств и состояний компонента.
+     * Порядковый номер нужен только чтобы развести одноимённых: пока их порядок между собой не
+     * меняется, id держатся. Цена выбора: переименование компонента неотличимо от «удалили
+     * один, добавили другой» — то же ограничение, что у свойств и состояний компонента.
      */
     public TemplateComponent mergeTree(TemplateComponent existing,
                                        TemplateComponentCreateDto dto,
@@ -79,26 +80,27 @@ public class TemplateComponentMapper {
 
         TemplateComponentDataApplier.apply(entity, dto);
 
-        Map<String, TemplateComponent> existingByName = new HashMap<>();
+        Map<String, TemplateComponent> existingByKey = new HashMap<>();
+        Map<String, Integer> existingSeen = new HashMap<>();
         for (TemplateComponent child : entity.getChildren()) {
-            existingByName.put(child.getName(), child);
+            existingByKey.put(siblingKey(child.getName(), existingSeen), child);
         }
 
         List<TemplateComponentCreateDto> childDtos =
                 dto.getChildren() == null ? List.of() : dto.getChildren();
         List<TemplateComponent> incoming = new ArrayList<>();
-        Set<String> seenNames = new HashSet<>();
+        Set<TemplateComponent> matched = new HashSet<>();
+        Map<String, Integer> incomingSeen = new HashMap<>();
         for (TemplateComponentCreateDto childDto : childDtos) {
             String name = requireName(childDto.getName());
-            if (!seenNames.add(name)) {
-                throw new IllegalStateException(
-                        "Duplicate child name '" + name + "' in template component '"
-                                + entity.getName() + "'; names must be unique among siblings");
+            TemplateComponent existingChild = existingByKey.get(siblingKey(name, incomingSeen));
+            if (existingChild != null) {
+                matched.add(existingChild);
             }
-            incoming.add(mergeTree(existingByName.get(name), childDto, template, entity));
+            incoming.add(mergeTree(existingChild, childDto, template, entity));
         }
 
-        entity.getChildren().removeIf(child -> !seenNames.contains(child.getName()));
+        entity.getChildren().removeIf(child -> !matched.contains(child));
         for (TemplateComponent child : incoming) {
             if (child.getId() == null) {
                 entity.getChildren().add(child);
@@ -106,6 +108,12 @@ public class TemplateComponentMapper {
         }
 
         return entity;
+    }
+
+    /** Имя плюс номер среди одноимённых соседей — иначе двух детей {@code Element} не развести. */
+    private String siblingKey(String name, Map<String, Integer> seen) {
+        int occurrence = seen.merge(name, 1, Integer::sum) - 1;
+        return name + "#" + occurrence;
     }
 
     /** Имя здесь и ключ сопоставления, и обязательная колонка — пустое не пропускаем. */

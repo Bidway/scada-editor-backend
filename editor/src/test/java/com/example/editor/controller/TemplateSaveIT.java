@@ -119,6 +119,35 @@ class TemplateSaveIT extends EditorApiTestSupport {
                 .hasSize(2);
     }
 
+    /**
+     * Фронт называет фигуры типовыми именами: в рабочей базе уже лежит шаблон с двумя детьми
+     * `Element` (circle и line). Одноимённых соседей поэтому нельзя ни отвергать, ни путать
+     * между собой — их разводит номер среди одноимённых.
+     */
+    @Test
+    void resave_keepsIdsOfSiblingsWithSameName() throws Exception {
+        String twins = "{\"name\":\"Клапан\",\"type\":\"faceplate\",\"rootComponent\":{"
+                + "\"name\":\"Корень\",\"type\":\"group\",\"children\":["
+                + "{\"name\":\"Element\",\"type\":\"circle\"},"
+                + "{\"name\":\"Element\",\"type\":\"line\"}]}}";
+
+        JsonNode created = createTemplate(twins);
+        long templateId = created.get("id").asLong();
+        JsonNode createdChildren = created.get("rootComponent").get("children");
+        long firstId = createdChildren.get(0).get("id").asLong();
+        long secondId = createdChildren.get(1).get("id").asLong();
+
+        updateTemplate(templateId, twins);
+
+        JsonNode children = getTemplate(templateId).get("rootComponent").get("children");
+        assertThat(children).hasSize(2);
+        assertThat(children.get(0).get("id").asLong()).isEqualTo(firstId);
+        assertThat(children.get(1).get("id").asLong()).isEqualTo(secondId);
+        assertThat(children.get(0).get("type").asText()).isEqualTo("circle");
+        assertThat(children.get(1).get("type").asText()).isEqualTo("line");
+        assertThat(componentsOf(templateId)).hasSize(3);
+    }
+
     /** Компонент, выпавший из присланного дерева, должен уйти из базы, а не остаться сиротой. */
     @Test
     void resave_withoutChild_removesIt() throws Exception {
