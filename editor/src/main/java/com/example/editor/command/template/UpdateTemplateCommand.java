@@ -31,26 +31,17 @@ public class UpdateTemplateCommand implements Command<TemplateResponseDto> {
         template.setType(dto.getType());
         templateRepository.save(template);
 
-        // mapTree всегда строит дерево заново, поэтому прежнее надо снять с учёта руками:
-        // связь template -> rootComponent объявлена без cascade и orphanRemoval, и старый
-        // корень со всем поддеревом иначе просто оставался в базе. Заметить это по API
-        // нельзя — шаблон отдаёт только текущий корень, — но в template_component копилось
-        // по целому дереву на каждое сохранение, и выборки по template_id видели их все.
-        TemplateComponent previousRoot = template.getRootComponent();
-
-        TemplateComponent rootComponent =
-                componentMapper.mapTree(dto.getRootComponent(), template);
+        // Присланное дерево сливается с существующим, а не строится заново: иначе каждое
+        // сохранение выдаёт новые id всему поддереву (scada-eap). Корень при этом остаётся тем
+        // же объектом, поэтому снимать прежний с учёта больше не нужно — выпавшие узлы уносит
+        // orphanRemoval на children.
+        TemplateComponent rootComponent = componentMapper.mergeTree(
+                template.getRootComponent(), dto.getRootComponent(), template, null);
 
         componentRepository.save(rootComponent);
 
         template.setRootComponent(rootComponent);
-        // saveAndFlush, а не save: пока ссылка root_component_id в базе указывает на старый
-        // корень, удалить его не даст внешний ключ.
-        templateRepository.saveAndFlush(template);
-
-        if (previousRoot != null && !previousRoot.getId().equals(rootComponent.getId())) {
-            componentRepository.delete(previousRoot);
-        }
+        templateRepository.save(template);
 
         TemplateResponseDto response = new TemplateResponseDto();
         response.setId(template.getId());
