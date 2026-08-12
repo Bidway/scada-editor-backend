@@ -185,7 +185,7 @@ public class ComponentServiceImpl implements ComponentService {
         }
         Map<String, ComponentState> existingByName = new HashMap<>();
         for (ComponentState existing : entity.getStates()) {
-            existingByName.put(existing.getName(), existing);
+            existingByName.put(ComponentScriptBindingApplier.matchKey(existing.getName()), existing);
         }
 
         List<ComponentState> incoming = new ArrayList<>();
@@ -211,7 +211,8 @@ public class ComponentServiceImpl implements ComponentService {
             incoming.add(target);
         }
 
-        entity.getStates().removeIf(existing -> !seenNames.contains(existing.getName()));
+        entity.getStates().removeIf(
+                existing -> !seenNames.contains(ComponentScriptBindingApplier.matchKey(existing.getName())));
         for (ComponentState target : incoming) {
             if (target.getId() == null) {
                 entity.getStates().add(target);

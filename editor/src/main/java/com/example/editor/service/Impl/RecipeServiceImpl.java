@@ -186,7 +186,7 @@ public class RecipeServiceImpl implements RecipeService {
         }
         Map<String, RecipeValue> existingByRow = new HashMap<>();
         for (RecipeValue existing : recipe.getValues()) {
-            existingByRow.put(existing.getRowName(), existing);
+            existingByRow.put(normalize(existing.getRowName()), existing);
         }
 
         List<RecipeChange> changes = new ArrayList<>();
@@ -216,11 +216,11 @@ public class RecipeServiceImpl implements RecipeService {
         }
 
         for (RecipeValue existing : recipe.getValues()) {
-            if (!seenRows.contains(existing.getRowName())) {
+            if (!seenRows.contains(normalize(existing.getRowName()))) {
                 changes.add(valueChange(existing.getRowName(), existing.getValue(), null));
             }
         }
-        recipe.getValues().removeIf(existing -> !seenRows.contains(existing.getRowName()));
+        recipe.getValues().removeIf(existing -> !seenRows.contains(normalize(existing.getRowName())));
         for (RecipeValue target : incoming) {
             if (target.getId() == null) {
                 recipe.getValues().add(target);
