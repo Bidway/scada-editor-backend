@@ -5,6 +5,7 @@ import com.example.editor.model.version.DocumentVersion;
 import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.version.DocumentVersionRepository;
 import com.example.editor.service.version.DocumentVersionService;
+import com.example.editor.service.version.SceneDocumentSource;
 import com.example.editor.support.EditorApiTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,9 @@ class SceneVersionIT extends EditorApiTestSupport {
 
     @Autowired
     private DocumentVersionService versionService;
+
+    @Autowired
+    private SceneDocumentSource sceneDocumentSource;
 
     private DocumentVersion version(long targetId, int no) {
         DocumentVersion v = new DocumentVersion();
@@ -104,6 +108,27 @@ class SceneVersionIT extends EditorApiTestSupport {
         assertThat(second.getContentHash()).isNotEqualTo(
                 versionRepository.findByTargetTypeAndTargetIdAndVersionNo(
                         DocumentType.SCENE, sceneId, 1).orElseThrow().getContentHash());
+    }
+
+    @Test
+    void sceneContent_isTheWholeTreeWithIds() throws Exception {
+        long sceneId = newScene();
+        JsonNode component = saveComponents("[{\"name\":\"Насос\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"}]}]").get(0);
+        long componentId = component.get("id").asLong();
+
+        JsonNode content = sceneDocumentSource.contentOf(sceneId);
+
+        assertThat(content.get("id").asLong()).isEqualTo(sceneId);
+        assertThat(content.get("children")).hasSize(1);
+        JsonNode child = content.get("children").get(0);
+        assertThat(child.get("id").asLong())
+                .as("снимок берётся из ответа API — с проставленными id, иначе восстановление "
+                        + "не сможет вернуть те же id")
+                .isEqualTo(componentId);
+        assertThat(child.get("properties").get(0).get("name").asText()).isEqualTo("Уставка");
     }
 
     @Test
