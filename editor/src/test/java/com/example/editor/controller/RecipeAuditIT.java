@@ -162,6 +162,13 @@ class RecipeAuditIT extends EditorApiTestSupport {
         assertThat(created.get(0).getNewValue()).isEqualTo("Партия A");
         assertThat(created.get(0).getUserName()).isEqualTo(USER);
         assertThat(created.get(0).getRowName()).isNull();
+        // Лента сортируется по id: создание набора обязано идти раньше значений, с которыми
+        // он создан. Порядок держится только порядком элементов в списке changes — без этой
+        // проверки его молча вернёт назад любая перестановка строк в create().
+        assertThat(valueChanges(recipeId)).allSatisfy(value ->
+                assertThat(value.getId())
+                        .as("значение %s записано после CREATE", value.getRowName())
+                        .isGreaterThan(created.get(0).getId()));
     }
 
     @Test
