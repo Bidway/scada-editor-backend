@@ -7,6 +7,8 @@ import com.example.editor.repository.version.DocumentVersionRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -72,12 +74,31 @@ public class DocumentVersionService {
     private String hashOf(JsonNode content) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = objectMapper.writeValueAsBytes(content);
+            byte[] bytes = objectMapper.writeValueAsBytes(withoutLockCounters(content.deepCopy()));
             return HexFormat.of().formatHex(digest.digest(bytes));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 недоступен", e);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Не удалось сериализовать содержимое версии", e);
         }
+    }
+
+    /**
+     * {@code version} у компонента — счётчик оптимистичной блокировки Hibernate: он растёт на
+     * каждом сохранении независимо от того, менялись ли данные. В хеш он попадать не должен,
+     * иначе дедупликация не срабатывает никогда — пересохранение без правок отличается от
+     * предыдущей версии ровно этим числом и ничем больше (проверено на задаче 4).
+     * <p>
+     * Из самого содержимого счётчик не убираем: снимок обязан совпадать по форме с обычным
+     * {@code GET} документа, чтобы фронт рисовал старую версию тем же кодом.
+     */
+    private JsonNode withoutLockCounters(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            object.remove("version");
+            object.fields().forEachRemaining(entry -> withoutLockCounters(entry.getValue()));
+        } else if (node instanceof ArrayNode array) {
+            array.forEach(this::withoutLockCounters);
+        }
+        return node;
     }
 }

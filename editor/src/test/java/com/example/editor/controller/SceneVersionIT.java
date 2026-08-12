@@ -13,12 +13,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Снимки сцен. История — append-only: номера версий не убывают, восстановление дописывает
@@ -129,6 +134,88 @@ class SceneVersionIT extends EditorApiTestSupport {
                         + "не сможет вернуть те же id")
                 .isEqualTo(componentId);
         assertThat(child.get("properties").get(0).get("name").asText()).isEqualTo("Уставка");
+    }
+
+    private void saveComponentsAs(String kind, String json) throws Exception {
+        mockMvc.perform(post("/api/editor/components")
+                        .header("X-Username", USER)
+                        .header("X-Save-Kind", kind)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk());
+    }
+
+    private String pumpJson(long sceneId, String setpoint) {
+        return "[{\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\",\"default_value\":\"" + setpoint + "\"}]}]";
+    }
+
+    private List<DocumentVersion> versionsOf(long sceneId) {
+        return versionRepository.findByTargetTypeAndTargetIdOrderByVersionNoDesc(
+                DocumentType.SCENE, sceneId);
+    }
+
+    @Test
+    void savingComponent_createsManualVersionOfItsScene() throws Exception {
+        long sceneId = newScene();
+
+        saveComponents(pumpJson(sceneId, "10"));
+
+        List<DocumentVersion> versions = versionsOf(sceneId);
+        assertThat(versions).hasSize(1);
+        assertThat(versions.get(0).getKind()).isEqualTo(VersionKind.MANUAL);
+        assertThat(versions.get(0).getUserName()).isEqualTo(USER);
+        assertThat(versions.get(0).getContent().get("children")).hasSize(1);
+    }
+
+    @Test
+    void autosaveHeader_marksVersionAsAutosave() throws Exception {
+        long sceneId = newScene();
+
+        saveComponentsAs("AUTOSAVE", pumpJson(sceneId, "10"));
+
+        assertThat(versionsOf(sceneId))
+                .singleElement()
+                .extracting(DocumentVersion::getKind)
+                .isEqualTo(VersionKind.AUTOSAVE);
+    }
+
+    @Test
+    void deletingComponent_createsVersionOfItsScene() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
+        long componentId = created.get("id").asLong();
+
+        mockMvc.perform(delete("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[" + componentId + "]"))
+                .andExpect(status().isOk());
+
+        List<DocumentVersion> versions = versionsOf(sceneId);
+        assertThat(versions).hasSize(2);
+        assertThat(versions.get(0).getContent().get("children"))
+                .as("удаление компонента — такое же изменение сцены, как правка")
+                .isEmpty();
+    }
+
+    @Test
+    void resavingWithoutChanges_doesNotCreateVersion() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
+        long componentId = created.get("id").asLong();
+        int before = versionsOf(sceneId).size();
+
+        updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + ",\"properties\":[{\"name\":\"Уставка\","
+                + "\"value_type\":\"double\",\"property_type\":\"Тег\","
+                + "\"default_value\":\"10\"}]}]");
+
+        assertThat(versionsOf(sceneId))
+                .as("содержимое то же — версии быть не должно; счётчик @Version, растущий на "
+                        + "каждом сохранении, в хеш не входит")
+                .hasSize(before);
     }
 
     @Test
