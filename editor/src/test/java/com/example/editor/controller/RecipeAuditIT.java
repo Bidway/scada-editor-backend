@@ -218,29 +218,23 @@ class RecipeAuditIT extends EditorApiTestSupport {
     }
 
     /**
-     * Ветка values == null (поле не прислано вовсе) сейчас стирает все значения набора молча —
-     * семантика спорна (см. scada-m2n), но то, что код делает уже сейчас, обязано быть видно
-     * в истории: по записи VALUE на каждое стёртое значение, новое значение пустое.
+     * Поле values не прислано — значения не тронуты (scada-m2n), значит и в историю писать
+     * нечего. Переименование тем же запросом при этом фиксируется: без этой проверки тест
+     * прошёл бы и на коде, который просто ничего не пишет по такому запросу вовсе.
      */
     @Test
-    void savingWithoutValuesField_wipesAndRecordsEachRemoval() throws Exception {
+    void savingWithoutValuesField_recordsNoValueChanges() throws Exception {
         long componentId = componentWithTwoRows();
         long recipeId = createRecipe(componentId, TWO_VALUES);
+        int before = valueChanges(recipeId).size();
 
         mockMvc.perform(put("/api/editor/recipes/" + recipeId)
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Партия A\",\"component_id\":" + componentId + "}"))
+                        .content("{\"name\":\"Партия Б\",\"component_id\":" + componentId + "}"))
                 .andExpect(status().isOk());
 
-        List<RecipeChange> removed = valueChanges(recipeId).stream()
-                .filter(c -> c.getNewValue() == null)
-                .toList();
-
-        assertThat(removed).hasSize(2);
-        assertThat(removed).extracting(RecipeChange::getRowName)
-                .containsExactlyInAnyOrder("Уставка", "Режим");
-        assertThat(removed).extracting(RecipeChange::getOldValue)
-                .containsExactlyInAnyOrder("10", "1");
+        assertThat(valueChanges(recipeId)).hasSize(before);
+        assertThat(changesOfType(recipeId, RecipeChangeType.RENAME)).hasSize(1);
     }
 }

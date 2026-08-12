@@ -110,6 +110,29 @@ class RecipeSaveIT extends EditorApiTestSupport {
     }
 
     /**
+     * Отсутствующее поле values означает «не прислано, не трогать», а не «стереть всё»: та же
+     * семантика, что у свойств компонента (см. ComponentSaveIT.resave_withNullProperties_
+     * keepsExistingRows). Иначе PUT ради одного переименования уносил бы уставки, уходящие в ПЛК.
+     */
+    @Test
+    void resave_withoutValuesField_keepsExistingValues() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId,
+                "[{\"row_name\":\"Уставка\",\"value\":\"10\"},"
+                + "{\"row_name\":\"Режим\",\"value\":\"1\"}]");
+
+        Map<String, Long> before = valueIds(recipeId);
+
+        mockMvc.perform(put("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Партия Б\",\"component_id\":" + componentId + "}"))
+                .andExpect(status().isOk());
+
+        assertThat(valueIds(recipeId)).isEqualTo(before);
+    }
+
+    /**
      * Резолв берёт строку по имени, поэтому второе значение на ту же строку осталось бы
      * недостижимым — такой набор отвергается на входе.
      */
