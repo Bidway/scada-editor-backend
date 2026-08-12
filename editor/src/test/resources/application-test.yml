@@ -10,3 +10,9 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+
+editor:
+  versions:
+    autosave-retention-days: 30
+    # 29 февраля — задача не должна срабатывать сама посреди прогона, в тесте её зовут руками.
+    retention-cron: "0 0 0 29 2 ?"
