@@ -60,11 +60,7 @@ public class TemplateService {
         return updateTemplate(templateId, dto, userName, VersionKind.MANUAL);
     }
 
-    /** {@code kind == null} — снимок не делать; нужно восстановлению, см. DocumentVersionService. */
     private void snapshot(Long templateId, String userName, VersionKind kind) {
-        if (kind == null) {
-            return;
-        }
         versionService.record(DocumentType.TEMPLATE, templateId,
                 templateDocumentSource.contentOf(templateId), userName, kind, null);
     }

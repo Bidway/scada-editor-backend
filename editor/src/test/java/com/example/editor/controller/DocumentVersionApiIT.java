@@ -9,6 +9,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -88,5 +89,59 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
     void unknownDocumentType_isRejected() throws Exception {
         mockMvc.perform(get("/api/editor/recipes/1/versions"))
                 .andExpect(status().isBadRequest());
+    }
+
+    private void restore(String url) throws Exception {
+        mockMvc.perform(post(url).header("X-Username", USER))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void restoringScene_keepsComponentAndPropertyIds() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
+        long componentId = created.get("id").asLong();
+        long propertyId = propertyId(created, "Уставка");
+
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+
+        restore("/api/editor/scenes/" + sceneId + "/restore/1");
+
+        JsonNode component = getComponent(componentId);
+        assertThat(component.get("properties").get(0).get("default_value").asText())
+                .isEqualTo("10");
+        assertThat(propertyId(component, "Уставка"))
+                .as("id обязаны пережить восстановление: Script.id — это scriptId в ACTION с "
+                        + "фронта, а сессия мониторинга берёт дерево один раз при старте")
+                .isEqualTo(propertyId);
+    }
+
+    @Test
+    void restoringScene_appendsNewVersionInsteadOfRewindingHistory() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
+        long componentId = created.get("id").asLong();
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+
+        restore("/api/editor/scenes/" + sceneId + "/restore/1");
+
+        JsonNode versions = getJson("/api/editor/scenes/" + sceneId + "/versions");
+        assertThat(versions).hasSize(3);
+        assertThat(versions.get(0).get("kind").asText()).isEqualTo("RESTORE");
+        assertThat(versions.get(0).get("restored_from").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void restoringScene_removesComponentsAddedAfterTheSnapshot() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        JsonNode extra = saveComponents("[{\"name\":\"Клапан\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + "}]").get(0);
+        long extraId = extra.get("id").asLong();
+
+        restore("/api/editor/scenes/" + sceneId + "/restore/1");
+
+        mockMvc.perform(get("/api/editor/components/" + extraId))
+                .andExpect(status().isNotFound());
     }
 }

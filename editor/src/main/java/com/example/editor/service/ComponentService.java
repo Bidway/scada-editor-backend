@@ -28,7 +28,6 @@ public interface ComponentService {
     List<ComponentResponseDto> update(List<ComponentCreateDto> components, String userName,
                                       VersionKind kind);
 
-    /** {@code kind == null} — «снимок версии не делать», см. ComponentServiceImpl. */
     void delete(List<Long> ids, String userName, VersionKind kind);
 
     default List<ComponentResponseDto> create(List<ComponentCreateDto> components, String userName) {
