@@ -4,7 +4,15 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "component_property", schema = "editor")
+@Table(
+        name = "component_property",
+        schema = "editor",
+        // Имя строки — её адрес: по нему значение набора находит строку, а writeTag —
+        // свойство. Проверка есть и в коде, но она одна отделяла дубль от данных (scada-95o).
+        uniqueConstraints = @UniqueConstraint(
+                name = "component_property_uk",
+                columnNames = {"component_id", "name"})
+)
 @Getter
 @Setter
 @NoArgsConstructor

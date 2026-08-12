@@ -11,7 +11,14 @@ import org.hibernate.annotations.Type;
 
 @Entity
 @Data
-@Table(name = "component_state", schema = "editor")
+@Table(
+        name = "component_state",
+        schema = "editor",
+        // setState('Открыт') выбирает состояние по имени (scada-95o).
+        uniqueConstraints = @UniqueConstraint(
+                name = "component_state_uk",
+                columnNames = {"component_id", "name"})
+)
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
