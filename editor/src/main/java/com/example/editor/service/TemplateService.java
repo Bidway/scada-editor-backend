@@ -8,8 +8,12 @@ import com.example.editor.dto.template.TemplateCreateDto;
 import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
 import com.example.editor.model.template.TemplateFacePlate;
+import com.example.editor.model.version.DocumentType;
+import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.template.TemplateFacePlateRepository;
 import com.example.editor.repository.template.TemplateComponentRepository;
+import com.example.editor.service.version.DocumentVersionService;
+import com.example.editor.service.version.TemplateDocumentSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,19 +28,45 @@ public class TemplateService {
     private final TemplateComponentRepository componentRepository;
     private final TemplateComponentMapper componentMapper;
     private final CommandManager commandManager;
+    private final DocumentVersionService versionService;
+    private final TemplateDocumentSource templateDocumentSource;
 
-    public TemplateResponseDto createTemplate(TemplateCreateDto dto, String userName) {
+    public TemplateResponseDto createTemplate(TemplateCreateDto dto, String userName,
+                                              VersionKind kind) {
         CreateTemplateCommand command = new CreateTemplateCommand(
                 templateRepository, componentRepository, componentMapper, dto, userName
         );
-        return commandManager.execute(command);
+        TemplateResponseDto response = commandManager.execute(command);
+        snapshot(response.getId(), userName, kind);
+        return response;
     }
 
-    public TemplateResponseDto updateTemplate(Long templateId, TemplateCreateDto dto, String userName) {
+    public TemplateResponseDto createTemplate(TemplateCreateDto dto, String userName) {
+        return createTemplate(dto, userName, VersionKind.MANUAL);
+    }
+
+    public TemplateResponseDto updateTemplate(Long templateId, TemplateCreateDto dto,
+                                              String userName, VersionKind kind) {
         UpdateTemplateCommand command = new UpdateTemplateCommand(
                 templateRepository, componentRepository, componentMapper, templateId, dto, userName
         );
-        return commandManager.execute(command);
+        TemplateResponseDto response = commandManager.execute(command);
+        snapshot(templateId, userName, kind);
+        return response;
+    }
+
+    public TemplateResponseDto updateTemplate(Long templateId, TemplateCreateDto dto,
+                                              String userName) {
+        return updateTemplate(templateId, dto, userName, VersionKind.MANUAL);
+    }
+
+    /** {@code kind == null} — снимок не делать; нужно восстановлению, см. DocumentVersionService. */
+    private void snapshot(Long templateId, String userName, VersionKind kind) {
+        if (kind == null) {
+            return;
+        }
+        versionService.record(DocumentType.TEMPLATE, templateId,
+                templateDocumentSource.contentOf(templateId), userName, kind, null);
     }
 
     public void deleteTemplate(Long templateId, String userName) {
