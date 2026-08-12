@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -79,6 +80,31 @@ class TemplateVersionIT extends EditorApiTestSupport {
 
         assertThat(versionsOf(templateId)).hasSize(2);
         assertThat(versionsOf(templateId).get(0).getVersionNo()).isEqualTo(2);
+    }
+
+    @Test
+    void restoringTemplate_returnsPreviousContentAndAppendsVersion() throws Exception {
+        long templateId = createTemplate(tree("10"));
+        mockMvc.perform(put("/api/editor/templates/" + templateId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tree("42")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/editor/templates/" + templateId + "/restore/1")
+                        .header("X-Username", USER))
+                .andExpect(status().isOk());
+
+        String body = mockMvc.perform(get("/api/editor/templates/" + templateId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode template = objectMapper.readTree(body);
+
+        assertThat(template.get("rootComponent").get("properties").get(0)
+                .get("default_value").asText()).isEqualTo("10");
+        assertThat(versionsOf(templateId)).hasSize(3);
+        assertThat(versionsOf(templateId).get(0).getKind()).isEqualTo(VersionKind.RESTORE);
+        assertThat(versionsOf(templateId).get(0).getRestoredFrom()).isEqualTo(1);
     }
 
     @Test
