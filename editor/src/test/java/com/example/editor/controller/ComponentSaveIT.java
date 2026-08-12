@@ -1,8 +1,11 @@
 package com.example.editor.controller;
 
+import com.example.editor.model.component.ComponentState;
+import com.example.editor.repository.component.ComponentStateRepository;
 import com.example.editor.support.EditorApiTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -21,6 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class ComponentSaveIT extends EditorApiTestSupport {
+
+    @Autowired
+    private ComponentStateRepository componentStateRepository;
 
     private String componentJson(long sceneId, Long id, String rows, String scripts,
                                  String states, String events) {
@@ -46,6 +52,34 @@ class ComponentSaveIT extends EditorApiTestSupport {
 
     private static final String ONE_EVENT =
             "[{\"event_type\":\"onClick\",\"script\":\"runScript('Открыть клапан')\"}]";
+
+    /**
+     * Легаси-данные: имя с краевым пробелом, сохранённое до того, как вход стали тримить.
+     * Сопоставление строит карту по сырому имени из БД, а входящее нормализует, поэтому такая
+     * строка не находилась и каждое сохранение выглядело как «удалили одну, добавили другую»
+     * (scada-w51). Завести её через API нельзя — только положив руками, как она и легла.
+     */
+    @Test
+    void resave_matchesStateWithLegacyPaddedName() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(
+                componentJson(sceneId, null, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
+        long componentId = created.get("id").asLong();
+        long stateId = created.get("states").get(0).get("id").asLong();
+
+        ComponentState legacy = componentStateRepository.findById(stateId).orElseThrow();
+        legacy.setName("  Открыт  ");
+        componentStateRepository.save(legacy);
+
+        JsonNode resaved = updateComponents(
+                componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
+
+        assertThat(resaved.get("states")).hasSize(1);
+        assertThat(resaved.get("states").get(0).get("id").asLong())
+                .as("состояние должно найтись по имени без краевых пробелов, а не пересоздаться")
+                .isEqualTo(stateId);
+        assertThat(componentStateRepository.findById(stateId)).isPresent();
+    }
 
     @Test
     void resave_keepsPropertyIds() throws Exception {

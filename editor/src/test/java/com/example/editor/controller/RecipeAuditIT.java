@@ -2,6 +2,8 @@ package com.example.editor.controller;
 
 import com.example.editor.model.recipe.RecipeChange;
 import com.example.editor.model.recipe.RecipeChangeType;
+import com.example.editor.model.recipe.RecipeValue;
+import com.example.editor.repository.recipe.RecipeValueRepository;
 import com.example.editor.repository.recipe.RecipeChangeRepository;
 import com.example.editor.support.EditorApiTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -33,6 +35,9 @@ class RecipeAuditIT extends EditorApiTestSupport {
 
     @Autowired
     private RecipeChangeRepository recipeChangeRepository;
+
+    @Autowired
+    private RecipeValueRepository recipeValueRepository;
 
     private long componentWithTwoRows() throws Exception {
         long sceneId = newScene();
@@ -215,6 +220,30 @@ class RecipeAuditIT extends EditorApiTestSupport {
         assertThat(valueChanges(recipeId))
                 .as("записи о значениях набора должны пережить его удаление")
                 .hasSize(2);
+    }
+
+    /**
+     * Легаси-значение с краевым пробелом в имени строки: раньше карта существующих ключевалась
+     * сырым именем из БД, а входящее нормализовалось, поэтому одна строка давала в журнале
+     * фальшивую пару «удалили + добавили» — событие, которого не было (scada-w51).
+     */
+    @Test
+    void savingValueWithLegacyPaddedRowName_recordsNothing() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId, TWO_VALUES);
+
+        RecipeValue legacy = recipeValueRepository.findAll().stream()
+                .filter(v -> v.getRecipe() != null && recipeId == v.getRecipe().getId())
+                .filter(v -> "Уставка".equals(v.getRowName()))
+                .findFirst()
+                .orElseThrow();
+        legacy.setRowName("  Уставка  ");
+        recipeValueRepository.save(legacy);
+
+        int before = valueChanges(recipeId).size();
+        updateRecipe(recipeId, componentId, "Партия A", TWO_VALUES);
+
+        assertThat(valueChanges(recipeId)).hasSize(before);
     }
 
     /**
