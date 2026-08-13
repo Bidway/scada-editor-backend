@@ -138,4 +138,52 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 .as("id не прислали — сопоставление по имени работает как раньше")
                 .isEqualTo(originalScriptId);
     }
+
+    private String withBinding(long sceneId, Long componentId, String bindingName, Long bindingId) {
+        return "[{" + (componentId == null ? "" : "\"id\":" + componentId + ",")
+                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"}],"
+                + "\"bindings\":[{" + (bindingId == null ? "" : "\"id\":" + bindingId + ",")
+                + "\"component_property_name\":\"Уставка\",\"name\":\"" + bindingName + "\","
+                + "\"script\":\"{}\"}]}]";
+    }
+
+    private long bindingId(JsonNode component, String name) {
+        for (JsonNode b : component.get("bindings")) {
+            if (name.equals(b.get("name").asText())) {
+                return b.get("id").asLong();
+            }
+        }
+        throw new AssertionError("Нет биндинга '" + name + "' в " + component);
+    }
+
+    @Test
+    void resavingBinding_keepsItsId() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(withBinding(sceneId, null, "цвет", null)).get(0);
+        long componentId = created.get("id").asLong();
+        long originalBindingId = bindingId(created, "цвет");
+
+        JsonNode updated = updateComponents(
+                withBinding(sceneId, componentId, "цвет", null)).get(0);
+
+        assertThat(bindingId(updated, "цвет"))
+                .as("пересохранение без правок не должно менять id биндинга (scada-dna)")
+                .isEqualTo(originalBindingId);
+    }
+
+    @Test
+    void renamingBindingById_keepsItsId() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(withBinding(sceneId, null, "цвет", null)).get(0);
+        long componentId = created.get("id").asLong();
+        long originalBindingId = bindingId(created, "цвет");
+
+        JsonNode updated = updateComponents(
+                withBinding(sceneId, componentId, "заливка", originalBindingId)).get(0);
+
+        assertThat(updated.get("bindings")).hasSize(1);
+        assertThat(bindingId(updated, "заливка")).isEqualTo(originalBindingId);
+    }
 }
