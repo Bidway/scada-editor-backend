@@ -137,12 +137,7 @@ class SceneVersionIT extends EditorApiTestSupport {
     }
 
     private void saveComponentsAs(String kind, String json) throws Exception {
-        mockMvc.perform(post("/api/editor/components")
-                        .header("X-Username", USER)
-                        .header("X-Save-Kind", kind)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isOk());
+        saveComponents(json, null, kind);
     }
 
     private String pumpJson(long sceneId, String setpoint) {

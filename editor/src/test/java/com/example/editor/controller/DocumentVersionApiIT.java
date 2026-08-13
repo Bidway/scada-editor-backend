@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
@@ -31,12 +30,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
     }
 
     private void saveComponentsAs(String kind, String json) throws Exception {
-        mockMvc.perform(post("/api/editor/components")
-                        .header("X-Username", USER)
-                        .header("X-Save-Kind", kind)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isOk());
+        saveComponents(json, null, kind);
     }
 
     private String pumpUpdateJson(long sceneId, long componentId, String setpoint) {

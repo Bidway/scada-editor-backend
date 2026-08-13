@@ -93,12 +93,13 @@ class ComponentBindingIT extends EditorApiTestSupport {
         mockMvc.perform(post("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"name\":\"Насос\",\"type\":\"valve\","
+                        .content("{\"components\":[{\"name\":\"Насос\",\"type\":\"valve\","
                                 + "\"parent_id\":" + sceneId + ","
                                 + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
                                 + "\"property_type\":\"Тег\"}],"
                                 + "\"bindings\":[{\"component_property_name\":\"Нет такой\","
-                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
+                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}],"
+                                + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -114,10 +115,11 @@ class ComponentBindingIT extends EditorApiTestSupport {
         mockMvc.perform(post("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"name\":\"Насос\",\"type\":\"valve\","
+                        .content("{\"components\":[{\"name\":\"Насос\",\"type\":\"valve\","
                                 + "\"parent_id\":" + sceneId + ","
                                 + "\"bindings\":[{\"component_property_id\":" + foreignPropertyId + ","
-                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
+                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}],"
+                                + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("does not belong to component")));
     }
@@ -136,12 +138,13 @@ class ComponentBindingIT extends EditorApiTestSupport {
         mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+                        .content("{\"components\":[{\"id\":" + componentId + ",\"name\":\"Насос\","
                                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                                 + "\"properties\":[{\"name\":\"Скорость\",\"value_type\":\"double\","
                                 + "\"property_type\":\"Тег\"}],"
                                 + "\"bindings\":[{\"component_property_id\":" + setpointId + ","
-                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
+                                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}],"
+                                + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("not among the properties sent")));
     }
@@ -152,9 +155,10 @@ class ComponentBindingIT extends EditorApiTestSupport {
         mockMvc.perform(post("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"name\":\"Насос\",\"type\":\"valve\","
+                        .content("{\"components\":[{\"name\":\"Насос\",\"type\":\"valve\","
                                 + "\"parent_id\":" + sceneId + ","
-                                + "\"bindings\":[{\"name\":\"цвет\",\"script\":\"'red'\"}]}]"))
+                                + "\"bindings\":[{\"name\":\"цвет\",\"script\":\"'red'\"}]}],"
+                                + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest());
     }
 }

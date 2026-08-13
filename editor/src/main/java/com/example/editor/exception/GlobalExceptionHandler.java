@@ -3,6 +3,7 @@ package com.example.editor.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -31,6 +32,16 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return buildResponse(HttpStatus.BAD_REQUEST, message.isBlank() ? "Validation failed" : message);
+    }
+
+    /**
+     * Тело не разобралось в DTO — например, голый массив прислали туда, где теперь ждут
+     * конверт {@code {"components": [...]}}. Без отдельного обработчика этот кейс ловил бы
+     * общий {@code Exception.class} ниже и отвечал 500 вместо 400.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Malformed request body");
     }
 
     @ExceptionHandler(Exception.class)

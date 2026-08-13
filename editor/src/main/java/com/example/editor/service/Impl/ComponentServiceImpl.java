@@ -4,6 +4,7 @@ import com.example.editor.command.component.*;
 import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
+import com.example.editor.dto.component.ComponentSaveResponseDto;
 import com.example.editor.dto.component.ComponentStateDto;
 import com.example.editor.dto.project.ProjectCreateDto;
 import com.example.editor.dto.project.ProjectCreateResponseDto;
@@ -53,13 +54,13 @@ public class ComponentServiceImpl implements ComponentService {
     private final SceneDocumentSource sceneDocumentSource;
 
     @Override
-    public List<ComponentResponseDto> create(List<ComponentCreateDto> dtos, String userName,
-                                             VersionKind kind) {
+    public ComponentSaveResponseDto create(List<ComponentCreateDto> dtos, String userName,
+                                           VersionKind kind, Integer basedOnVersion) {
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new CreateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        snapshotScenesOf(prepared, userName, kind);
-        return response;
+        Integer versionNo = snapshotScenesOf(prepared, userName, kind);
+        return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
     }
 
     @Override
@@ -88,13 +89,13 @@ public class ComponentServiceImpl implements ComponentService {
     }
 
     @Override
-    public List<ComponentResponseDto> update(List<ComponentCreateDto> dtos, String userName,
-                                             VersionKind kind) {
+    public ComponentSaveResponseDto update(List<ComponentCreateDto> dtos, String userName,
+                                           VersionKind kind, Integer basedOnVersion) {
         List<Component> prepared = dtos.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        snapshotScenesOf(prepared, userName, kind);
-        return response;
+        Integer versionNo = snapshotScenesOf(prepared, userName, kind);
+        return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
     }
 
     /**
@@ -120,7 +121,7 @@ public class ComponentServiceImpl implements ComponentService {
      * поднимаемся по родителям до компонента с типом scene. Обычно она одна, но запрос вправе
      * задеть несколько, и тогда снимков будет несколько.
      */
-    private void snapshotScenesOf(List<Component> saved, String userName, VersionKind kind) {
+    private Integer snapshotScenesOf(List<Component> saved, String userName, VersionKind kind) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Component component : saved) {
             Long sceneId = sceneRootIdOf(component);
@@ -128,14 +129,16 @@ public class ComponentServiceImpl implements ComponentService {
                 sceneIds.add(sceneId);
             }
         }
-        snapshotScenes(sceneIds, userName, kind);
+        return snapshotScenes(sceneIds, userName, kind);
     }
 
-    private void snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind) {
+    private Integer snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind) {
+        Integer last = null;
         for (Long sceneId : sceneIds) {
-            versionService.record(DocumentType.SCENE, sceneId,
-                    sceneDocumentSource.contentOf(sceneId), userName, kind, null);
+            last = versionService.record(DocumentType.SCENE, sceneId,
+                    sceneDocumentSource.contentOf(sceneId), userName, kind, null).getVersionNo();
         }
+        return last;
     }
 
     /** Связь parent ленивая — подниматься можно только пока открыта сессия. */

@@ -105,7 +105,7 @@ public class SceneDocumentSource implements DocumentSource {
         for (ComponentCreateDto child : children) {
             child.setParent_id(sceneId);
         }
-        componentService.update(children, userName, VersionKind.RESTORE);
+        componentService.update(children, userName, VersionKind.RESTORE, null);
     }
 
     /** Всё, чего нет в снимке, выбывает из коллекции родителя — orphanRemoval доделает. */
