@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Синхронизирует коллекции scripts/bindings/events с DTO при создании/обновлении дерева
@@ -37,6 +38,42 @@ public class ComponentScriptBindingApplier {
      */
     public String matchKey(String name) {
         return name == null ? null : name.trim();
+    }
+
+    /**
+     * Отвергает обмен именами внутри одного запроса: имя, освобождаемое переименованием
+     * существующей строки, одновременно занимается новой строкой.
+     * <p>
+     * Записать это нельзя: Hibernate на flush выполняет вставки раньше обновлений, поэтому
+     * INSERT новой строки упирается в {@code UNIQUE (component_id, name)} прежде, чем UPDATE
+     * освободит имя. Порядок операций внутри flush менять нельзя, поэтому ловим до записи и
+     * объясняем, что делать. Полноценная поддержка — {@code scada-wob}.
+     *
+     * @param originalKeys ключ (имя либо тип) каждой существующей строки ДО применения dto
+     * @param what         человекочитаемое название сущности для сообщения
+     */
+    public <T> void rejectNameSwaps(List<T> incoming, Map<Long, String> originalKeys,
+                                    Function<T, Long> idOf, Function<T, String> keyOf,
+                                    String what) {
+        Set<String> freed = new HashSet<>();
+        for (T item : incoming) {
+            Long id = idOf.apply(item);
+            if (id == null) {
+                continue;
+            }
+            String original = originalKeys.get(id);
+            if (original != null && !original.equals(keyOf.apply(item))) {
+                freed.add(original);
+            }
+        }
+        for (T item : incoming) {
+            if (idOf.apply(item) == null && freed.contains(keyOf.apply(item))) {
+                throw new IllegalStateException(
+                        what + " '" + keyOf.apply(item) + "' is freed by a rename in the same"
+                                + " request and taken by a new one; save the rename first,"
+                                + " then create the new one");
+            }
+        }
     }
 
     /**
@@ -163,10 +200,12 @@ public class ComponentScriptBindingApplier {
         }
         Map<String, Script> existingByName = new HashMap<>();
         Map<Long, Script> existingById = new HashMap<>();
+        Map<Long, String> originalNames = new HashMap<>();
         for (Script existing : entity.getScripts()) {
             existingByName.put(matchKey(existing.getName()), existing);
             if (existing.getId() != null) {
                 existingById.put(existing.getId(), existing);
+                originalNames.put(existing.getId(), matchKey(existing.getName()));
             }
         }
 
@@ -188,8 +227,13 @@ public class ComponentScriptBindingApplier {
                 throw new IllegalStateException(
                         "Script " + s.getId() + " does not belong to component " + entity.getId());
             }
-            if (target == null) {
-                target = existingByName.get(name);
+            if (target != null) {
+                // Забрали строку по id — её прежнее имя перестаёт быть ключом. Иначе следующий
+                // элемент того же запроса, пришедший без id под старым именем, найдёт её же и
+                // отберёт обратно: переименование молча отменится, а вторая сущность не создастся.
+                existingByName.remove(matchKey(target.getName()));
+            } else {
+                target = existingByName.remove(name);
             }
             if (target == null) {
                 target = new Script();
@@ -202,6 +246,9 @@ public class ComponentScriptBindingApplier {
             }
             incoming.add(target);
         }
+
+        rejectNameSwaps(incoming, originalNames, Script::getId,
+                s -> matchKey(s.getName()), "Script name");
 
         entity.getScripts().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
@@ -291,10 +338,12 @@ public class ComponentScriptBindingApplier {
         }
         Map<String, ComponentEvent> existingByType = new HashMap<>();
         Map<Long, ComponentEvent> existingById = new HashMap<>();
+        Map<Long, String> originalTypes = new HashMap<>();
         for (ComponentEvent existing : entity.getEvents()) {
             existingByType.put(existing.getEventType(), existing);
             if (existing.getId() != null) {
                 existingById.put(existing.getId(), existing);
+                originalTypes.put(existing.getId(), existing.getEventType());
             }
         }
 
@@ -320,8 +369,12 @@ public class ComponentScriptBindingApplier {
                 throw new IllegalStateException(
                         "Event " + e.getId() + " does not belong to component " + entity.getId());
             }
-            if (target == null) {
-                target = existingByType.get(e.getEvent_type());
+            if (target != null) {
+                // Тот же захват ключа, что в applyScripts: забранная по id строка не должна
+                // оставаться доступной под своим прежним типом.
+                existingByType.remove(target.getEventType());
+            } else {
+                target = existingByType.remove(e.getEvent_type());
             }
             if (target == null) {
                 target = new ComponentEvent();
@@ -334,6 +387,9 @@ public class ComponentScriptBindingApplier {
             }
             incoming.add(target);
         }
+
+        rejectNameSwaps(incoming, originalTypes, ComponentEvent::getId,
+                ComponentEvent::getEventType, "Event type");
 
         entity.getEvents().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())

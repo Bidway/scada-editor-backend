@@ -249,10 +249,13 @@ public class ComponentServiceImpl implements ComponentService {
         }
         Map<String, ComponentState> existingByName = new HashMap<>();
         Map<Long, ComponentState> existingById = new HashMap<>();
+        Map<Long, String> originalNames = new HashMap<>();
         for (ComponentState existing : entity.getStates()) {
             existingByName.put(ComponentScriptBindingApplier.matchKey(existing.getName()), existing);
             if (existing.getId() != null) {
                 existingById.put(existing.getId(), existing);
+                originalNames.put(existing.getId(),
+                        ComponentScriptBindingApplier.matchKey(existing.getName()));
             }
         }
 
@@ -274,8 +277,11 @@ public class ComponentServiceImpl implements ComponentService {
                 throw new IllegalStateException(
                         "State " + s.getId() + " does not belong to component " + entity.getId());
             }
-            if (target == null) {
-                target = existingByName.get(name);
+            if (target != null) {
+                // Тот же захват ключа, что в applyScripts.
+                existingByName.remove(ComponentScriptBindingApplier.matchKey(target.getName()));
+            } else {
+                target = existingByName.remove(name);
             }
             if (target == null) {
                 target = new ComponentState();
@@ -289,6 +295,10 @@ public class ComponentServiceImpl implements ComponentService {
             }
             incoming.add(target);
         }
+
+        ComponentScriptBindingApplier.rejectNameSwaps(incoming, originalNames,
+                ComponentState::getId,
+                s -> ComponentScriptBindingApplier.matchKey(s.getName()), "State name");
 
         entity.getStates().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
