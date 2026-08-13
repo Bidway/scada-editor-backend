@@ -208,10 +208,20 @@ public class DocumentVersionService {
      * <p>
      * Из самого содержимого счётчик не убираем: снимок обязан совпадать по форме с обычным
      * {@code GET} документа, чтобы фронт рисовал старую версию тем же кодом.
+     * <p>
+     * {@code version_no} вырезается как структурная страховка, а не по факту текущего поведения:
+     * сегодня {@code TemplateDocumentSource.contentOf} собирает свой экземпляр
+     * {@code TemplateResponseDto} и номер версии в нём остаётся {@code null}, так что в снимок
+     * он и не попадает. Но держится это лишь на том, что два места сборки одного DTO ведут себя
+     * по-разному: стоит {@code contentOf} перейти на {@code templateService.getTemplateById} —
+     * шаг с виду безобидный, — как растущий номер версии окажется в хеше, дедупликация умрёт и
+     * история шаблона начнёт набиваться пустыми записями на каждое сохранение. Легитимного
+     * {@code version_no} в содержимом документа нет.
      */
     private JsonNode withoutLockCounters(JsonNode node) {
         if (node instanceof ObjectNode object) {
             object.remove("version");
+            object.remove("version_no");
             object.fields().forEachRemaining(entry -> withoutLockCounters(entry.getValue()));
         } else if (node instanceof ArrayNode array) {
             array.forEach(this::withoutLockCounters);
