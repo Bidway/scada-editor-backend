@@ -30,6 +30,16 @@ import java.util.Set;
 public class ComponentScriptBindingApplier {
 
     /**
+     * Ключ сопоставления по имени — общий для обеих сторон. Входящее имя тримится, а имя из БД
+     * до этого бралось как есть, поэтому строка, сохранённая с краевым пробелом до появления
+     * {@code trim}'а, не находилась и пересоздавалась при каждом сохранении (scada-w51).
+     * Через API такую строку теперь не завести, но легаси-данные никто не чистил.
+     */
+    public String matchKey(String name) {
+        return name == null ? null : name.trim();
+    }
+
+    /**
      * Массовая синхронизация свойств компонента (строки таблицы и т.п.) из DTO.
      * <p>
      * В отличие от scripts/bindings/events трогаем <b>только если поле прислано</b>
@@ -59,7 +69,7 @@ public class ComponentScriptBindingApplier {
         }
         Map<String, ComponentProperty> existingByName = new HashMap<>();
         for (ComponentProperty existing : entity.getProperties()) {
-            existingByName.put(existing.getName(), existing);
+            existingByName.put(matchKey(existing.getName()), existing);
         }
 
         List<ComponentProperty> incoming = new ArrayList<>();
@@ -102,7 +112,7 @@ public class ComponentScriptBindingApplier {
         }
 
         // Сначала убираем выпавшие строки (orphanRemoval их удалит), затем добавляем новые.
-        entity.getProperties().removeIf(existing -> !seenNames.contains(existing.getName()));
+        entity.getProperties().removeIf(existing -> !seenNames.contains(matchKey(existing.getName())));
         for (ComponentProperty target : incoming) {
             if (target.getId() == null) {
                 entity.getProperties().add(target);
@@ -153,7 +163,7 @@ public class ComponentScriptBindingApplier {
         }
         Map<String, Script> existingByName = new HashMap<>();
         for (Script existing : entity.getScripts()) {
-            existingByName.put(existing.getName(), existing);
+            existingByName.put(matchKey(existing.getName()), existing);
         }
 
         List<Script> incoming = new ArrayList<>();
@@ -178,7 +188,7 @@ public class ComponentScriptBindingApplier {
             incoming.add(target);
         }
 
-        entity.getScripts().removeIf(existing -> !seenNames.contains(existing.getName()));
+        entity.getScripts().removeIf(existing -> !seenNames.contains(matchKey(existing.getName())));
         for (Script target : incoming) {
             if (target.getId() == null) {
                 entity.getScripts().add(target);
