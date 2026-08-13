@@ -223,8 +223,18 @@ public class ComponentServiceImpl implements ComponentService {
         return populateComponent(entity, dto, resolvedParent);
     }
 
+    /**
+     * Компонент без id здесь — новый: сохранение принимает дерево целиком, и в одном списке
+     * законно едут и существующие узлы, и добавленные. Внутри дерева это и так работало
+     * ({@code populateComponent} заводит новую сущность дочернему dto без id), а на верхнем
+     * уровне {@code findById(null)} валился в 500 из недр Spring Data. Ловилось это
+     * восстановлением версии, в снимке которой есть компонент, удалённый после снимка:
+     * {@code SceneDocumentSource} снимает у него id — и попадает ровно сюда (scada-yxk).
+     */
     private Component updateComponent(ComponentCreateDto dto) {
-        Component entity = repository.findById(dto.getId())
+        Component entity = dto.getId() == null
+                ? new Component()
+                : repository.findById(dto.getId())
                 .orElseThrow(() -> new IllegalStateException("Component not found: " + dto.getId()));
 
         Component resolvedParent = null;

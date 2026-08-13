@@ -1,10 +1,18 @@
 package com.example.editor.service.version;
 
+import com.example.editor.dto.component.BindingPayloadDto;
 import com.example.editor.dto.component.ComponentCreateDto;
+import com.example.editor.dto.component.ComponentStateDto;
+import com.example.editor.dto.component.EventPayloadDto;
+import com.example.editor.dto.component.ScriptCreateDto;
 import com.example.editor.exception.NotFoundException;
 import com.example.editor.mapper.ComponentMapper;
+import com.example.editor.model.component.Binding;
 import com.example.editor.model.component.Component;
+import com.example.editor.model.component.ComponentEvent;
+import com.example.editor.model.component.ComponentState;
 import com.example.editor.model.component.ComponentTypes;
+import com.example.editor.model.component.Script;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentRepository;
@@ -16,9 +24,12 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 @Service
 public class SceneDocumentSource implements DocumentSource {
@@ -98,8 +109,9 @@ public class SceneDocumentSource implements DocumentSource {
         pruneObsolete(scene, keep);
         componentRepository.saveAndFlush(scene);
 
-        // Компонента, удалённого после снимка, в базе больше нет — id снимаем, он создастся
-        // заново. Свой прежний id он не вернёт, но альтернатива — падение всего восстановления.
+        // Компонента (и вложенной строки), удалённых после снимка, в базе больше нет — id
+        // снимаем, они создадутся заново. Свой прежний id они не вернут, но альтернатива —
+        // падение всего восстановления.
         dropMissingIds(children);
 
         for (ComponentCreateDto child : children) {
@@ -127,14 +139,72 @@ public class SceneDocumentSource implements DocumentSource {
         }
     }
 
+    /**
+     * Снимает id, которых в базе больше нет, — и у компонентов, и у вложенных строк.
+     * <p>
+     * Вложенные id раньше сюда не доезжали: в снимке (это сериализованный
+     * {@code ComponentResponseDto}) они лежали всегда, но у DTO сохранения поля {@code id} не
+     * было, и Jackson выбрасывал их молча. Как только поле появилось, исторический номер строки,
+     * удалённой после снимка, поехал прямо в аплаер, тот не нашёл её среди строк компонента и
+     * завалил всё восстановление ошибкой «does not belong to component».
+     * <p>
+     * Снимать вложенные id безусловно (доветочное поведение) нельзя: тогда каждое
+     * восстановление пересоздаёт все строки, а {@code Script.id} — это {@code scriptId} в уже
+     * открытых сессиях мониторинга. Поэтому сверяемся построчно со строками того самого
+     * компонента: набор проверки в точности тот же, по которому аплаер потом ищет цель.
+     */
     private void dropMissingIds(List<ComponentCreateDto> dtos) {
         for (ComponentCreateDto dto : dtos) {
-            if (dto.getId() != null && !componentRepository.existsById(dto.getId())) {
-                dto.setId(null);
+            Component existing = null;
+            if (dto.getId() != null) {
+                existing = componentRepository.findById(dto.getId()).orElse(null);
+                if (existing == null) {
+                    dto.setId(null);
+                }
             }
+            dropMissingNestedIds(dto, existing);
             if (dto.getChildren() != null) {
                 dropMissingIds(dto.getChildren());
             }
         }
+    }
+
+    /** Компонента нет — значит, нет и ни одной его строки: id снимаются все. */
+    private void dropMissingNestedIds(ComponentCreateDto dto, Component existing) {
+        dropUnknownIds(dto.getScripts(), ScriptCreateDto::getId, ScriptCreateDto::setId,
+                idsOf(existing == null ? null : existing.getScripts(), Script::getId));
+        dropUnknownIds(dto.getStates(), ComponentStateDto::getId, ComponentStateDto::setId,
+                idsOf(existing == null ? null : existing.getStates(), ComponentState::getId));
+        dropUnknownIds(dto.getEvents(), EventPayloadDto::getId, EventPayloadDto::setId,
+                idsOf(existing == null ? null : existing.getEvents(), ComponentEvent::getId));
+        dropUnknownIds(dto.getBindings(), BindingPayloadDto::getId, BindingPayloadDto::setId,
+                idsOf(existing == null ? null : existing.getBindings(), Binding::getId));
+    }
+
+    private <T> void dropUnknownIds(List<T> incoming, Function<T, Long> idOf,
+                                    BiConsumer<T, Long> setId, Set<Long> known) {
+        if (incoming == null) {
+            return;
+        }
+        for (T item : incoming) {
+            Long id = idOf.apply(item);
+            if (id != null && !known.contains(id)) {
+                setId.accept(item, null);
+            }
+        }
+    }
+
+    private <E> Set<Long> idsOf(Collection<E> rows, Function<E, Long> idOf) {
+        Set<Long> ids = new HashSet<>();
+        if (rows == null) {
+            return ids;
+        }
+        for (E row : rows) {
+            Long id = idOf.apply(row);
+            if (id != null) {
+                ids.add(id);
+            }
+        }
+        return ids;
     }
 }
