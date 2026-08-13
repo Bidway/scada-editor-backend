@@ -1,5 +1,6 @@
 package com.example.editor.controller;
 
+import com.example.editor.dto.component.ComponentSaveResponseDto;
 import com.example.editor.dto.version.DocumentVersionDto;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.DocumentVersion;
@@ -66,12 +67,12 @@ public class DocumentVersionController {
     }
 
     @PostMapping("/{id}/restore/{versionNo}")
-    public DocumentVersionDto restore(@PathVariable String type, @PathVariable Long id,
-                                      @PathVariable Integer versionNo,
-                                      @RequestHeader("X-Username") String userName) {
+    public ComponentSaveResponseDto restore(@PathVariable String type, @PathVariable Long id,
+                                            @PathVariable Integer versionNo,
+                                            @RequestHeader("X-Username") String userName) {
         DocumentVersion created = versionService.restore(documentType(type), id, versionNo, userName);
-        return new DocumentVersionDto(created.getVersionNo(), created.getKind(),
-                created.getUserName(), created.getCreatedAt(), created.getRestoredFrom());
+        return new ComponentSaveResponseDto(
+                created.getContent(), created.getVersionNo(), created.getRestoredFrom());
     }
 
     static DocumentType documentType(String type) {
