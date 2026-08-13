@@ -5,9 +5,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Переименование вложенной сущности обязано сохранять её id.
@@ -72,6 +75,52 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
 
         assertThat(updated.get("states")).hasSize(1);
         assertThat(stateId(updated, "Нормальное")).isEqualTo(originalStateId);
+    }
+
+    @Test
+    void renameAndReuseOfTheFreedName_isRejectedWithExplanation() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(
+                componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
+        long componentId = created.get("id").asLong();
+        long originalScriptId = scriptId(created, "Открыть");
+
+        // Переименование по id и создание нового скрипта под освободившимся именем — одним
+        // запросом. Поддержать это нельзя: Hibernate на flush выполняет INSERT раньше UPDATE,
+        // и вставка новой строки бьётся о UNIQUE (component_id, name) раньше, чем
+        // переименование освободит имя. Отвергаем до записи и объясняем, что делать.
+        String body = mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"id\":" + componentId + ","
+                                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                                + "\"scripts\":[{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
+                                + "\"script\":\"return 1;\"},"
+                                + "{\"name\":\"Открыть\",\"script\":\"return 2;\"}],"
+                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}]"))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body)
+                .as("ошибка обязана объяснять, что делать, а не показывать констрейнт Postgres")
+                .contains("Открыть")
+                .doesNotContain("scripts_uk");
+    }
+
+    @Test
+    void plainRenameById_stillWorks() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(
+                componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
+        long componentId = created.get("id").asLong();
+        long originalScriptId = scriptId(created, "Открыть");
+
+        // Переименование без занятия освободившегося имени — обычный случай, он проходить обязан.
+        JsonNode updated = updateComponents(componentJson(
+                sceneId, componentId, "Закрыть", originalScriptId, "Норма", null)).get(0);
+
+        assertThat(updated.get("scripts")).hasSize(1);
+        assertThat(scriptId(updated, "Закрыть")).isEqualTo(originalScriptId);
     }
 
     @Test
