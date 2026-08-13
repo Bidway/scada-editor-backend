@@ -162,12 +162,17 @@ public class ComponentScriptBindingApplier {
             return;
         }
         Map<String, Script> existingByName = new HashMap<>();
+        Map<Long, Script> existingById = new HashMap<>();
         for (Script existing : entity.getScripts()) {
             existingByName.put(matchKey(existing.getName()), existing);
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+            }
         }
 
         List<Script> incoming = new ArrayList<>();
         Set<String> seenNames = new HashSet<>();
+        Set<Long> keptIds = new HashSet<>();
         for (ScriptCreateDto s : dto.getScripts()) {
             if (s.getName() == null || s.getName().isBlank()) {
                 throw new IllegalStateException("Script name is required");
@@ -178,17 +183,29 @@ public class ComponentScriptBindingApplier {
                         "Duplicate script name '" + name + "' in component " + entity.getId()
                                 + "; runScript() addresses scripts by name, so names must be unique");
             }
-            Script target = existingByName.get(name);
+            Script target = s.getId() == null ? null : existingById.get(s.getId());
+            if (target == null && s.getId() != null) {
+                throw new IllegalStateException(
+                        "Script " + s.getId() + " does not belong to component " + entity.getId());
+            }
+            if (target == null) {
+                target = existingByName.get(name);
+            }
             if (target == null) {
                 target = new Script();
                 target.setComponent(entity);
-                target.setName(name);
             }
+            target.setName(name);
             target.setScript(s.getScript());
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
             incoming.add(target);
         }
 
-        entity.getScripts().removeIf(existing -> !seenNames.contains(matchKey(existing.getName())));
+        entity.getScripts().removeIf(existing -> existing.getId() != null
+                ? !keptIds.contains(existing.getId())
+                : !seenNames.contains(matchKey(existing.getName())));
         for (Script target : incoming) {
             if (target.getId() == null) {
                 entity.getScripts().add(target);
@@ -273,12 +290,17 @@ public class ComponentScriptBindingApplier {
             return;
         }
         Map<String, ComponentEvent> existingByType = new HashMap<>();
+        Map<Long, ComponentEvent> existingById = new HashMap<>();
         for (ComponentEvent existing : entity.getEvents()) {
             existingByType.put(existing.getEventType(), existing);
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+            }
         }
 
         List<ComponentEvent> incoming = new ArrayList<>();
         Set<String> seenTypes = new HashSet<>();
+        Set<Long> keptIds = new HashSet<>();
         for (EventPayloadDto e : dto.getEvents()) {
             if (!EventTypes.isValid(e.getEvent_type())) {
                 throw new IllegalStateException(
@@ -293,17 +315,29 @@ public class ComponentScriptBindingApplier {
                         "Event " + e.getEvent_type() + " requires a script; omit the event to remove it");
             }
 
-            ComponentEvent target = existingByType.get(e.getEvent_type());
+            ComponentEvent target = e.getId() == null ? null : existingById.get(e.getId());
+            if (target == null && e.getId() != null) {
+                throw new IllegalStateException(
+                        "Event " + e.getId() + " does not belong to component " + entity.getId());
+            }
+            if (target == null) {
+                target = existingByType.get(e.getEvent_type());
+            }
             if (target == null) {
                 target = new ComponentEvent();
                 target.setComponent(entity);
-                target.setEventType(e.getEvent_type());
             }
+            target.setEventType(e.getEvent_type());
             target.setScript(e.getScript());
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
             incoming.add(target);
         }
 
-        entity.getEvents().removeIf(existing -> !seenTypes.contains(existing.getEventType()));
+        entity.getEvents().removeIf(existing -> existing.getId() != null
+                ? !keptIds.contains(existing.getId())
+                : !seenTypes.contains(existing.getEventType()));
         for (ComponentEvent target : incoming) {
             if (target.getId() == null) {
                 entity.getEvents().add(target);
