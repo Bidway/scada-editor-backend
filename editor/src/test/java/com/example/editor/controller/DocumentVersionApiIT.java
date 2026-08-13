@@ -203,6 +203,28 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
     }
 
     @Test
+    void restore_returnsDocumentContentAndVersionNo() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        saveComponents(pumpJson(sceneId, "20"));
+
+        String body = mockMvc.perform(post("/api/editor/scenes/" + sceneId + "/restore/1")
+                        .header("X-Username", USER))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode response = objectMapper.readTree(body);
+        assertThat(response.get("restored_from").asInt()).isEqualTo(1);
+        assertThat(response.get("version_no").asInt())
+                .as("восстановление дописывает историю, номер растёт")
+                .isGreaterThan(2);
+        assertThat(response.get("components"))
+                .as("содержимое приходит сразу — второй запрос за ним не нужен")
+                .isNotNull();
+        assertThat(response.get("components").get("children")).isNotEmpty();
+    }
+
+    @Test
     void versionList_filtersByPeriod() throws Exception {
         long sceneId = newScene();
         saveComponents(pumpJson(sceneId, "10"));
