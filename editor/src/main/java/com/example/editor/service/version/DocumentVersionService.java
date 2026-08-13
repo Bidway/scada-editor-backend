@@ -2,6 +2,7 @@ package com.example.editor.service.version;
 
 import com.example.editor.dto.version.DocumentVersionDto;
 import com.example.editor.exception.NotFoundException;
+import com.example.editor.exception.VersionMismatchException;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.DocumentVersion;
 import com.example.editor.model.version.VersionKind;
@@ -68,6 +69,30 @@ public class DocumentVersionService {
         version.setCreatedAt(LocalDateTime.now());
         version.setRestoredFrom(restoredFrom);
         return repository.save(version);
+    }
+
+    /**
+     * Проверяет, что клиент основывался на текущей версии документа.
+     * <p>
+     * Обязательность определяется состоянием документа, а не HTTP-методом: сохранение
+     * существующей сцены через {@code POST} иначе прошло бы мимо проверки, и «последний
+     * победил» вернулось бы с другой стороны.
+     */
+    @Transactional(readOnly = true)
+    public void requireBase(DocumentType targetType, Long targetId, Integer basedOnVersion) {
+        Optional<DocumentVersion> last =
+                repository.findTopByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId);
+        if (last.isEmpty()) {
+            return;
+        }
+        Integer current = last.get().getVersionNo();
+        if (basedOnVersion == null) {
+            throw new IllegalArgumentException(
+                    "based_on_version is required: document already has version " + current);
+        }
+        if (!basedOnVersion.equals(current)) {
+            throw new VersionMismatchException(basedOnVersion, current);
+        }
     }
 
     /**

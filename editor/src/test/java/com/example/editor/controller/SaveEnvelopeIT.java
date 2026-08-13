@@ -88,4 +88,82 @@ class SaveEnvelopeIT extends EditorApiTestSupport {
                         .content(envelope(sceneId, "WHATEVER")))
                 .andExpect(status().isBadRequest());
     }
+
+    /**
+     * {@code RESTORE} — kind, который ставит только сервер при восстановлении версии, а не
+     * значение, доступное клиенту через конверт. Иначе {@code save_kind=RESTORE} стал бы
+     * лазейкой в обход проверки {@code based_on_version}: у восстановления её нет по смыслу
+     * (оно всегда дописывает версию поверх текущей), и {@code ComponentServiceImpl} эту
+     * проверку для него не делает.
+     */
+    @Test
+    void restoreSaveKindIsRejected() throws Exception {
+        long sceneId = newScene();
+
+        mockMvc.perform(post("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(envelope(sceneId, "RESTORE")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void savingWithoutBaseVersion_whenVersionsExist_is400() throws Exception {
+        long sceneId = newScene();
+        postEnvelope(envelope(sceneId, "MANUAL"));
+
+        mockMvc.perform(post("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(envelope(sceneId, "MANUAL")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void firstSaveWithoutBaseVersion_isAllowed() throws Exception {
+        long sceneId = newScene();
+
+        JsonNode response = postEnvelope(envelope(sceneId, "MANUAL"));
+
+        assertThat(response.get("version_no").asInt())
+                .as("версий ещё не было — базе неоткуда взяться")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void staleBaseVersion_is409WithBothNumbers() throws Exception {
+        long sceneId = newScene();
+        postEnvelope(envelope(sceneId, "MANUAL"));
+        JsonNode second = postEnvelope("{\"components\":[{\"name\":\"Клапан\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + "}],\"based_on_version\":1,"
+                + "\"save_kind\":\"MANUAL\"}");
+        int current = second.get("version_no").asInt();
+
+        String body = mockMvc.perform(post("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":[{\"name\":\"Задвижка\",\"type\":\"valve\","
+                                + "\"parent_id\":" + sceneId + "}],\"based_on_version\":1,"
+                                + "\"save_kind\":\"MANUAL\"}"))
+                .andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode error = objectMapper.readTree(body);
+        assertThat(error.get("error").asText()).isEqualTo("version_mismatch");
+        assertThat(error.get("base_version").asInt()).isEqualTo(1);
+        assertThat(error.get("current_version").asInt()).isEqualTo(current);
+    }
+
+    @Test
+    void matchingBaseVersion_passes() throws Exception {
+        long sceneId = newScene();
+        JsonNode first = postEnvelope(envelope(sceneId, "MANUAL"));
+        int base = first.get("version_no").asInt();
+
+        JsonNode second = postEnvelope("{\"components\":[{\"name\":\"Клапан\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + "}],\"based_on_version\":" + base + ","
+                + "\"save_kind\":\"MANUAL\"}");
+
+        assertThat(second.get("version_no").asInt()).isGreaterThan(base);
+    }
 }

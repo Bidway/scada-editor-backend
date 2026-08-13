@@ -70,9 +70,10 @@ class ComponentSaveIT extends EditorApiTestSupport {
         ComponentState legacy = componentStateRepository.findById(stateId).orElseThrow();
         legacy.setName("  Открыт  ");
         componentStateRepository.save(legacy);
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode resaved = updateComponents(
-                componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
+                componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(resaved.get("states")).hasSize(1);
         assertThat(resaved.get("states").get(0).get("id").asLong())
@@ -89,9 +90,10 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         long setpointId = propertyId(created, "Уставка");
         long modeId = propertyId(created, "Режим");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode resaved = updateComponents(
-                componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
+                componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(propertyId(resaved, "Уставка")).isEqualTo(setpointId);
         assertThat(propertyId(resaved, "Режим")).isEqualTo(modeId);
@@ -104,10 +106,11 @@ class ComponentSaveIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
         long componentId = created.get("id").asLong();
         long openId = scriptId(created, "Открыть клапан");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode resaved = updateComponents(componentJson(sceneId, componentId, TWO_ROWS,
                 "[{\"name\":\"Открыть клапан\",\"script\":\"writeTag('T1', 100)\"}]",
-                ONE_STATE, ONE_EVENT)).get(0);
+                ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(scriptId(resaved, "Открыть клапан")).isEqualTo(openId);
         assertThat(resaved.get("scripts").get(0).get("script").asText())
@@ -122,9 +125,10 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         long stateId = created.get("states").get(0).get("id").asLong();
         long eventId = created.get("events").get(0).get("id").asLong();
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode resaved = updateComponents(
-                componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
+                componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(resaved.get("states").get(0).get("id").asLong()).isEqualTo(stateId);
         assertThat(resaved.get("events").get(0).get("id").asLong()).isEqualTo(eventId);
@@ -142,10 +146,11 @@ class ComponentSaveIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(
                 componentJson(sceneId, null, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
         long componentId = created.get("id").asLong();
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode resaved = updateComponents(componentJson(sceneId, componentId, TWO_ROWS,
                 ONE_SCRIPT, ONE_STATE,
-                "[{\"event_type\":\"onClick\",\"script\":\"runScript('Другой')\"}]")).get(0);
+                "[{\"event_type\":\"onClick\",\"script\":\"runScript('Другой')\"}]"), base).get(0);
 
         assertThat(resaved.get("events")).hasSize(1);
         assertThat(resaved.get("events").get(0).get("script").asText())
@@ -159,11 +164,12 @@ class ComponentSaveIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
         long componentId = created.get("id").asLong();
         long setpointId = propertyId(created, "Уставка");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode resaved = updateComponents(componentJson(sceneId, componentId,
                 "[{\"name\":\"Уставка\",\"value_type\":\"double\",\"property_type\":\"Тег\"},"
                 + "{\"name\":\"Новая\",\"value_type\":\"bool\",\"property_type\":\"Тег\"}]",
-                ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
+                ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(resaved.get("properties")).hasSize(2);
         assertThat(propertyId(resaved, "Уставка")).isEqualTo(setpointId);
@@ -181,9 +187,10 @@ class ComponentSaveIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(
                 componentJson(sceneId, null, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT)).get(0);
         long componentId = created.get("id").asLong();
+        Integer base = currentVersion(sceneId, "scenes");
 
         updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
-                + "\"parent_id\":" + sceneId + ",\"scripts\":" + ONE_SCRIPT + "}]");
+                + "\"parent_id\":" + sceneId + ",\"scripts\":" + ONE_SCRIPT + "}]", base);
 
         assertThat(getComponent(componentId).get("properties")).hasSize(2);
     }

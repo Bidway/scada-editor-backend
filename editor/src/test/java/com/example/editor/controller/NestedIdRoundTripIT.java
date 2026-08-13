@@ -52,9 +52,10 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalScriptId = scriptId(created, "Открыть");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode updated = updateComponents(componentJson(
-                sceneId, componentId, "Открыть клапан", originalScriptId, "Норма", null)).get(0);
+                sceneId, componentId, "Открыть клапан", originalScriptId, "Норма", null), base).get(0);
 
         assertThat(updated.get("scripts")).hasSize(1);
         assertThat(scriptId(updated, "Открыть клапан"))
@@ -69,9 +70,10 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalStateId = stateId(created, "Норма");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode updated = updateComponents(componentJson(
-                sceneId, componentId, "Открыть", null, "Нормальное", originalStateId)).get(0);
+                sceneId, componentId, "Открыть", null, "Нормальное", originalStateId), base).get(0);
 
         assertThat(updated.get("states")).hasSize(1);
         assertThat(stateId(updated, "Нормальное")).isEqualTo(originalStateId);
@@ -84,6 +86,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalScriptId = scriptId(created, "Открыть");
+        Integer base = currentVersion(sceneId, "scenes");
 
         // Переименование по id и создание нового скрипта под освободившимся именем — одним
         // запросом. Поддержать это нельзя: Hibernate на flush выполняет INSERT раньше UPDATE,
@@ -98,6 +101,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                                 + "\"script\":\"return 1;\"},"
                                 + "{\"name\":\"Открыть\",\"script\":\"return 2;\"}],"
                                 + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
+                                + "\"based_on_version\":" + base + ","
                                 + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andReturn().getResponse().getContentAsString();
@@ -115,10 +119,11 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalScriptId = scriptId(created, "Открыть");
+        Integer base = currentVersion(sceneId, "scenes");
 
         // Переименование без занятия освободившегося имени — обычный случай, он проходить обязан.
         JsonNode updated = updateComponents(componentJson(
-                sceneId, componentId, "Закрыть", originalScriptId, "Норма", null)).get(0);
+                sceneId, componentId, "Закрыть", originalScriptId, "Норма", null), base).get(0);
 
         assertThat(updated.get("scripts")).hasSize(1);
         assertThat(scriptId(updated, "Закрыть")).isEqualTo(originalScriptId);
@@ -131,9 +136,10 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalScriptId = scriptId(created, "Открыть");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode updated = updateComponents(componentJson(
-                sceneId, componentId, "Открыть", null, "Норма", null)).get(0);
+                sceneId, componentId, "Открыть", null, "Норма", null), base).get(0);
 
         assertThat(scriptId(updated, "Открыть"))
                 .as("id не прислали — сопоставление по имени работает как раньше")
@@ -155,6 +161,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         // ошибки. После правки id разбирается первым проходом, элемент без id получает новую
         // строку под именем "Открыть", которое как раз освобождает переименование — это ловит
         // rejectNameSwaps.
+        Integer base = currentVersion(sceneId, "scenes");
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -164,6 +171,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                                 + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                                 + "\"script\":\"return 2;\"}],"
                                 + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
+                                + "\"based_on_version\":" + base + ","
                                 + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andReturn().getResponse().getContentAsString();
@@ -181,6 +189,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalScriptId = scriptId(created, "Открыть");
+        Integer base = currentVersion(sceneId, "scenes");
 
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
@@ -192,6 +201,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                                 + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                                 + "\"script\":\"return 2;\"}],"
                                 + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
+                                + "\"based_on_version\":" + base + ","
                                 + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andReturn().getResponse().getContentAsString();
@@ -227,9 +237,10 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(withBinding(sceneId, null, "цвет", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalBindingId = bindingId(created, "цвет");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode updated = updateComponents(
-                withBinding(sceneId, componentId, "цвет", null)).get(0);
+                withBinding(sceneId, componentId, "цвет", null), base).get(0);
 
         assertThat(bindingId(updated, "цвет"))
                 .as("пересохранение без правок не должно менять id биндинга (scada-dna)")
@@ -242,9 +253,10 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(withBinding(sceneId, null, "цвет", null)).get(0);
         long componentId = created.get("id").asLong();
         long originalBindingId = bindingId(created, "цвет");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode updated = updateComponents(
-                withBinding(sceneId, componentId, "заливка", originalBindingId)).get(0);
+                withBinding(sceneId, componentId, "заливка", originalBindingId), base).get(0);
 
         assertThat(updated.get("bindings")).hasSize(1);
         assertThat(bindingId(updated, "заливка")).isEqualTo(originalBindingId);

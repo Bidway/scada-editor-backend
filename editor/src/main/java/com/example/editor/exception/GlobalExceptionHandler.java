@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -42,6 +43,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleUnreadableBody(HttpMessageNotReadableException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, "Malformed request body");
+    }
+
+    /**
+     * Форма ответа здесь своя, не через {@link #buildResponse}: контракт с фронтом обещает
+     * {@code error: "version_mismatch"} и оба номера версий, а общий обработчик кладёт в
+     * {@code error} reason phrase.
+     */
+    @ExceptionHandler(VersionMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleVersionMismatch(VersionMismatchException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "version_mismatch");
+        body.put("base_version", ex.getBaseVersion());
+        body.put("current_version", ex.getCurrentVersion());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(Exception.class)

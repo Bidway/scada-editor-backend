@@ -15,10 +15,18 @@ public class VersionKinds {
         if (saveKind == null || saveKind.isBlank()) {
             return VersionKind.MANUAL;
         }
+        VersionKind kind;
         try {
-            return VersionKind.valueOf(saveKind.trim().toUpperCase());
+            kind = VersionKind.valueOf(saveKind.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Unknown save_kind: " + saveKind);
         }
+        // RESTORE клиент прислать не может: этот kind ставит только сам сервер при
+        // восстановлении версии, и от него зависит обход проверки based_on_version — иначе
+        // сохранение с save_kind=RESTORE обходило бы её.
+        if (kind == VersionKind.RESTORE) {
+            throw new IllegalArgumentException("Unknown save_kind: " + saveKind);
+        }
+        return kind;
     }
 }

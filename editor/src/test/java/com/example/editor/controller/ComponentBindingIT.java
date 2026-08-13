@@ -52,13 +52,14 @@ class ComponentBindingIT extends EditorApiTestSupport {
                 + "\"property_type\":\"Тег\"}]}]").get(0);
         long componentId = created.get("id").asLong();
         long setpointId = propertyId(created, "Уставка");
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode updated = updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\","
                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
                 + "\"property_type\":\"Тег\"}],"
                 + "\"bindings\":[{\"component_property_id\":" + setpointId + ","
-                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]").get(0);
+                + "\"name\":\"цвет\",\"script\":\"'red'\"}]}]", base).get(0);
 
         assertThat(updated.get("bindings").get(0).get("component_property_id").asLong())
                 .isEqualTo(setpointId);
@@ -77,11 +78,12 @@ class ComponentBindingIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         assertThat(created.get("properties")).hasSize(2);
         assertThat(created.get("bindings")).hasSize(1);
+        Integer base = currentVersion(sceneId, "scenes");
 
         JsonNode updated = updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\","
                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"properties\":[{\"name\":\"Скорость\",\"value_type\":\"double\","
-                + "\"property_type\":\"Тег\"}]}]").get(0);
+                + "\"property_type\":\"Тег\"}]}]", base).get(0);
 
         assertThat(updated.get("properties")).hasSize(1);
         assertThat(updated.get("bindings")).isEmpty();
@@ -111,6 +113,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
                 + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
                 + "\"property_type\":\"Тег\"}]}]").get(0);
         long foreignPropertyId = propertyId(other, "Уставка");
+        Integer base = currentVersion(sceneId, "scenes");
 
         mockMvc.perform(post("/api/editor/components")
                         .header("X-Username", USER)
@@ -119,6 +122,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
                                 + "\"parent_id\":" + sceneId + ","
                                 + "\"bindings\":[{\"component_property_id\":" + foreignPropertyId + ","
                                 + "\"name\":\"цвет\",\"script\":\"'red'\"}]}],"
+                                + "\"based_on_version\":" + base + ","
                                 + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("does not belong to component")));
@@ -134,6 +138,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
                 + "{\"name\":\"Уставка\",\"value_type\":\"double\",\"property_type\":\"Тег\"}]}]").get(0);
         long componentId = created.get("id").asLong();
         long setpointId = propertyId(created, "Уставка");
+        Integer base = currentVersion(sceneId, "scenes");
 
         mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
@@ -144,6 +149,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
                                 + "\"property_type\":\"Тег\"}],"
                                 + "\"bindings\":[{\"component_property_id\":" + setpointId + ","
                                 + "\"name\":\"цвет\",\"script\":\"'red'\"}]}],"
+                                + "\"based_on_version\":" + base + ","
                                 + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("not among the properties sent")));
