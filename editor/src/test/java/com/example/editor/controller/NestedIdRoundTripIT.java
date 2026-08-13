@@ -92,12 +92,13 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"id\":" + componentId + ","
+                        .content("{\"components\":[{\"id\":" + componentId + ","
                                 + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                                 + "\"scripts\":[{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                                 + "\"script\":\"return 1;\"},"
                                 + "{\"name\":\"Открыть\",\"script\":\"return 2;\"}],"
-                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}]"))
+                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
+                                + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andReturn().getResponse().getContentAsString();
 
@@ -157,12 +158,13 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"id\":" + componentId + ","
+                        .content("{\"components\":[{\"id\":" + componentId + ","
                                 + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                                 + "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"},"
                                 + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                                 + "\"script\":\"return 2;\"}],"
-                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}]"))
+                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
+                                + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andReturn().getResponse().getContentAsString();
 
@@ -183,13 +185,14 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"id\":" + componentId + ","
+                        .content("{\"components\":[{\"id\":" + componentId + ","
                                 + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                                 + "\"scripts\":[{\"id\":" + originalScriptId + ",\"name\":\"Открыть\","
                                 + "\"script\":\"return 1;\"},"
                                 + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                                 + "\"script\":\"return 2;\"}],"
-                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}]"))
+                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
+                                + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
                 .andReturn().getResponse().getContentAsString();
 
