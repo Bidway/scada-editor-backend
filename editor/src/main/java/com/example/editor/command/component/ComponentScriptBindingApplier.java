@@ -163,21 +163,7 @@ public class ComponentScriptBindingApplier {
             ComponentPropertyRepository propertyRepository
     ) {
         applyScripts(entity, dto);
-
-        entity.getBindings().clear();
-        if (dto.getBindings() != null) {
-            for (BindingPayloadDto b : dto.getBindings()) {
-                entity.getBindings().add(
-                        Binding.builder()
-                                .name(b.getName())
-                                .script(b.getScript())
-                                .component(entity)
-                                .componentProperty(resolveBindingProperty(entity, b, propertyRepository))
-                                .build()
-                );
-            }
-        }
-
+        applyBindings(entity, dto, propertyRepository);
         applyEvents(entity, dto);
     }
 
@@ -256,6 +242,74 @@ public class ComponentScriptBindingApplier {
         for (Script target : incoming) {
             if (target.getId() == null) {
                 entity.getScripts().add(target);
+            }
+        }
+    }
+
+    /**
+     * Синхронизация биндингов. Раньше здесь стоял {@code clear()} с повторной вставкой, и
+     * {@code Binding.id} менялся на каждом сохранении сцены (scada-dna). Ключ сопоставления —
+     * сначала присланный id, затем имя: имя биндинга уникальным не объявлено, поэтому
+     * одноимённые разбираются по порядку — первый свободный с этим именем.
+     */
+    private void applyBindings(
+            Component entity,
+            ComponentCreateDto dto,
+            ComponentPropertyRepository propertyRepository
+    ) {
+        if (dto.getBindings() == null) {
+            entity.getBindings().clear();
+            return;
+        }
+        Map<Long, Binding> existingById = new HashMap<>();
+        Map<String, List<Binding>> existingByName = new HashMap<>();
+        for (Binding existing : entity.getBindings()) {
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+            }
+            existingByName
+                    .computeIfAbsent(matchKey(existing.getName()), k -> new ArrayList<>())
+                    .add(existing);
+        }
+
+        Set<Long> keptIds = new HashSet<>();
+        List<Binding> incoming = new ArrayList<>();
+        for (BindingPayloadDto b : dto.getBindings()) {
+            Binding target = b.getId() == null ? null : existingById.get(b.getId());
+            if (target == null && b.getId() != null) {
+                throw new IllegalStateException(
+                        "Binding " + b.getId() + " does not belong to component " + entity.getId());
+            }
+            if (target == null) {
+                List<Binding> sameName = existingByName.get(matchKey(b.getName()));
+                if (sameName != null) {
+                    for (Binding candidate : sameName) {
+                        if (candidate.getId() == null || !keptIds.contains(candidate.getId())) {
+                            target = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (target == null) {
+                target = new Binding();
+                target.setComponent(entity);
+            }
+            target.setName(b.getName());
+            target.setScript(b.getScript());
+            target.setComponentProperty(resolveBindingProperty(entity, b, propertyRepository));
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
+            incoming.add(target);
+        }
+
+        entity.getBindings().removeIf(existing ->
+                existing.getId() != null ? !keptIds.contains(existing.getId())
+                        : !incoming.contains(existing));
+        for (Binding target : incoming) {
+            if (target.getId() == null && !entity.getBindings().contains(target)) {
+                entity.getBindings().add(target);
             }
         }
     }
