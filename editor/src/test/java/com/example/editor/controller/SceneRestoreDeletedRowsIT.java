@@ -130,22 +130,24 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
     }
 
     /**
-     * Обратная сторона правки: снимать id подряд у всех вложенных сущностей нельзя. Строка,
-     * пережившая удаление соседки, обязана сохранить свой номер — иначе восстановление
-     * обесценивает {@code scriptId} в открытых сессиях мониторинга ровно так же, как это делало
-     * пересоздание строк при каждом сохранении.
+     * Обратная сторона правки: снимать id подряд у всех вложенных сущностей нельзя. Сценарий
+     * подобран так, чтобы отличить принятую правку от отвергнутого варианта («снимать вложенные
+     * id безусловно»): скрипт между версиями переименован, поэтому по имени пережившую строку
+     * не найти — совпадение имён её не выдаёт. Единственный способ вернуть версии 1 её прежнее
+     * имя, не потеряв id, — сопоставление по id, дошедшему из снимка живым. Если бы id снимался
+     * безусловно, строка «Открыть» из версии 1 не нашлась бы среди текущих (там она называется
+     * «Старт»), и восстановление создало бы новую строку с новым id вместо переименования старой.
      */
     @Test
     void restoringVersion_keepsIdsOfRowsThatStillExist() throws Exception {
         long sceneId = newScene();
-        String both = "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"},"
-                + "{\"name\":\"Закрыть\",\"script\":\"return 2;\"}]";
-        JsonNode created = saveComponents(pump(sceneId, null, both)).get(0);
+        JsonNode created = saveComponents(pump(sceneId, null,
+                "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"}]")).get(0);
         long componentId = created.get("id").asLong();
         long survivingId = scriptId(created, "Открыть");
 
         updateComponents(pump(sceneId, componentId,
-                "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"}]"),
+                "\"scripts\":[{\"id\":" + survivingId + ",\"name\":\"Старт\",\"script\":\"return 1;\"}]"),
                 currentVersion(sceneId, "scenes"));
 
         restore(sceneId, 1);
