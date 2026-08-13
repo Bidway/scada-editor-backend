@@ -3,6 +3,7 @@ package com.example.editor.controller;
 import com.example.editor.dto.version.DocumentVersionDto;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.DocumentVersion;
+import com.example.editor.model.version.VersionKind;
 import com.example.editor.service.version.DocumentVersionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
@@ -34,8 +35,16 @@ public class DocumentVersionController {
     private final DocumentVersionService versionService;
 
     @GetMapping("/{id}/versions")
-    public List<DocumentVersionDto> versions(@PathVariable String type, @PathVariable Long id) {
-        return versionService.list(documentType(type), id);
+    public List<DocumentVersionDto> versions(
+            @PathVariable String type,
+            @PathVariable Long id,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) List<VersionKind> kind,
+            @RequestParam(required = false) Integer limit) {
+        return versionService.list(documentType(type), id, from, to, kind, limit);
     }
 
     @GetMapping("/{id}/versions/{versionNo}")

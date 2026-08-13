@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -25,6 +28,15 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         return "[{\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
                 + "\"property_type\":\"Тег\",\"default_value\":\"" + setpoint + "\"}]}]";
+    }
+
+    private void saveComponentsAs(String kind, String json) throws Exception {
+        mockMvc.perform(post("/api/editor/components")
+                        .header("X-Username", USER)
+                        .header("X-Save-Kind", kind)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk());
     }
 
     private String pumpUpdateJson(long sceneId, long componentId, String setpoint) {
@@ -143,5 +155,66 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
 
         mockMvc.perform(get("/api/editor/components/" + extraId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void versionList_filtersByKind() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        saveComponentsAs("AUTOSAVE", pumpJson(sceneId, "20"));
+
+        String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("kind", "MANUAL"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode versions = objectMapper.readTree(body);
+        assertThat(versions).isNotEmpty();
+        for (JsonNode v : versions) {
+            assertThat(v.get("kind").asText())
+                    .as("фильтр по kind — ради «показать только ручные» в истории")
+                    .isEqualTo("MANUAL");
+        }
+    }
+
+    @Test
+    void versionList_respectsLimit() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        saveComponents(pumpJson(sceneId, "20"));
+        saveComponents(pumpJson(sceneId, "30"));
+
+        String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(objectMapper.readTree(body)).hasSize(2);
+    }
+
+    @Test
+    void versionList_rejectsLimitAboveCeiling() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+
+        mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("limit", "501"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void versionList_filtersByPeriod() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+
+        String future = LocalDateTime.now().plusDays(1).toString();
+        String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("from", future))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(objectMapper.readTree(body))
+                .as("нижняя граница в будущем — в окно не попадает ничего")
+                .isEmpty();
     }
 }
