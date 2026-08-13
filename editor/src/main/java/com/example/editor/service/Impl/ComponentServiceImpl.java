@@ -56,6 +56,7 @@ public class ComponentServiceImpl implements ComponentService {
     @Override
     public ComponentSaveResponseDto create(List<ComponentCreateDto> dtos, String userName,
                                            VersionKind kind, Integer basedOnVersion) {
+        requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new CreateComponentCommand(repository, prepared, componentMapper, mapper, userName));
@@ -91,6 +92,7 @@ public class ComponentServiceImpl implements ComponentService {
     @Override
     public ComponentSaveResponseDto update(List<ComponentCreateDto> dtos, String userName,
                                            VersionKind kind, Integer basedOnVersion) {
+        requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
         List<Component> prepared = dtos.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
@@ -139,6 +141,42 @@ public class ComponentServiceImpl implements ComponentService {
                     sceneDocumentSource.contentOf(sceneId), userName, kind, null).getVersionNo();
         }
         return last;
+    }
+
+    /**
+     * Восстановление — тоже {@code update} изнутри ({@link SceneDocumentSource#restore}), но
+     * без клиента и без версии на входе: оно всегда дописывает новую версию поверх текущей,
+     * какой бы она ни была, поэтому проверка тут смысла не имеет и обязана пропускаться.
+     * Клиент этот путь подделать не может: {@code save_kind=RESTORE} отклоняется раньше,
+     * в {@link com.example.editor.model.version.VersionKinds#orManual}.
+     */
+    private void requireBaseUnlessRestoring(List<ComponentCreateDto> dtos, VersionKind kind,
+                                            Integer basedOnVersion) {
+        if (kind != VersionKind.RESTORE) {
+            requireBaseForScenesOf(dtos, basedOnVersion);
+        }
+    }
+
+    /**
+     * Сцену для проверки ищем по присланным dto, а не по подготовленным сущностям: проверка
+     * обязана сработать до того, как что-либо записано. Для новых компонентов сцена берётся из
+     * {@code parent_id}, для существующих — подъёмом по дереву от самого компонента.
+     */
+    private void requireBaseForScenesOf(List<ComponentCreateDto> dtos, Integer basedOnVersion) {
+        Set<Long> sceneIds = new LinkedHashSet<>();
+        for (ComponentCreateDto dto : dtos) {
+            Long anchor = dto.getId() != null ? dto.getId() : dto.getParent_id();
+            if (anchor == null) {
+                continue;
+            }
+            repository.findById(anchor)
+                    .map(this::sceneRootIdOf)
+                    .filter(Objects::nonNull)
+                    .ifPresent(sceneIds::add);
+        }
+        for (Long sceneId : sceneIds) {
+            versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
+        }
     }
 
     /** Связь parent ленивая — подниматься можно только пока открыта сессия. */

@@ -29,8 +29,8 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
                 + "\"property_type\":\"Тег\",\"default_value\":\"" + setpoint + "\"}]}]";
     }
 
-    private void saveComponentsAs(String kind, String json) throws Exception {
-        saveComponents(json, null, kind);
+    private void saveComponentsAs(String kind, String json, Integer basedOnVersion) throws Exception {
+        saveComponents(json, basedOnVersion, kind);
     }
 
     private String pumpUpdateJson(long sceneId, long componentId, String setpoint) {
@@ -52,7 +52,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
         long componentId = created.get("id").asLong();
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         JsonNode versions = getJson("/api/editor/scenes/" + sceneId + "/versions");
 
@@ -81,7 +81,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         String between = java.time.LocalDateTime.now().toString();
         Thread.sleep(20);
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         JsonNode content = getJson("/api/editor/scenes/" + sceneId + "/at?time=" + between);
 
@@ -109,7 +109,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         long propertyId = propertyId(created, "Уставка");
 
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
 
@@ -127,7 +127,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
         long componentId = created.get("id").asLong();
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
 
@@ -142,7 +142,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         saveComponents(pumpJson(sceneId, "10"));
         JsonNode extra = saveComponents("[{\"name\":\"Клапан\",\"type\":\"valve\","
-                + "\"parent_id\":" + sceneId + "}]").get(0);
+                + "\"parent_id\":" + sceneId + "}]", currentVersion(sceneId, "scenes"), "MANUAL").get(0);
         long extraId = extra.get("id").asLong();
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
@@ -155,7 +155,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
     void versionList_filtersByKind() throws Exception {
         long sceneId = newScene();
         saveComponents(pumpJson(sceneId, "10"));
-        saveComponentsAs("AUTOSAVE", pumpJson(sceneId, "20"));
+        saveComponentsAs("AUTOSAVE", pumpJson(sceneId, "20"), currentVersion(sceneId, "scenes"));
 
         String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
                         .param("kind", "MANUAL"))
@@ -175,8 +175,8 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
     void versionList_respectsLimit() throws Exception {
         long sceneId = newScene();
         saveComponents(pumpJson(sceneId, "10"));
-        saveComponents(pumpJson(sceneId, "20"));
-        saveComponents(pumpJson(sceneId, "30"));
+        saveComponents(pumpJson(sceneId, "20"), currentVersion(sceneId, "scenes"), "MANUAL");
+        saveComponents(pumpJson(sceneId, "30"), currentVersion(sceneId, "scenes"), "MANUAL");
 
         String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
                         .param("limit", "2"))
@@ -200,7 +200,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
     void restore_returnsDocumentContentAndVersionNo() throws Exception {
         long sceneId = newScene();
         saveComponents(pumpJson(sceneId, "10"));
-        saveComponents(pumpJson(sceneId, "20"));
+        saveComponents(pumpJson(sceneId, "20"), currentVersion(sceneId, "scenes"), "MANUAL");
 
         String body = mockMvc.perform(post("/api/editor/scenes/" + sceneId + "/restore/1")
                         .header("X-Username", USER))

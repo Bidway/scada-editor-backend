@@ -205,7 +205,7 @@ class SceneVersionIT extends EditorApiTestSupport {
         updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
                 + "\"parent_id\":" + sceneId + ",\"properties\":[{\"name\":\"Уставка\","
                 + "\"value_type\":\"double\",\"property_type\":\"Тег\","
-                + "\"default_value\":\"10\"}]}]");
+                + "\"default_value\":\"10\"}]}]", currentVersion(sceneId, "scenes"));
 
         assertThat(versionsOf(sceneId))
                 .as("содержимое то же — версии быть не должно; счётчик @Version, растущий на "
