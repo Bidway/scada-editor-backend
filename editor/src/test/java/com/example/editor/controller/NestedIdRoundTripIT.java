@@ -261,4 +261,165 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         assertThat(updated.get("bindings")).hasSize(1);
         assertThat(bindingId(updated, "заливка")).isEqualTo(originalBindingId);
     }
+
+    private long eventId(JsonNode component, String eventType) {
+        for (JsonNode e : component.get("events")) {
+            if (eventType.equals(e.get("event_type").asText())) {
+                return e.get("id").asLong();
+            }
+        }
+        throw new AssertionError("Нет обработчика '" + eventType + "' в " + component);
+    }
+
+    /**
+     * У обработчиков ключ сопоставления — тип, а не имя, и на нём висит UNIQUE
+     * {@code (component_id, event_type)}. Смена типа по id — то же самое, что переименование у
+     * соседей: строка обязана остаться той же, иначе пара DELETE+INSERT в одной транзакции
+     * упирается в этот констрейнт (порядок операций внутри flush не поменять).
+     */
+    @Test
+    void changingEventTypeById_keepsItsId() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(withEvent(sceneId, null, "onClick", null)).get(0);
+        long componentId = created.get("id").asLong();
+        long originalEventId = eventId(created, "onClick");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        JsonNode updated = updateComponents(
+                withEvent(sceneId, componentId, "onHover", originalEventId), base).get(0);
+
+        assertThat(updated.get("events")).hasSize(1);
+        assertThat(eventId(updated, "onHover"))
+                .as("прислали id — это смена типа, а не новая строка")
+                .isEqualTo(originalEventId);
+    }
+
+    private String withEvent(long sceneId, Long componentId, String eventType, Long eventId) {
+        return "[{" + (componentId == null ? "" : "\"id\":" + componentId + ",")
+                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"events\":[{" + (eventId == null ? "" : "\"id\":" + eventId + ",")
+                + "\"event_type\":\"" + eventType + "\",\"script\":\"a()\"}]}]";
+    }
+
+    /**
+     * Полный компонент под именем {@code name}: по одной строке каждого вида, чтобы у второго
+     * компонента было чем «одолжить» чужой id.
+     */
+    private String fullComponent(String name, long sceneId) {
+        return "{\"name\":\"" + name + "\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"}],"
+                + "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"}],"
+                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}],"
+                + "\"events\":[{\"event_type\":\"onClick\",\"script\":\"a()\"}],"
+                + "\"bindings\":[{\"component_property_name\":\"Уставка\",\"name\":\"цвет\","
+                + "\"script\":\"{}\"}]}";
+    }
+
+    private String rejectedUpdate(String componentsJson, Integer base) throws Exception {
+        return mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":" + componentsJson
+                                + ",\"based_on_version\":" + base
+                                + ",\"save_kind\":\"MANUAL\"}"))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    /**
+     * Чужой вложенный id — это ошибка запроса, а не повод молча создать новую строку: клиент
+     * адресовал конкретную строку и обязан узнать, что промахнулся. Отдельно проверяем, что
+     * сообщение называет и id, и компонент — именно по нему в C1 нашлась причина 400 на
+     * восстановлении.
+     */
+    @Test
+    void scriptIdOfAnotherComponent_isRejected() throws Exception {
+        long sceneId = newScene();
+        JsonNode saved = saveComponents(
+                "[" + fullComponent("Насос", sceneId) + "," + fullComponent("Клапан", sceneId) + "]");
+        long componentId = saved.get(0).get("id").asLong();
+        long foreignScriptId = scriptId(saved.get(1), "Открыть");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        String body = rejectedUpdate("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+                + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"scripts\":[{\"id\":" + foreignScriptId + ",\"name\":\"Открыть\","
+                + "\"script\":\"return 1;\"}]}]", base);
+
+        assertThat(body).contains("Script " + foreignScriptId + " does not belong to component "
+                + componentId);
+    }
+
+    @Test
+    void stateIdOfAnotherComponent_isRejected() throws Exception {
+        long sceneId = newScene();
+        JsonNode saved = saveComponents(
+                "[" + fullComponent("Насос", sceneId) + "," + fullComponent("Клапан", sceneId) + "]");
+        long componentId = saved.get(0).get("id").asLong();
+        long foreignStateId = stateId(saved.get(1), "Норма");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        String body = rejectedUpdate("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+                + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"states\":[{\"id\":" + foreignStateId + ",\"name\":\"Норма\",\"image\":{},"
+                + "\"isDefault\":true}]}]", base);
+
+        assertThat(body).contains("State " + foreignStateId + " does not belong to component "
+                + componentId);
+    }
+
+    @Test
+    void eventIdOfAnotherComponent_isRejected() throws Exception {
+        long sceneId = newScene();
+        JsonNode saved = saveComponents(
+                "[" + fullComponent("Насос", sceneId) + "," + fullComponent("Клапан", sceneId) + "]");
+        long componentId = saved.get(0).get("id").asLong();
+        long foreignEventId = eventId(saved.get(1), "onClick");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        String body = rejectedUpdate("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+                + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"events\":[{\"id\":" + foreignEventId + ",\"event_type\":\"onClick\","
+                + "\"script\":\"a()\"}]}]", base);
+
+        assertThat(body).contains("Event " + foreignEventId + " does not belong to component "
+                + componentId);
+    }
+
+    @Test
+    void bindingIdOfAnotherComponent_isRejected() throws Exception {
+        long sceneId = newScene();
+        JsonNode saved = saveComponents(
+                "[" + fullComponent("Насос", sceneId) + "," + fullComponent("Клапан", sceneId) + "]");
+        long componentId = saved.get(0).get("id").asLong();
+        long foreignBindingId = bindingId(saved.get(1), "цвет");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        String body = rejectedUpdate("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+                + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"}],"
+                + "\"bindings\":[{\"id\":" + foreignBindingId + ","
+                + "\"component_property_name\":\"Уставка\",\"name\":\"цвет\","
+                + "\"script\":\"{}\"}]}]", base);
+
+        assertThat(body).contains("Binding " + foreignBindingId + " does not belong to component "
+                + componentId);
+    }
+
+    /** Несуществующий id неотличим от чужого: строки нет среди строк компонента — отказ. */
+    @Test
+    void unknownNestedId_isRejected() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(
+                componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
+        long componentId = created.get("id").asLong();
+        Integer base = currentVersion(sceneId, "scenes");
+
+        String body = rejectedUpdate(componentJson(
+                sceneId, componentId, "Открыть", 999_999_999L, "Норма", null), base);
+
+        assertThat(body).contains("Script 999999999 does not belong to component " + componentId);
+    }
 }
