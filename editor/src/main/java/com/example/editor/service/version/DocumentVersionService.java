@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -104,9 +105,31 @@ public class DocumentVersionService {
                 .orElseThrow(() -> new IllegalStateException("No DocumentSource for " + targetType));
     }
 
+    /** Потолок выборки: история сцены растёт на ~32 версии в день при автосохранении. */
+    public static final int MAX_LIMIT = 500;
+    public static final int DEFAULT_LIMIT = 100;
+
     @Transactional(readOnly = true)
     public List<DocumentVersionDto> list(DocumentType targetType, Long targetId) {
-        return repository.findByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId)
+        return list(targetType, targetId, null, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentVersionDto> list(DocumentType targetType, Long targetId,
+                                         LocalDateTime from, LocalDateTime to,
+                                         List<VersionKind> kinds, Integer limit) {
+        int effectiveLimit = limit == null ? DEFAULT_LIMIT : limit;
+        if (effectiveLimit < 1 || effectiveLimit > MAX_LIMIT) {
+            throw new IllegalArgumentException(
+                    "limit must be between 1 and " + MAX_LIMIT + ", got " + effectiveLimit);
+        }
+        // Фильтр не задан — подставляем все значения: пустой список в JPQL `in` биндить нельзя.
+        List<VersionKind> effectiveKinds = kinds == null || kinds.isEmpty()
+                ? List.of(VersionKind.values())
+                : kinds;
+        return repository
+                .findFiltered(targetType, targetId, from, to, effectiveKinds,
+                        PageRequest.of(0, effectiveLimit))
                 .stream()
                 .map(v -> new DocumentVersionDto(v.getVersionNo(), v.getKind(), v.getUserName(),
                         v.getCreatedAt(), v.getRestoredFrom()))
