@@ -8,6 +8,12 @@ import lombok.Data;
  */
 @Data
 public class EventPayloadDto {
+    /**
+     * id существующей строки. {@code null} означает «сущность новая» — это значение, а не
+     * пропуск: у объекта, которого ещё нет в базе, id взяться неоткуда. Прислали id —
+     * сопоставляем по нему, и переименование остаётся переименованием.
+     */
+    private Long id;
     private String event_type;
     private String script;
 }

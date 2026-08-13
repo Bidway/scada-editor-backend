@@ -248,12 +248,17 @@ public class ComponentServiceImpl implements ComponentService {
             return;
         }
         Map<String, ComponentState> existingByName = new HashMap<>();
+        Map<Long, ComponentState> existingById = new HashMap<>();
         for (ComponentState existing : entity.getStates()) {
             existingByName.put(ComponentScriptBindingApplier.matchKey(existing.getName()), existing);
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+            }
         }
 
         List<ComponentState> incoming = new ArrayList<>();
         Set<String> seenNames = new HashSet<>();
+        Set<Long> keptIds = new HashSet<>();
         for (ComponentStateDto s : dto.getStates()) {
             if (s.getName() == null || s.getName().isBlank()) {
                 throw new IllegalStateException("State name is required");
@@ -264,19 +269,30 @@ public class ComponentServiceImpl implements ComponentService {
                         "Duplicate state name '" + name + "' in component " + entity.getId()
                                 + "; setState() addresses states by name, so names must be unique");
             }
-            ComponentState target = existingByName.get(name);
+            ComponentState target = s.getId() == null ? null : existingById.get(s.getId());
+            if (target == null && s.getId() != null) {
+                throw new IllegalStateException(
+                        "State " + s.getId() + " does not belong to component " + entity.getId());
+            }
+            if (target == null) {
+                target = existingByName.get(name);
+            }
             if (target == null) {
                 target = new ComponentState();
                 target.setComponent(entity);
-                target.setName(name);
             }
+            target.setName(name);
             target.setImage(stripEvents(s.getImage()));
             target.setIsDefault(s.getIsDefault());
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
             incoming.add(target);
         }
 
-        entity.getStates().removeIf(
-                existing -> !seenNames.contains(ComponentScriptBindingApplier.matchKey(existing.getName())));
+        entity.getStates().removeIf(existing -> existing.getId() != null
+                ? !keptIds.contains(existing.getId())
+                : !seenNames.contains(ComponentScriptBindingApplier.matchKey(existing.getName())));
         for (ComponentState target : incoming) {
             if (target.getId() == null) {
                 entity.getStates().add(target);
