@@ -29,18 +29,16 @@ public class TemplateController {
     @PostMapping
     public TemplateResponseDto createTemplate(
             @RequestBody TemplateCreateDto dto,
-            @RequestHeader("X-Username") String userName,
-            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
-        return templateService.createTemplate(dto, userName, VersionKinds.orManual(saveKind));
+            @RequestHeader("X-Username") String userName) {
+        return templateService.createTemplate(dto, userName, VersionKinds.orManual(dto.getSave_kind()));
     }
 
     @PutMapping("/{id}")
     public TemplateResponseDto updateTemplate(
             @PathVariable Long id,
             @RequestBody TemplateCreateDto dto,
-            @RequestHeader("X-Username") String userName,
-            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
-        return templateService.updateTemplate(id, dto, userName, VersionKinds.orManual(saveKind));
+            @RequestHeader("X-Username") String userName) {
+        return templateService.updateTemplate(id, dto, userName, VersionKinds.orManual(dto.getSave_kind()));
     }
 
     @DeleteMapping("/{id}")

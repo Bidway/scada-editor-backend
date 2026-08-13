@@ -40,6 +40,16 @@ class TemplateVersionIT extends EditorApiTestSupport {
                 + "\"property_type\":\"Тег\",\"default_value\":\"" + defaultValue + "\"}]}}";
     }
 
+    private static String treeWithBase(String defaultValue, int baseVersion) {
+        return tree(defaultValue).replaceFirst("^\\{",
+                "{\"based_on_version\":" + baseVersion + ",");
+    }
+
+    private static String treeWithSaveKind(String defaultValue, String saveKind) {
+        return tree(defaultValue).replaceFirst("^\\{",
+                "{\"save_kind\":\"" + saveKind + "\",");
+    }
+
     private long createTemplate(String json) throws Exception {
         String body = mockMvc.perform(post("/api/editor/templates")
                         .header("X-Username", USER)
@@ -75,7 +85,7 @@ class TemplateVersionIT extends EditorApiTestSupport {
         mockMvc.perform(put("/api/editor/templates/" + templateId)
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(tree("42")))
+                        .content(treeWithBase("42", currentVersion(templateId, "templates"))))
                 .andExpect(status().isOk());
 
         assertThat(versionsOf(templateId)).hasSize(2);
@@ -88,7 +98,7 @@ class TemplateVersionIT extends EditorApiTestSupport {
         mockMvc.perform(put("/api/editor/templates/" + templateId)
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(tree("42")))
+                        .content(treeWithBase("42", currentVersion(templateId, "templates"))))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/editor/templates/" + templateId + "/restore/1")
@@ -114,9 +124,72 @@ class TemplateVersionIT extends EditorApiTestSupport {
         mockMvc.perform(put("/api/editor/templates/" + templateId)
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(tree("10")))
+                        .content(treeWithBase("10", currentVersion(templateId, "templates"))))
                 .andExpect(status().isOk());
 
         assertThat(versionsOf(templateId)).hasSize(1);
+    }
+
+    @Test
+    void templateResponseCarriesVersionNo() throws Exception {
+        long templateId = createTemplate(tree("10"));
+
+        String body = mockMvc.perform(get("/api/editor/templates/" + templateId + "/versions"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(objectMapper.readTree(body).get(0).get("version_no").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void updatingTemplateWithoutBaseVersion_is400() throws Exception {
+        long templateId = createTemplate(tree("10"));
+
+        mockMvc.perform(put("/api/editor/templates/" + templateId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tree("20")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updatingTemplateWithStaleBase_is409() throws Exception {
+        long templateId = createTemplate(tree("10"));
+
+        String body = mockMvc.perform(put("/api/editor/templates/" + templateId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(treeWithBase("20", 99)))
+                .andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(objectMapper.readTree(body).get("error").asText()).isEqualTo("version_mismatch");
+    }
+
+    @Test
+    void updatingTemplateWithMatchingBase_passes() throws Exception {
+        long templateId = createTemplate(tree("10"));
+
+        mockMvc.perform(put("/api/editor/templates/" + templateId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(treeWithBase("20", 1)))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * {@code RESTORE} — kind, который ставит только сервер при восстановлении версии; клиенту
+     * через тело недоступен. Иначе {@code save_kind=RESTORE} стал бы лазейкой в обход проверки
+     * {@code based_on_version} — см. аналогичный тест для сцен, {@code SaveEnvelopeIT}.
+     */
+    @Test
+    void restoreSaveKindIsRejected() throws Exception {
+        long templateId = createTemplate(tree("10"));
+
+        mockMvc.perform(put("/api/editor/templates/" + templateId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(treeWithSaveKind("20", "RESTORE")))
+                .andExpect(status().isBadRequest());
     }
 }
