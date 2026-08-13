@@ -4,7 +4,15 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "scripts", schema = "editor")
+@Table(
+        name = "scripts",
+        schema = "editor",
+        // runScript('Открыть клапан') ищет скрипт по имени — одноимённые сделали бы вызов
+        // неоднозначным (scada-95o).
+        uniqueConstraints = @UniqueConstraint(
+                name = "scripts_uk",
+                columnNames = {"component_id", "name"})
+)
 @Getter
 @Setter
 @NoArgsConstructor

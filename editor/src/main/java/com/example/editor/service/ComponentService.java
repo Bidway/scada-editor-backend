@@ -8,12 +8,14 @@ import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
+import com.example.editor.model.version.VersionKind;
 
 import java.util.List;
 
 public interface ComponentService {
 
-    List<ComponentResponseDto> create(List<ComponentCreateDto> components, String userName);
+    List<ComponentResponseDto> create(List<ComponentCreateDto> components, String userName,
+                                      VersionKind kind);
 
     ProjectCreateResponseDto createProject(ProjectCreateDto project, String userName);
 
@@ -23,9 +25,22 @@ public interface ComponentService {
 
     List<ScenesResponseDto> getScenes(Long projectId);
 
-    List<ComponentResponseDto> update(List<ComponentCreateDto> components, String userName);
+    List<ComponentResponseDto> update(List<ComponentCreateDto> components, String userName,
+                                      VersionKind kind);
 
-    void delete(List<Long> ids, String userName);
+    void delete(List<Long> ids, String userName, VersionKind kind);
+
+    default List<ComponentResponseDto> create(List<ComponentCreateDto> components, String userName) {
+        return create(components, userName, VersionKind.MANUAL);
+    }
+
+    default List<ComponentResponseDto> update(List<ComponentCreateDto> components, String userName) {
+        return update(components, userName, VersionKind.MANUAL);
+    }
+
+    default void delete(List<Long> ids, String userName) {
+        delete(ids, userName, VersionKind.MANUAL);
+    }
 
     ComponentResponseDto getById(Long id);
 

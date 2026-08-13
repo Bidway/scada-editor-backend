@@ -8,9 +8,12 @@ import com.example.editor.dto.recipe.ResolvedRecipeValueDto;
 import com.example.editor.exception.NotFoundException;
 import com.example.editor.model.component.ComponentProperty;
 import com.example.editor.model.recipe.Recipe;
+import com.example.editor.model.recipe.RecipeChange;
+import com.example.editor.model.recipe.RecipeChangeType;
 import com.example.editor.model.recipe.RecipeTypes;
 import com.example.editor.model.recipe.RecipeValue;
 import com.example.editor.repository.component.ComponentPropertyRepository;
+import com.example.editor.repository.recipe.RecipeChangeRepository;
 import com.example.editor.repository.recipe.RecipeRepository;
 import com.example.editor.service.RecipeService;
 import jakarta.transaction.Transactional;
@@ -23,6 +26,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -33,33 +37,64 @@ public class RecipeServiceImpl implements RecipeService {
 
     private final RecipeRepository recipeRepository;
     private final ComponentPropertyRepository propertyRepository;
+    private final RecipeChangeRepository recipeChangeRepository;
 
     @Override
-    public RecipeResponseDto create(RecipeCreateDto dto) {
+    public RecipeResponseDto create(RecipeCreateDto dto, String userName) {
         Recipe recipe = new Recipe();
         recipe.setName(dto.getName());
         recipe.setType(typeOrDefault(dto.getType()));
         recipe.setComponentId(dto.getComponent_id());
-        applyValues(recipe, dto.getValues());
-        return toDto(recipeRepository.save(recipe));
+        // CREATE — первым элементом: лента, отсортированная по id, должна показывать создание
+        // набора раньше значений, с которыми он создан, а не наоборот.
+        List<RecipeChange> changes = new ArrayList<>();
+        changes.add(createChange(dto.getName()));
+        changes.addAll(applyValues(recipe, dto.getValues()));
+        Recipe saved = recipeRepository.save(recipe);
+        recordChanges(changes, saved, userName);
+        return toDto(saved);
     }
 
     @Override
-    public RecipeResponseDto update(Long id, RecipeCreateDto dto) {
+    public RecipeResponseDto update(Long id, RecipeCreateDto dto, String userName) {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
+        String oldName = recipe.getName();
         recipe.setName(dto.getName());
         recipe.setType(typeOrDefault(dto.getType()));
         recipe.setComponentId(dto.getComponent_id());
-        applyValues(recipe, dto.getValues());
-        return toDto(recipeRepository.save(recipe));
+        List<RecipeChange> changes = new ArrayList<>(applyValues(recipe, dto.getValues()));
+        if (!Objects.equals(oldName, dto.getName())) {
+            changes.add(renameChange(oldName, dto.getName()));
+        }
+        Recipe saved = recipeRepository.save(recipe);
+        recordChanges(changes, saved, userName);
+        return toDto(saved);
+    }
+
+    /**
+     * recipeId известен только после сохранения набора (при создании id ещё нет), поэтому
+     * изменения из {@link #applyValues} доставляются сюда без него и здесь же дописываются.
+     */
+    private void recordChanges(List<RecipeChange> changes, Recipe recipe, String userName) {
+        if (changes.isEmpty()) {
+            return;
+        }
+        for (RecipeChange change : changes) {
+            change.setRecipeId(recipe.getId());
+            change.setComponentId(recipe.getComponentId());
+            change.setUserName(userName);
+        }
+        recipeChangeRepository.saveAll(changes);
     }
 
     @Override
-    public void delete(Long id) {
-        if (!recipeRepository.existsById(id)) {
-            throw new NotFoundException("Recipe not found: " + id);
-        }
+    public void delete(Long id, String userName) {
+        Recipe recipe = recipeRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
+        // Запись DELETE — до удаления набора: после recipeRepository.deleteById читать будет
+        // нечего (ни имени, ни componentId), а recordChanges требует их для доставки.
+        recordChanges(List.of(deleteChange(recipe.getName())), recipe, userName);
         recipeRepository.deleteById(id);
     }
 
@@ -130,17 +165,31 @@ public class RecipeServiceImpl implements RecipeService {
      * <p>
      * Два значения на одну строку отвергаются: резолв набора берёт строку по имени, и второе
      * значение всё равно осталось бы недостижимым.
+     * <p>
+     * {@code values == null} — «поле не прислано, не трогать», как у свойств компонента
+     * (см. {@code ComponentScriptBindingApplier.applyProperties}). Пустой массив по-прежнему
+     * значит «стереть всё»: у клиента остаётся способ сказать и то, и другое. Прежнее поведение
+     * (отсутствие поля = стереть) делало из PUT ради одного переименования тихую потерю уставок,
+     * уходящих в ПЛК (scada-m2n).
+     * <p>
+     * Заодно собирает историю правки значений ({@link RecipeChangeType#VALUE}) — здесь, и только
+     * здесь, обе стороны (старое и новое значение) есть на руках одновременно. Запись попадает в
+     * список, только если значение действительно поменялось (сравнение через
+     * {@link Objects#equals}, с учётом null): иначе каждое сохранение набора плодило бы строки на
+     * все значения, а не только на настоящую правку. {@code recipeId} у изменений на этом этапе
+     * ещё не проставлен — набор мог быть ещё не сохранён (create), id появится только после
+     * {@code recipeRepository.save}.
      */
-    private void applyValues(Recipe recipe, List<RecipeValueDto> values) {
+    private List<RecipeChange> applyValues(Recipe recipe, List<RecipeValueDto> values) {
         if (values == null) {
-            recipe.getValues().clear();
-            return;
+            return List.of();
         }
         Map<String, RecipeValue> existingByRow = new HashMap<>();
         for (RecipeValue existing : recipe.getValues()) {
-            existingByRow.put(existing.getRowName(), existing);
+            existingByRow.put(normalize(existing.getRowName()), existing);
         }
 
+        List<RecipeChange> changes = new ArrayList<>();
         List<RecipeValue> incoming = new ArrayList<>();
         Set<String> seenRows = new HashSet<>();
         for (RecipeValueDto v : values) {
@@ -158,17 +207,58 @@ public class RecipeServiceImpl implements RecipeService {
                 target = new RecipeValue();
                 target.setRecipe(recipe);
                 target.setRowName(rowName);
+                changes.add(valueChange(rowName, null, v.getValue()));
+            } else if (!Objects.equals(target.getValue(), v.getValue())) {
+                changes.add(valueChange(rowName, target.getValue(), v.getValue()));
             }
             target.setValue(v.getValue());
             incoming.add(target);
         }
 
-        recipe.getValues().removeIf(existing -> !seenRows.contains(existing.getRowName()));
+        for (RecipeValue existing : recipe.getValues()) {
+            if (!seenRows.contains(normalize(existing.getRowName()))) {
+                changes.add(valueChange(existing.getRowName(), existing.getValue(), null));
+            }
+        }
+        recipe.getValues().removeIf(existing -> !seenRows.contains(normalize(existing.getRowName())));
         for (RecipeValue target : incoming) {
             if (target.getId() == null) {
                 recipe.getValues().add(target);
             }
         }
+        return changes;
+    }
+
+    /** recipeId/componentId/userName доставляются позже, см. {@link #recordChanges}. */
+    private static RecipeChange valueChange(String rowName, String oldValue, String newValue) {
+        RecipeChange change = new RecipeChange();
+        change.setChangeType(RecipeChangeType.VALUE);
+        change.setRowName(rowName);
+        change.setOldValue(oldValue);
+        change.setNewValue(newValue);
+        return change;
+    }
+
+    private static RecipeChange createChange(String name) {
+        RecipeChange change = new RecipeChange();
+        change.setChangeType(RecipeChangeType.CREATE);
+        change.setNewValue(name);
+        return change;
+    }
+
+    private static RecipeChange renameChange(String oldName, String newName) {
+        RecipeChange change = new RecipeChange();
+        change.setChangeType(RecipeChangeType.RENAME);
+        change.setOldValue(oldName);
+        change.setNewValue(newName);
+        return change;
+    }
+
+    private static RecipeChange deleteChange(String name) {
+        RecipeChange change = new RecipeChange();
+        change.setChangeType(RecipeChangeType.DELETE);
+        change.setOldValue(name);
+        return change;
     }
 
     private static String typeOrDefault(String type) {

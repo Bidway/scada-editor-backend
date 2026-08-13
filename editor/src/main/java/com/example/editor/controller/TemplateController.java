@@ -2,6 +2,7 @@ package com.example.editor.controller;
 
 import com.example.editor.dto.template.TemplateCreateDto;
 import com.example.editor.dto.template.TemplateResponseDto;
+import com.example.editor.model.version.VersionKinds;
 import com.example.editor.service.TemplateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -28,16 +29,18 @@ public class TemplateController {
     @PostMapping
     public TemplateResponseDto createTemplate(
             @RequestBody TemplateCreateDto dto,
-            @RequestHeader("X-Username") String userName) {
-        return templateService.createTemplate(dto, userName);
+            @RequestHeader("X-Username") String userName,
+            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
+        return templateService.createTemplate(dto, userName, VersionKinds.orManual(saveKind));
     }
 
     @PutMapping("/{id}")
     public TemplateResponseDto updateTemplate(
             @PathVariable Long id,
             @RequestBody TemplateCreateDto dto,
-            @RequestHeader("X-Username") String userName) {
-        return templateService.updateTemplate(id, dto, userName);
+            @RequestHeader("X-Username") String userName,
+            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
+        return templateService.updateTemplate(id, dto, userName, VersionKinds.orManual(saveKind));
     }
 
     @DeleteMapping("/{id}")

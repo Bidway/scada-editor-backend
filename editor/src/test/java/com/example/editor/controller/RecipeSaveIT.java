@@ -48,6 +48,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
 
     private long createRecipe(long componentId, String valuesJson) throws Exception {
         String body = mockMvc.perform(post("/api/editor/recipes")
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия A\",\"component_id\":" + componentId
                                 + ",\"values\":" + valuesJson + "}"))
@@ -78,6 +79,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
         assertThat(before).containsKeys("Уставка", "Режим");
 
         mockMvc.perform(put("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия A\",\"component_id\":" + componentId
                                 + ",\"values\":[{\"row_name\":\"Уставка\",\"value\":\"42\"},"
@@ -98,12 +100,36 @@ class RecipeSaveIT extends EditorApiTestSupport {
                 + "{\"row_name\":\"Режим\",\"value\":\"1\"}]");
 
         mockMvc.perform(put("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия A\",\"component_id\":" + componentId
                                 + ",\"values\":[{\"row_name\":\"Уставка\",\"value\":\"10\"}]}"))
                 .andExpect(status().isOk());
 
         assertThat(valueIds(recipeId)).containsOnlyKeys("Уставка");
+    }
+
+    /**
+     * Отсутствующее поле values означает «не прислано, не трогать», а не «стереть всё»: та же
+     * семантика, что у свойств компонента (см. ComponentSaveIT.resave_withNullProperties_
+     * keepsExistingRows). Иначе PUT ради одного переименования уносил бы уставки, уходящие в ПЛК.
+     */
+    @Test
+    void resave_withoutValuesField_keepsExistingValues() throws Exception {
+        long componentId = componentWithTwoRows();
+        long recipeId = createRecipe(componentId,
+                "[{\"row_name\":\"Уставка\",\"value\":\"10\"},"
+                + "{\"row_name\":\"Режим\",\"value\":\"1\"}]");
+
+        Map<String, Long> before = valueIds(recipeId);
+
+        mockMvc.perform(put("/api/editor/recipes/" + recipeId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Партия Б\",\"component_id\":" + componentId + "}"))
+                .andExpect(status().isOk());
+
+        assertThat(valueIds(recipeId)).isEqualTo(before);
     }
 
     /**
@@ -115,6 +141,7 @@ class RecipeSaveIT extends EditorApiTestSupport {
         long componentId = componentWithTwoRows();
 
         mockMvc.perform(post("/api/editor/recipes")
+                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Партия B\",\"component_id\":" + componentId
                                 + ",\"values\":[{\"row_name\":\"Уставка\",\"value\":\"1\"},"

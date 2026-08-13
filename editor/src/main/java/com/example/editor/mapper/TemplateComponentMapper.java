@@ -4,13 +4,16 @@ import com.example.editor.command.template.TemplateComponentDataApplier;
 import com.example.editor.dto.template.TemplateComponentCreateDto;
 import com.example.editor.dto.template.TemplateComponentResponseDto;
 import com.example.editor.model.template.TemplateComponent;
-import com.example.editor.model.template.TemplateComponentState;
 import com.example.editor.model.template.TemplateFacePlate;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -20,34 +23,7 @@ public class TemplateComponentMapper {
     private final TemplateComponentPropertyMapper propertyMapper;
     private final TemplateScriptMapper scriptMapper;
 
-    /**
-     * 1. Преобразование TemplateComponentCreateDto → TemplateComponent
-     *    без установки parent, чтобы сохранить все id
-     */
-    public List<TemplateComponent> toEntitiesFlat(List<TemplateComponentCreateDto> dtos, TemplateFacePlate template) {
-        List<TemplateComponent> flatList = new ArrayList<>();
-        mapRecursiveFlat(dtos, template, null, flatList);
-        return flatList;
-    }
-
-    private void mapRecursiveFlat(List<TemplateComponentCreateDto> dtos,
-                                  TemplateFacePlate template,
-                                  TemplateComponent parent,
-                                  List<TemplateComponent> flatList) {
-        for (TemplateComponentCreateDto dto : dtos) {
-            TemplateComponent entity = mapComponentFields(dto, template, parent);
-            flatList.add(entity);
-
-            if (dto.getChildren() != null && !dto.getChildren().isEmpty()) {
-                mapRecursiveFlat(dto.getChildren(), template, entity, flatList);
-            }
-        }
-    }
-
-    /**
-     * 2. После сохранения всех компонентов в БД:
-     *    Построение дерева TemplateComponentResponseDto
-     */
+    /** Построение дерева ответа после сохранения. */
     public TemplateComponentResponseDto toDtoTree(TemplateComponent root) {
         if (root == null) {
             return null;
@@ -72,49 +48,79 @@ public class TemplateComponentMapper {
         return dto;
     }
 
+    /** Создание шаблона: существующего дерева нет, слияние вырождается в построение. */
     public TemplateComponent mapTree(TemplateComponentCreateDto dto, TemplateFacePlate template) {
-        TemplateComponent entity = mapComponentFields(dto, template, null);
+        return mergeTree(null, dto, template, null);
+    }
 
-        if (dto.getChildren() != null) {
-            List<TemplateComponent> children = dto.getChildren().stream()
-                    .map(childDto -> {
-                        TemplateComponent child = mapTree(childDto, template);
-                        child.setParent(entity);
-                        return child;
-                    })
-                    .toList();
-            entity.setChildren(new ArrayList<>(children));
+    /**
+     * Слияние присланного дерева с существующим: компонент с уже известным именем правится на
+     * месте вместе со своим поддеревом, выпавший — удаляется (orphanRemoval), новый —
+     * добавляется. До scada-eap дерево строилось заново, и каждое сохранение шаблона выдавало
+     * новые id всему поддереву — включая свойства, скрипты и состояния.
+     * <p>
+     * Ключ сопоставления — имя плюс номер среди одноимённых соседей: у
+     * {@link TemplateComponentCreateDto} нет id, только клиентский {@code key}, которого нет в
+     * базе. Одноимённых детей отвергать нельзя — фронт называет фигуры типовыми именами, и в
+     * базе уже лежит шаблон с двумя детьми {@code Element} (circle и line).
+     * <p>
+     * Порядковый номер нужен только чтобы развести одноимённых: пока их порядок между собой не
+     * меняется, id держатся. Цена выбора: переименование компонента неотличимо от «удалили
+     * один, добавили другой» — то же ограничение, что у свойств и состояний компонента.
+     */
+    public TemplateComponent mergeTree(TemplateComponent existing,
+                                       TemplateComponentCreateDto dto,
+                                       TemplateFacePlate template,
+                                       TemplateComponent parent) {
+        TemplateComponent entity = existing != null ? existing : new TemplateComponent();
+        entity.setName(requireName(dto.getName()));
+        entity.setType(dto.getType());
+        entity.setTemplate(template);
+        entity.setParent(parent);
+
+        TemplateComponentDataApplier.apply(entity, dto);
+
+        Map<String, TemplateComponent> existingByKey = new HashMap<>();
+        Map<String, Integer> existingSeen = new HashMap<>();
+        for (TemplateComponent child : entity.getChildren()) {
+            existingByKey.put(siblingKey(child.getName(), existingSeen), child);
+        }
+
+        List<TemplateComponentCreateDto> childDtos =
+                dto.getChildren() == null ? List.of() : dto.getChildren();
+        List<TemplateComponent> incoming = new ArrayList<>();
+        Set<TemplateComponent> matched = new HashSet<>();
+        Map<String, Integer> incomingSeen = new HashMap<>();
+        for (TemplateComponentCreateDto childDto : childDtos) {
+            String name = requireName(childDto.getName());
+            TemplateComponent existingChild = existingByKey.get(siblingKey(name, incomingSeen));
+            if (existingChild != null) {
+                matched.add(existingChild);
+            }
+            incoming.add(mergeTree(existingChild, childDto, template, entity));
+        }
+
+        entity.getChildren().removeIf(child -> !matched.contains(child));
+        for (TemplateComponent child : incoming) {
+            if (child.getId() == null) {
+                entity.getChildren().add(child);
+            }
         }
 
         return entity;
     }
 
-    private TemplateComponent mapComponentFields(
-            TemplateComponentCreateDto dto,
-            TemplateFacePlate template,
-            TemplateComponent parent
-    ) {
-        TemplateComponent entity = new TemplateComponent();
-        entity.setName(dto.getName());
-        entity.setType(dto.getType());
-        entity.setTemplate(template);
-        entity.setParent(parent);
+    /** Имя плюс номер среди одноимённых соседей — иначе двух детей {@code Element} не развести. */
+    private String siblingKey(String name, Map<String, Integer> seen) {
+        int occurrence = seen.merge(name, 1, Integer::sum) - 1;
+        return name + "#" + occurrence;
+    }
 
-        entity.getStates().clear();
-        if (dto.getStates() != null) {
-            List<TemplateComponentState> states = dto.getStates().stream()
-                    .map(state -> TemplateComponentState.builder()
-                            .name(state.getName())
-                            .image(state.getImage())
-                            .isDefault(state.getIsDefault())
-                            .component(entity)
-                            .build())
-                    .toList();
-            entity.setStates(new ArrayList<>(states));
+    /** Имя здесь и ключ сопоставления, и обязательная колонка — пустое не пропускаем. */
+    private String requireName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalStateException("Template component name is required");
         }
-
-        TemplateComponentDataApplier.apply(entity, dto);
-
-        return entity;
+        return name.trim();
     }
 }
