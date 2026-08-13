@@ -139,6 +139,66 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 .isEqualTo(originalScriptId);
     }
 
+    @Test
+    void nameEntryDoesNotStealRowClaimedById() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(
+                componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
+        long componentId = created.get("id").asLong();
+        long originalScriptId = scriptId(created, "Открыть");
+
+        // Обратный порядок относительно renameAndReuseOfTheFreedName_isRejectedWithExplanation:
+        // элемент без id идёт первым. Без двухпроходного разрешения оба элемента находят одну и
+        // ту же строку по id (карта имён чистится только когда элемент С id обработан, а он ещё
+        // не наступил) — второй set молча затирает первый, и скрипт "Открыть" пропадает без
+        // ошибки. После правки id разбирается первым проходом, элемент без id получает новую
+        // строку под именем "Открыть", которое как раз освобождает переименование — это ловит
+        // rejectNameSwaps.
+        String body = mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"id\":" + componentId + ","
+                                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                                + "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"},"
+                                + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
+                                + "\"script\":\"return 2;\"}],"
+                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}]"))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body)
+                .as("явный id не должен молча съедать элемент без id того же имени")
+                .contains("Открыть")
+                .doesNotContain("scripts_uk");
+    }
+
+    @Test
+    void sameIdTwice_isRejected() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(
+                componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
+        long componentId = created.get("id").asLong();
+        long originalScriptId = scriptId(created, "Открыть");
+
+        String body = mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"id\":" + componentId + ","
+                                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                                + "\"scripts\":[{\"id\":" + originalScriptId + ",\"name\":\"Открыть\","
+                                + "\"script\":\"return 1;\"},"
+                                + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
+                                + "\"script\":\"return 2;\"}],"
+                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}]"))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body)
+                .as("один и тот же id адресован дважды в одном запросе — неоднозначность, "
+                        + "а не переименование")
+                .contains("addressed twice");
+    }
+
     private String withBinding(long sceneId, Long componentId, String bindingName, Long bindingId) {
         return "[{" + (componentId == null ? "" : "\"id\":" + componentId + ",")
                 + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","

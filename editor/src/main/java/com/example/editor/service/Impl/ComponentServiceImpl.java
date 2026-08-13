@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -259,9 +260,31 @@ public class ComponentServiceImpl implements ComponentService {
             }
         }
 
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по имени. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<ComponentStateDto, ComponentState> resolved = new IdentityHashMap<>();
+        for (ComponentStateDto s : dto.getStates()) {
+            if (s.getId() == null) {
+                continue;
+            }
+            ComponentState target = existingById.get(s.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "State " + s.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "State " + s.getId() + " is addressed twice in the same request");
+            }
+            // Тот же захват ключа, что в applyScripts.
+            existingByName.remove(ComponentScriptBindingApplier.matchKey(target.getName()));
+            resolved.put(s, target);
+        }
+
         List<ComponentState> incoming = new ArrayList<>();
         Set<String> seenNames = new HashSet<>();
-        Set<Long> keptIds = new HashSet<>();
         for (ComponentStateDto s : dto.getStates()) {
             if (s.getName() == null || s.getName().isBlank()) {
                 throw new IllegalStateException("State name is required");
@@ -272,17 +295,7 @@ public class ComponentServiceImpl implements ComponentService {
                         "Duplicate state name '" + name + "' in component " + entity.getId()
                                 + "; setState() addresses states by name, so names must be unique");
             }
-            ComponentState target = s.getId() == null ? null : existingById.get(s.getId());
-            if (target == null && s.getId() != null) {
-                throw new IllegalStateException(
-                        "State " + s.getId() + " does not belong to component " + entity.getId());
-            }
-            if (target != null) {
-                // Тот же захват ключа, что в applyScripts.
-                existingByName.remove(ComponentScriptBindingApplier.matchKey(target.getName()));
-            } else {
-                target = existingByName.remove(name);
-            }
+            ComponentState target = s.getId() != null ? resolved.get(s) : existingByName.remove(name);
             if (target == null) {
                 target = new ComponentState();
                 target.setComponent(entity);

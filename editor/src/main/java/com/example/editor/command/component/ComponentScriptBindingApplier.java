@@ -17,6 +17,7 @@ import lombok.experimental.UtilityClass;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -195,9 +196,33 @@ public class ComponentScriptBindingApplier {
             }
         }
 
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по имени. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<ScriptCreateDto, Script> resolved = new IdentityHashMap<>();
+        for (ScriptCreateDto s : dto.getScripts()) {
+            if (s.getId() == null) {
+                continue;
+            }
+            Script target = existingById.get(s.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "Script " + s.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "Script " + s.getId() + " is addressed twice in the same request");
+            }
+            // Забрали строку по id — её прежнее имя перестаёт быть ключом. Иначе элемент без id
+            // под старым именем найдёт её же и отберёт обратно: переименование молча отменится,
+            // а вторая сущность не создастся.
+            existingByName.remove(matchKey(target.getName()));
+            resolved.put(s, target);
+        }
+
         List<Script> incoming = new ArrayList<>();
         Set<String> seenNames = new HashSet<>();
-        Set<Long> keptIds = new HashSet<>();
         for (ScriptCreateDto s : dto.getScripts()) {
             if (s.getName() == null || s.getName().isBlank()) {
                 throw new IllegalStateException("Script name is required");
@@ -208,19 +233,7 @@ public class ComponentScriptBindingApplier {
                         "Duplicate script name '" + name + "' in component " + entity.getId()
                                 + "; runScript() addresses scripts by name, so names must be unique");
             }
-            Script target = s.getId() == null ? null : existingById.get(s.getId());
-            if (target == null && s.getId() != null) {
-                throw new IllegalStateException(
-                        "Script " + s.getId() + " does not belong to component " + entity.getId());
-            }
-            if (target != null) {
-                // Забрали строку по id — её прежнее имя перестаёт быть ключом. Иначе следующий
-                // элемент того же запроса, пришедший без id под старым именем, найдёт её же и
-                // отберёт обратно: переименование молча отменится, а вторая сущность не создастся.
-                existingByName.remove(matchKey(target.getName()));
-            } else {
-                target = existingByName.remove(name);
-            }
+            Script target = s.getId() != null ? resolved.get(s) : existingByName.remove(name);
             if (target == null) {
                 target = new Script();
                 target.setComponent(entity);
@@ -273,14 +286,39 @@ public class ComponentScriptBindingApplier {
         }
 
         Set<Long> keptIds = new HashSet<>();
-        List<Binding> incoming = new ArrayList<>();
+        // Первый проход — только явные id: они старше сопоставления по имени. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<BindingPayloadDto, Binding> resolved = new IdentityHashMap<>();
         for (BindingPayloadDto b : dto.getBindings()) {
-            Binding target = b.getId() == null ? null : existingById.get(b.getId());
-            if (target == null && b.getId() != null) {
+            if (b.getId() == null) {
+                continue;
+            }
+            Binding target = existingById.get(b.getId());
+            if (target == null) {
                 throw new IllegalStateException(
                         "Binding " + b.getId() + " does not belong to component " + entity.getId());
             }
-            if (target == null) {
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "Binding " + b.getId() + " is addressed twice in the same request");
+            }
+            // Забрали строку по id — она не должна оставаться доступной кандидатом для
+            // сопоставления по имени.
+            List<Binding> sameName = existingByName.get(matchKey(target.getName()));
+            if (sameName != null) {
+                sameName.remove(target);
+            }
+            resolved.put(b, target);
+        }
+
+        List<Binding> incoming = new ArrayList<>();
+        for (BindingPayloadDto b : dto.getBindings()) {
+            Binding target;
+            if (b.getId() != null) {
+                target = resolved.get(b);
+            } else {
+                target = null;
                 List<Binding> sameName = existingByName.get(matchKey(b.getName()));
                 if (sameName != null) {
                     for (Binding candidate : sameName) {
@@ -401,9 +439,33 @@ public class ComponentScriptBindingApplier {
             }
         }
 
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по типу. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<EventPayloadDto, ComponentEvent> resolved = new IdentityHashMap<>();
+        for (EventPayloadDto e : dto.getEvents()) {
+            if (e.getId() == null) {
+                continue;
+            }
+            ComponentEvent target = existingById.get(e.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "Event " + e.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "Event " + e.getId() + " is addressed twice in the same request");
+            }
+            // Забрали строку по id — её прежний тип перестаёт быть ключом. Иначе следующий
+            // элемент того же запроса, пришедший без id под старым типом, найдёт её же и
+            // отберёт обратно.
+            existingByType.remove(target.getEventType());
+            resolved.put(e, target);
+        }
+
         List<ComponentEvent> incoming = new ArrayList<>();
         Set<String> seenTypes = new HashSet<>();
-        Set<Long> keptIds = new HashSet<>();
         for (EventPayloadDto e : dto.getEvents()) {
             if (!EventTypes.isValid(e.getEvent_type())) {
                 throw new IllegalStateException(
@@ -418,18 +480,8 @@ public class ComponentScriptBindingApplier {
                         "Event " + e.getEvent_type() + " requires a script; omit the event to remove it");
             }
 
-            ComponentEvent target = e.getId() == null ? null : existingById.get(e.getId());
-            if (target == null && e.getId() != null) {
-                throw new IllegalStateException(
-                        "Event " + e.getId() + " does not belong to component " + entity.getId());
-            }
-            if (target != null) {
-                // Тот же захват ключа, что в applyScripts: забранная по id строка не должна
-                // оставаться доступной под своим прежним типом.
-                existingByType.remove(target.getEventType());
-            } else {
-                target = existingByType.remove(e.getEvent_type());
-            }
+            ComponentEvent target = e.getId() != null
+                    ? resolved.get(e) : existingByType.remove(e.getEvent_type());
             if (target == null) {
                 target = new ComponentEvent();
                 target.setComponent(entity);
