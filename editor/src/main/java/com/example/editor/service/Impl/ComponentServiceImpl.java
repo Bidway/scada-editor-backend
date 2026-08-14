@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,7 +54,17 @@ public class ComponentServiceImpl implements ComponentService {
     private final DocumentVersionService versionService;
     private final SceneDocumentSource sceneDocumentSource;
 
+    /**
+     * Проверка версии, запись данных и запись снимка — одна транзакция.
+     * <p>
+     * Пока их было три, сбой снимка оставлял данные записанными без следа в истории, а два
+     * одновременных сохранения оба проходили проверку, оба коммитили данные и второй бился о
+     * {@code document_version_uk}: клиент получал 500, хотя его правка уже лежала в базе
+     * (scada-78j). Теперь неудача снимка забирает данные с собой, а гонка отвечает 409 — см.
+     * {@link DocumentVersionService#record}.
+     */
     @Override
+    @Transactional
     public ComponentSaveResponseDto create(List<ComponentCreateDto> dtos, String userName,
                                            VersionKind kind, Integer basedOnVersion) {
         requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
@@ -89,7 +100,9 @@ public class ComponentServiceImpl implements ComponentService {
         return componentMapper.toScenesDtoList(repository.findByType(ComponentTypes.SCENE));
     }
 
+    /** Одна транзакция на данные и снимок — по той же причине, что в {@link #create}. */
     @Override
+    @Transactional
     public ComponentSaveResponseDto update(List<ComponentCreateDto> dtos, String userName,
                                            VersionKind kind, Integer basedOnVersion) {
         requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
@@ -105,6 +118,7 @@ public class ComponentServiceImpl implements ComponentService {
      * видно. Сцены вычисляем ДО удаления: после него подниматься будет не от кого.
      */
     @Override
+    @Transactional
     public void delete(List<Long> ids, String userName, VersionKind kind) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Long id : ids) {

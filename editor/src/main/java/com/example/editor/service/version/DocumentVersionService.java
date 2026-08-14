@@ -14,6 +14,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,7 +70,38 @@ public class DocumentVersionService {
         version.setUserName(userName);
         version.setCreatedAt(LocalDateTime.now());
         version.setRestoredFrom(restoredFrom);
-        return repository.save(version);
+        try {
+            // saveAndFlush, а не save: INSERT обязан уйти в базу здесь, внутри try. Отложенный до
+            // коммита, он выбросил бы нарушение уже за границей метода, где номер версии не виден
+            // и перевести его в 409 нечем.
+            return repository.saveAndFlush(version);
+        } catch (DataIntegrityViolationException e) {
+            if (!isVersionCollision(e)) {
+                throw e;
+            }
+            // Номер заняли, пока мы готовили свой, — это и есть проигранная гонка. Оба числа
+            // известны без дополнительного чтения (а его тут и не сделать: транзакция уже
+            // помечена rollback-only): наш номер занят чужим сохранением, значит он и есть
+            // текущий, а отталкивались мы от предыдущего.
+            throw new VersionMismatchException(version.getVersionNo() - 1, version.getVersionNo());
+        }
+    }
+
+    /**
+     * Только столкновение по {@code document_version_uk} означает гонку. Любое другое нарушение
+     * целостности — это ошибка, и подменять её на 409 значит прятать её от себя же.
+     */
+    private boolean isVersionCollision(DataIntegrityViolationException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof ConstraintViolationException cve
+                    && "document_version_uk".equalsIgnoreCase(cve.getConstraintName())) {
+                return true;
+            }
+            if (t.getMessage() != null && t.getMessage().contains("document_version_uk")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

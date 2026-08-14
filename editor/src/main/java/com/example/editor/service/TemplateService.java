@@ -16,6 +16,7 @@ import com.example.editor.service.version.DocumentVersionService;
 import com.example.editor.service.version.TemplateDocumentSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,6 +32,8 @@ public class TemplateService {
     private final DocumentVersionService versionService;
     private final TemplateDocumentSource templateDocumentSource;
 
+    /** Данные и снимок — одна транзакция, как у сцены (scada-78j). */
+    @Transactional
     public TemplateResponseDto createTemplate(TemplateCreateDto dto, String userName,
                                               VersionKind kind) {
         CreateTemplateCommand command = new CreateTemplateCommand(
@@ -54,6 +57,7 @@ public class TemplateService {
      * Подделать этот путь клиент не может — {@code save_kind=RESTORE} отклоняется раньше, в
      * {@link com.example.editor.model.version.VersionKinds#orManual}.
      */
+    @Transactional
     public TemplateResponseDto updateTemplate(Long templateId, TemplateCreateDto dto,
                                               String userName, VersionKind kind) {
         if (kind != VersionKind.RESTORE) {
