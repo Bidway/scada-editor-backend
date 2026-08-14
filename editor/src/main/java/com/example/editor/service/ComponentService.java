@@ -26,8 +26,14 @@ public interface ComponentService {
 
     List<ScenesResponseDto> getScenes(Long projectId);
 
-    ComponentSaveResponseDto update(List<ComponentCreateDto> components, String userName,
-                                    VersionKind kind, Integer basedOnVersion);
+    ComponentSaveResponseDto update(List<ComponentCreateDto> dtos, String userName,
+                                    VersionKind kind, Integer basedOnVersion, Long sceneId);
+
+    /** Восстановление версии зовёт сохранение изнутри и сцену задаёт само. */
+    default ComponentSaveResponseDto update(List<ComponentCreateDto> dtos, String userName,
+                                            VersionKind kind, Integer basedOnVersion) {
+        return update(dtos, userName, kind, basedOnVersion, null);
+    }
 
     void delete(List<Long> ids, String userName, VersionKind kind);
 

@@ -71,19 +71,23 @@ public abstract class EditorApiTestSupport extends PostgresTestContainerSupport 
         return objectMapper.readTree(body).get("components");
     }
 
-    protected JsonNode updateComponents(String componentsJson) throws Exception {
-        return updateComponents(componentsJson, null);
-    }
-
-    protected JsonNode updateComponents(String componentsJson, Integer basedOnVersion)
+    /** Сохранение сцены целиком: с 3b это единственный корректный способ звать PUT. */
+    protected JsonNode updateScene(long sceneId, String componentsJson, Integer basedOnVersion)
             throws Exception {
-        String body = mockMvc.perform(put("/api/editor/components")
+        StringBuilder body = new StringBuilder("{\"components\":").append(componentsJson)
+                .append(",\"scene_id\":").append(sceneId);
+        if (basedOnVersion != null) {
+            body.append(",\"based_on_version\":").append(basedOnVersion);
+        }
+        body.append(",\"save_kind\":\"MANUAL\"}");
+
+        String response = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(envelope(componentsJson, basedOnVersion, "MANUAL")))
+                        .content(body.toString()))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("components");
+        return objectMapper.readTree(response).get("components");
     }
 
     /** Текущий номер версии сцены; {@code null}, если версий ещё нет. */

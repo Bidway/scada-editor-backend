@@ -54,7 +54,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
         long setpointId = propertyId(created, "Уставка");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+        JsonNode updated = updateScene(sceneId, "[{\"id\":" + componentId + ",\"name\":\"Насос\","
                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
                 + "\"property_type\":\"Тег\"}],"
@@ -80,7 +80,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
         assertThat(created.get("bindings")).hasSize(1);
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\","
+        JsonNode updated = updateScene(sceneId, "[{\"id\":" + componentId + ",\"name\":\"Насос\","
                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"properties\":[{\"name\":\"Скорость\",\"value_type\":\"double\","
                 + "\"property_type\":\"Тег\"}]}]", base).get(0);
@@ -149,6 +149,7 @@ class ComponentBindingIT extends EditorApiTestSupport {
                                 + "\"property_type\":\"Тег\"}],"
                                 + "\"bindings\":[{\"component_property_id\":" + setpointId + ","
                                 + "\"name\":\"цвет\",\"script\":\"'red'\"}]}],"
+                                + "\"scene_id\":" + sceneId + ","
                                 + "\"based_on_version\":" + base + ","
                                 + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())

@@ -52,7 +52,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
         long componentId = created.get("id").asLong();
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
+        updateScene(sceneId, pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         JsonNode versions = getJson("/api/editor/scenes/" + sceneId + "/versions");
 
@@ -81,7 +81,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         String between = java.time.LocalDateTime.now().toString();
         Thread.sleep(20);
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
+        updateScene(sceneId, pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         JsonNode content = getJson("/api/editor/scenes/" + sceneId + "/at?time=" + between);
 
@@ -109,7 +109,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         long propertyId = propertyId(created, "Уставка");
 
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
+        updateScene(sceneId, pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
 
@@ -127,7 +127,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
         long componentId = created.get("id").asLong();
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
+        updateScene(sceneId, pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
 

@@ -58,7 +58,7 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(pump(sceneId, null, both)).get(0);
         long componentId = created.get("id").asLong();
 
-        updateComponents(pump(sceneId, componentId,
+        updateScene(sceneId, pump(sceneId, componentId,
                 "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"}]"),
                 currentVersion(sceneId, "scenes"));
 
@@ -77,7 +77,7 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(pump(sceneId, null, both)).get(0);
         long componentId = created.get("id").asLong();
 
-        updateComponents(pump(sceneId, componentId,
+        updateScene(sceneId, pump(sceneId, componentId,
                 "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]"),
                 currentVersion(sceneId, "scenes"));
 
@@ -96,7 +96,7 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(pump(sceneId, null, both)).get(0);
         long componentId = created.get("id").asLong();
 
-        updateComponents(pump(sceneId, componentId,
+        updateScene(sceneId, pump(sceneId, componentId,
                 "\"events\":[{\"event_type\":\"onClick\",\"script\":\"a()\"}]"),
                 currentVersion(sceneId, "scenes"));
 
@@ -118,7 +118,7 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(pump(sceneId, null, both)).get(0);
         long componentId = created.get("id").asLong();
 
-        updateComponents(pump(sceneId, componentId, properties + "\"bindings\":["
+        updateScene(sceneId, pump(sceneId, componentId, properties + "\"bindings\":["
                 + "{\"component_property_name\":\"Уставка\",\"name\":\"цвет\",\"script\":\"{}\"}]"),
                 currentVersion(sceneId, "scenes"));
 
@@ -153,7 +153,7 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
 
         // Свойство удалено после снимка — вместе с ним уходит и биндинг на него.
-        updateComponents(pump(sceneId, componentId, "\"properties\":[],\"bindings\":[]"),
+        updateScene(sceneId, pump(sceneId, componentId, "\"properties\":[],\"bindings\":[]"),
                 currentVersion(sceneId, "scenes"));
 
         restore(sceneId, 1);
@@ -184,7 +184,7 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         long survivingId = scriptId(created, "Открыть");
 
-        updateComponents(pump(sceneId, componentId,
+        updateScene(sceneId, pump(sceneId, componentId,
                 "\"scripts\":[{\"id\":" + survivingId + ",\"name\":\"Старт\",\"script\":\"return 1;\"}]"),
                 currentVersion(sceneId, "scenes"));
 

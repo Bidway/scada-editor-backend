@@ -202,7 +202,7 @@ class SceneVersionIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         int before = versionsOf(sceneId).size();
 
-        updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
+        updateScene(sceneId, "[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
                 + "\"parent_id\":" + sceneId + ",\"properties\":[{\"name\":\"Уставка\","
                 + "\"value_type\":\"double\",\"property_type\":\"Тег\","
                 + "\"default_value\":\"10\"}]}]", currentVersion(sceneId, "scenes"));

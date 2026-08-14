@@ -72,7 +72,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         componentStateRepository.save(legacy);
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateComponents(
+        JsonNode resaved = updateScene(sceneId, 
                 componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(resaved.get("states")).hasSize(1);
@@ -92,7 +92,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long modeId = propertyId(created, "Режим");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateComponents(
+        JsonNode resaved = updateScene(sceneId, 
                 componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(propertyId(resaved, "Уставка")).isEqualTo(setpointId);
@@ -108,7 +108,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long openId = scriptId(created, "Открыть клапан");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateComponents(componentJson(sceneId, componentId, TWO_ROWS,
+        JsonNode resaved = updateScene(sceneId, componentJson(sceneId, componentId, TWO_ROWS,
                 "[{\"name\":\"Открыть клапан\",\"script\":\"writeTag('T1', 100)\"}]",
                 ONE_STATE, ONE_EVENT), base).get(0);
 
@@ -127,7 +127,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long eventId = created.get("events").get(0).get("id").asLong();
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateComponents(
+        JsonNode resaved = updateScene(sceneId, 
                 componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(resaved.get("states").get(0).get("id").asLong()).isEqualTo(stateId);
@@ -148,7 +148,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateComponents(componentJson(sceneId, componentId, TWO_ROWS,
+        JsonNode resaved = updateScene(sceneId, componentJson(sceneId, componentId, TWO_ROWS,
                 ONE_SCRIPT, ONE_STATE,
                 "[{\"event_type\":\"onClick\",\"script\":\"runScript('Другой')\"}]"), base).get(0);
 
@@ -166,7 +166,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long setpointId = propertyId(created, "Уставка");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateComponents(componentJson(sceneId, componentId,
+        JsonNode resaved = updateScene(sceneId, componentJson(sceneId, componentId,
                 "[{\"name\":\"Уставка\",\"value_type\":\"double\",\"property_type\":\"Тег\"},"
                 + "{\"name\":\"Новая\",\"value_type\":\"bool\",\"property_type\":\"Тег\"}]",
                 ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
@@ -189,7 +189,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         Integer base = currentVersion(sceneId, "scenes");
 
-        updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
+        updateScene(sceneId, "[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
                 + "\"parent_id\":" + sceneId + ",\"scripts\":" + ONE_SCRIPT + "}]", base);
 
         assertThat(getComponent(componentId).get("properties")).hasSize(2);
