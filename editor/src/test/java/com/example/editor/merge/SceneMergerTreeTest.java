@@ -33,6 +33,19 @@ class SceneMergerTreeTest {
         return component;
     }
 
+    private ScriptCreateDto script(Long id, String name, String body) {
+        ScriptCreateDto script = new ScriptCreateDto();
+        script.setId(id);
+        script.setName(name);
+        script.setScript(body);
+        return script;
+    }
+
+    private ComponentCreateDto withScripts(ComponentCreateDto component, ScriptCreateDto... scripts) {
+        component.setScripts(new ArrayList<>(List.of(scripts)));
+        return component;
+    }
+
     @Test
     void componentsAddedByBothSides_areBothKept() {
         List<ComponentCreateDto> base = List.of(component(1L, "Насос"));
@@ -77,8 +90,62 @@ class SceneMergerTreeTest {
         SceneMerge result = merger.merge(base, mine, theirs);
 
         assertThat(result.conflicts()).isNotEmpty();
-        assertThat(result.conflicts().get(0).kind()).isEqualTo(ConflictKind.DELETED_BY_THEM);
-        assertThat(result.conflicts().get(0).entity()).isEqualTo("component");
+        MergeConflict conflict = result.conflicts().get(0);
+        assertThat(conflict.kind()).isEqualTo(ConflictKind.DELETED_BY_THEM);
+        assertThat(conflict.entity()).isEqualTo("component");
+        // Спорная правка сидит во вложенном скрипте, а не в скалярных полях компонента —
+        // текст конфликта обязан её показать, иначе человек не поймёт, что теряет.
+        assertThat(conflict.yours())
+                .as("человек должен увидеть свою правку скрипта, а не пустой набор скалярных полей")
+                .contains("42");
+    }
+
+    @Test
+    void componentDeletedByThemWhileIDidNotTouchIt_isClean() {
+        List<ComponentCreateDto> base = List.of(withScript(component(1L, "Насос"), 10L, "return 1;"));
+        List<ComponentCreateDto> mine = List.of(withScript(component(1L, "Насос"), 10L, "return 1;"));
+        List<ComponentCreateDto> theirs = List.of();
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged()).isEmpty();
+        assertThat(result.changes()).singleElement()
+                .satisfies(change -> assertThat(change.change()).isEqualTo(ChangeKind.DELETED));
+    }
+
+    @Test
+    void reorderedRowsInsideDeletedComponent_doesNotBlockCleanDeletion() {
+        ScriptCreateDto open = script(10L, "Открыть", "return 1;");
+        ScriptCreateDto close = script(11L, "Закрыть", "return 1;");
+        List<ComponentCreateDto> base = List.of(withScripts(component(1L, "Насос"), open, close));
+        List<ComponentCreateDto> mine = List.of(withScripts(component(1L, "Насос"), close, open));
+        List<ComponentCreateDto> theirs = List.of();
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean())
+                .as("строки сопоставляются по id, а не по позиции — перестановка не правка")
+                .isTrue();
+        assertThat(result.merged()).isEmpty();
+        assertThat(result.changes()).singleElement()
+                .satisfies(change -> assertThat(change.change()).isEqualTo(ChangeKind.DELETED));
+    }
+
+    @Test
+    void myRowDeletionIsAbsorbedByTheirComponentDeletion() {
+        List<ComponentCreateDto> base = List.of(withScript(component(1L, "Насос"), 10L, "return 1;"));
+        List<ComponentCreateDto> mine = List.of(component(1L, "Насос"));
+        List<ComponentCreateDto> theirs = List.of();
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean())
+                .as("удаление скрипта поглощается удалением всего компонента — спорить не с чем")
+                .isTrue();
+        assertThat(result.merged()).isEmpty();
+        assertThat(result.changes()).singleElement()
+                .satisfies(change -> assertThat(change.change()).isEqualTo(ChangeKind.DELETED));
     }
 
     @Test
@@ -146,5 +213,40 @@ class SceneMergerTreeTest {
         assertThat(result.merged().get(0).getChildren())
                 .extracting(ComponentCreateDto::getName)
                 .containsExactly("Клапан", "Насос");
+    }
+
+    @Test
+    void reorderByThemOnly_isApplied() {
+        ComponentCreateDto a = component(2L, "Насос");
+        ComponentCreateDto b = component(3L, "Клапан");
+        List<ComponentCreateDto> base = List.of(component(1L, "Группа", a, b));
+        List<ComponentCreateDto> mine = List.of(component(1L, "Группа", a, b));
+        List<ComponentCreateDto> theirs = List.of(component(1L, "Группа", b, a));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean())
+                .as("переставили только они — спорить не с кем, а их порядок не должен потеряться")
+                .isTrue();
+        assertThat(result.merged().get(0).getChildren())
+                .extracting(ComponentCreateDto::getName)
+                .containsExactly("Клапан", "Насос");
+    }
+
+    @Test
+    void bothReorderedTopLevelComponentsDifferently_isAConflict() {
+        ComponentCreateDto a = component(1L, "Насос");
+        ComponentCreateDto b = component(2L, "Клапан");
+        ComponentCreateDto c = component(3L, "Задвижка");
+        List<ComponentCreateDto> base = List.of(a, b, c);
+        List<ComponentCreateDto> mine = List.of(b, a, c);
+        List<ComponentCreateDto> theirs = List.of(c, a, b);
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.conflicts()).singleElement().satisfies(conflict -> {
+            assertThat(conflict.kind()).isEqualTo(ConflictKind.BOTH_MODIFIED);
+            assertThat(conflict.entity()).isEqualTo("children_order");
+        });
     }
 }

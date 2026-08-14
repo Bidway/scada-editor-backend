@@ -10,11 +10,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -41,6 +43,8 @@ public class SceneMerger {
             "component_event", EventPayloadDto::getId, EventPayloadDto::getEvent_type);
     private static final RowSpec<BindingPayloadDto> BINDINGS = new RowSpec<>(
             "binding", BindingPayloadDto::getId, BindingPayloadDto::getName);
+    private static final RowSpec<ComponentCreateDto> COMPONENTS = new RowSpec<>(
+            "component", ComponentCreateDto::getId, ComponentCreateDto::getName);
 
     private final ObjectMapper mapper;
 
@@ -52,9 +56,15 @@ public class SceneMerger {
                             List<ComponentCreateDto> theirs) {
         List<MergeConflict> conflicts = new ArrayList<>();
         List<MergeChange> changes = new ArrayList<>();
-        List<ComponentCreateDto> merged =
-                mergeComponents(nullToEmpty(base), nullToEmpty(mine), nullToEmpty(theirs),
-                        "", conflicts, changes);
+        List<ComponentCreateDto> baseList = nullToEmpty(base);
+        List<ComponentCreateDto> mineList = nullToEmpty(mine);
+        List<ComponentCreateDto> theirsList = nullToEmpty(theirs);
+        // Порядок компонентов верхнего уровня сцены — тот же вопрос, что и порядок детей внутри
+        // компонента, просто без родителя: сравниваем его тем же способом (см. resolveOrder).
+        List<String> rootOrder =
+                resolveOrder(order(baseList), order(mineList), order(theirsList), "Сцена", conflicts);
+        List<ComponentCreateDto> merged = applyOrder(
+                mergeComponents(baseList, mineList, theirsList, "", conflicts, changes), rootOrder);
         return new SceneMerge(merged, conflicts, changes);
     }
 
@@ -90,13 +100,16 @@ public class SceneMerger {
      * <p>
      * Сравнение идёт по каноническому виду сущности <b>без вложенных коллекций</b>: иначе правка
      * одного скрипта делала бы «изменённым» весь компонент и конфликтовала бы с любой чужой
-     * правкой в нём — вложенные коллекции сливаются отдельно, своим кодом, и своя же правка там
-     * даёт свою запись в {@code changes}/{@code conflicts}.
+     * правкой в другом его скрипте, хотя они друг другу не мешают — вложенные коллекции
+     * сливаются отдельно, своим кодом, и своя же правка там даёт свою запись в
+     * {@code changes}/{@code conflicts}.
      * <p>
-     * Исключение — развилки «удалили ли меня»/«удалили ли их» ниже: для них берём
-     * {@code sameFull}, полное сравнение с вложенными коллекциями. Иначе правка скрипта внутри
-     * компонента, чьи собственные скалярные поля не менялись, не признавалась бы правкой вовсе —
-     * и удаление компонента другой стороной проходило бы тихо, без конфликта, теряя эту правку.
+     * Исключение — развилки «удалили ли меня»/«удалили ли их» ниже. Там вопрос не «отличается
+     * ли поддерево целиком» (это дало бы ложный конфликт хоть на перестановке вложенных строк,
+     * хоть на согласованном удалении с обеих сторон), а «есть ли внутри работа, которая
+     * пропадёт вместе с удалением» — на это отвечает {@link #hasWorkToLose}. Текст самого
+     * конфликта в тех же двух развилках строится по {@link #fullText}, а не по {@link #text}:
+     * иначе человек увидел бы одинаковые base/yours и не понял бы, что теряет свою правку внутри.
      */
     private <T> Resolution<T> resolve(T b, T m, T t, String entity, String path,
                                       List<MergeConflict> conflicts, List<MergeChange> changes) {
@@ -116,9 +129,9 @@ public class SceneMerger {
                 changes.add(new MergeChange(entity, path, ChangeKind.ADDED));
                 return new Resolution<>(t, true);
             }
-            if (!sameFull(b, t)) {
+            if (hasWorkToLose(b, t)) {
                 conflicts.add(new MergeConflict(ConflictKind.DELETED_BY_YOU, entity, path,
-                        text(b), null, text(t)));
+                        fullText(b), null, fullText(t)));
                 return new Resolution<>(null, false);
             }
             return new Resolution<>(null, false);
@@ -130,9 +143,9 @@ public class SceneMerger {
                 // поэтому в changes оно не попадает.
                 return new Resolution<>(m, true);
             }
-            if (!sameFull(b, m)) {
+            if (hasWorkToLose(b, m)) {
                 conflicts.add(new MergeConflict(ConflictKind.DELETED_BY_THEM, entity, path,
-                        text(b), text(m), null));
+                        fullText(b), fullText(m), null));
                 return new Resolution<>(null, false);
             }
             changes.add(new MergeChange(entity, path, ChangeKind.DELETED));
@@ -198,13 +211,63 @@ public class SceneMerger {
         return Objects.equals(scalars(a), scalars(b));
     }
 
-    /** Равенство по полному каноническому виду, вложенные коллекции включая. */
-    private boolean sameFull(Object a, Object b) {
-        if (a == null || b == null) {
-            return a == b;
+    /**
+     * Есть ли в {@code side} работа, которую унесёт с собой удаление родителя, если сравнивать с
+     * {@code base}: свои скалярные поля отличаются, или во вложенной коллекции есть добавленная
+     * строка, или есть строка под тем же ключом, что в базе, но с другим содержимым. Строка,
+     * которая была в базе, а у {@code side} её нет, — это удаление самой строки, оно поглощается
+     * удалением родителя и работой не считается: согласованное удаление обеими сторонами
+     * (родителя целиком одной, строки внутри другой) конфликтом быть не должно.
+     * <p>
+     * Для компонентов проверка рекурсивна по {@code children}: правка на третьем уровне внутри
+     * удалённой ветки терялась бы так же молча, как и на первом, не будь рекурсии.
+     */
+    private boolean hasWorkToLose(Object base, Object side) {
+        if (!same(base, side)) {
+            return true;
         }
-        return Objects.equals(MergeShape.canonical(mapper.valueToTree(a)),
-                MergeShape.canonical(mapper.valueToTree(b)));
+        if (!(side instanceof ComponentCreateDto sideComponent)) {
+            return false;
+        }
+        // base — того же типа T, что и side, во всех точках вызова resolve(); компонент
+        // сравнивается только с компонентом.
+        ComponentCreateDto baseComponent = (ComponentCreateDto) base;
+        return hasNestedWork(rows(baseComponent, ComponentCreateDto::getProperties),
+                    rows(sideComponent, ComponentCreateDto::getProperties), PROPERTIES,
+                    (baseRow, row) -> !same(baseRow, row))
+                || hasNestedWork(rows(baseComponent, ComponentCreateDto::getScripts),
+                    rows(sideComponent, ComponentCreateDto::getScripts), SCRIPTS,
+                    (baseRow, row) -> !same(baseRow, row))
+                || hasNestedWork(rows(baseComponent, ComponentCreateDto::getStates),
+                    rows(sideComponent, ComponentCreateDto::getStates), STATES,
+                    (baseRow, row) -> !same(baseRow, row))
+                || hasNestedWork(rows(baseComponent, ComponentCreateDto::getEvents),
+                    rows(sideComponent, ComponentCreateDto::getEvents), EVENTS,
+                    (baseRow, row) -> !same(baseRow, row))
+                || hasNestedWork(rows(baseComponent, ComponentCreateDto::getBindings),
+                    rows(sideComponent, ComponentCreateDto::getBindings), BINDINGS,
+                    (baseRow, row) -> !same(baseRow, row))
+                || hasNestedWork(rows(baseComponent, ComponentCreateDto::getChildren),
+                    rows(sideComponent, ComponentCreateDto::getChildren), COMPONENTS,
+                    this::hasWorkToLose);
+    }
+
+    /**
+     * Есть ли среди {@code side} строка, сопоставленная по ключу (как в {@link #mergeRows}, не
+     * по позиции — иначе перестановка строк внутри удаляемого компонента ложно выглядела бы
+     * правкой), которой в {@code base} не было, либо строка, которую {@code isWork} признаёт
+     * работой относительно её базовой пары.
+     */
+    private <T> boolean hasNestedWork(List<T> base, List<T> side, RowSpec<T> spec,
+                                      BiPredicate<T, T> isWork) {
+        Map<String, T> baseByKey = byKey(base, spec);
+        for (T row : nullToEmpty(side)) {
+            T baseRow = baseByKey.get(keyOf(row, spec));
+            if (baseRow == null || isWork.test(baseRow, row)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JsonNode scalars(Object value) {
@@ -222,6 +285,12 @@ public class SceneMerger {
         return node == null ? null : node.toString();
     }
 
+    /** То же, что {@link #text}, но по полному каноническому виду — вложенные коллекции видны. */
+    private String fullText(Object value) {
+        JsonNode node = MergeShape.canonical(mapper.valueToTree(value));
+        return node == null ? null : node.toString();
+    }
+
     private <T> List<T> nullToEmpty(List<T> list) {
         return list == null ? List.of() : list;
     }
@@ -234,19 +303,17 @@ public class SceneMerger {
             List<ComponentCreateDto> base, List<ComponentCreateDto> mine,
             List<ComponentCreateDto> theirs, String path,
             List<MergeConflict> conflicts, List<MergeChange> changes) {
-        RowSpec<ComponentCreateDto> spec =
-                new RowSpec<>("component", ComponentCreateDto::getId, ComponentCreateDto::getName);
-        Map<String, ComponentCreateDto> baseByKey = byKey(base, spec);
-        Map<String, ComponentCreateDto> mineByKey = byKey(mine, spec);
-        Map<String, ComponentCreateDto> theirsByKey = byKey(theirs, spec);
+        Map<String, ComponentCreateDto> baseByKey = byKey(base, COMPONENTS);
+        Map<String, ComponentCreateDto> mineByKey = byKey(mine, COMPONENTS);
+        Map<String, ComponentCreateDto> theirsByKey = byKey(theirs, COMPONENTS);
 
         List<ComponentCreateDto> result = new ArrayList<>();
         for (String key : allKeys(baseByKey, mineByKey, theirsByKey)) {
             ComponentCreateDto b = baseByKey.get(key);
             ComponentCreateDto m = mineByKey.get(key);
             ComponentCreateDto t = theirsByKey.get(key);
-            String componentPath = path.isEmpty() ? label(key, spec, m, t, b)
-                    : path + " / " + label(key, spec, m, t, b);
+            String componentPath = path.isEmpty() ? label(key, COMPONENTS, m, t, b)
+                    : path + " / " + label(key, COMPONENTS, m, t, b);
 
             Resolution<ComponentCreateDto> resolution =
                     resolve(b, m, t, "component", componentPath, conflicts, changes);
@@ -274,12 +341,12 @@ public class SceneMerger {
                     rows(m, ComponentCreateDto::getBindings),
                     rows(t, ComponentCreateDto::getBindings),
                     BINDINGS, componentPath, conflicts, changes));
-            checkChildrenOrder(b, m, t, componentPath, conflicts);
-            merged.setChildren(mergeComponents(
+            List<String> childOrder = checkChildrenOrder(b, m, t, componentPath, conflicts);
+            merged.setChildren(applyOrder(mergeComponents(
                     rows(b, ComponentCreateDto::getChildren),
                     rows(m, ComponentCreateDto::getChildren),
                     rows(t, ComponentCreateDto::getChildren),
-                    componentPath, conflicts, changes));
+                    componentPath, conflicts, changes), childOrder));
             result.add(merged);
         }
         return result;
@@ -290,19 +357,36 @@ public class SceneMerger {
     }
 
     /**
-     * Одновременная перестановка детей с двух сторон. Разрешить её автоматически нельзя: обе
-     * очерёдности осмысленны, а выбрать за человека — значит молча испортить порядок отрисовки.
-     * Перестановка одной стороной конфликтом не считается — там спорить не с кем.
+     * Порядок детей конкретного компонента на трёх сторонах — тонкая обвязка над
+     * {@link #resolveOrder} для случая с родителем; для родителя нет применяется тот же алгоритм
+     * прямо к трём спискам (см. {@link #merge}).
+     *
+     * @return целевой порядок для итогового списка либо {@code null}, если родителя нет хотя бы
+     *         на одной стороне (сравнивать нечего — этот случай уже разбирает основной алгоритм)
+     *         или порядок слияния по умолчанию годится как есть
      */
-    private void checkChildrenOrder(ComponentCreateDto b, ComponentCreateDto m,
-                                    ComponentCreateDto t, String path,
-                                    List<MergeConflict> conflicts) {
+    private List<String> checkChildrenOrder(ComponentCreateDto b, ComponentCreateDto m,
+                                            ComponentCreateDto t, String path,
+                                            List<MergeConflict> conflicts) {
         if (b == null || m == null || t == null) {
-            return;
+            return null;
         }
-        List<String> baseOrder = order(b);
-        List<String> myOrder = order(m);
-        List<String> theirOrder = order(t);
+        return resolveOrder(order(b), order(m), order(t), path, conflicts);
+    }
+
+    /**
+     * Одновременная перестановка с двух сторон. Разрешить её автоматически нельзя: обе
+     * очерёдности осмысленны, а выбрать за человека — значит молча испортить порядок отрисовки.
+     * Перестановка одной стороной конфликтом не считается — там спорить не с кем, но применить
+     * её к результату всё равно нужно: слияние по умолчанию всегда берёт порядок моей стороны
+     * (см. {@link #allKeys}), и без явного навязывания чужая перестановка терялась бы молча.
+     *
+     * @return порядок, который нужно навязать результату («их», если переставили только они),
+     *         либо {@code null}, если результату годится порядок слияния по умолчанию
+     */
+    private List<String> resolveOrder(List<String> baseOrder, List<String> myOrder,
+                                      List<String> theirOrder, String path,
+                                      List<MergeConflict> conflicts) {
         // Сравниваем только общую часть: добавления и удаления разбирает основной алгоритм,
         // и они сами по себе порядок не ломают.
         List<String> common = new ArrayList<>(baseOrder);
@@ -320,14 +404,38 @@ public class SceneMerger {
             conflicts.add(new MergeConflict(ConflictKind.BOTH_MODIFIED, "children_order", path,
                     String.join(", ", baseCommon), String.join(", ", mineCommon),
                     String.join(", ", theirsCommon)));
+            return null;
         }
+        if (mineCommon.equals(baseCommon) && !theirsCommon.equals(baseCommon)) {
+            return theirOrder;
+        }
+        return null;
+    }
+
+    /**
+     * Применяет целевой порядок ключей к уже слитому списку. Ключи, которых в {@code order} нет
+     * (свежие добавления — сам порядок сравнивает только общую часть, см. {@link #resolveOrder}),
+     * остаются на месте, которое им дало слияние по умолчанию: сортировка стабильна.
+     */
+    private List<ComponentCreateDto> applyOrder(List<ComponentCreateDto> merged, List<String> order) {
+        if (order == null) {
+            return merged;
+        }
+        List<ComponentCreateDto> reordered = new ArrayList<>(merged);
+        reordered.sort(Comparator.comparingInt(component -> {
+            int index = order.indexOf(keyOf(component, COMPONENTS));
+            return index < 0 ? Integer.MAX_VALUE : index;
+        }));
+        return reordered;
     }
 
     private List<String> order(ComponentCreateDto component) {
-        RowSpec<ComponentCreateDto> spec =
-                new RowSpec<>("component", ComponentCreateDto::getId, ComponentCreateDto::getName);
-        return rows(component, ComponentCreateDto::getChildren).stream()
-                .map(child -> keyOf(child, spec))
+        return order(rows(component, ComponentCreateDto::getChildren));
+    }
+
+    private List<String> order(List<ComponentCreateDto> components) {
+        return nullToEmpty(components).stream()
+                .map(component -> keyOf(component, COMPONENTS))
                 .collect(Collectors.toList());
     }
 }
