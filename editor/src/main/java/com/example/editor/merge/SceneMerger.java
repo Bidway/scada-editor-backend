@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Трёхстороннее слияние дерева сцены.
@@ -89,7 +90,13 @@ public class SceneMerger {
      * <p>
      * Сравнение идёт по каноническому виду сущности <b>без вложенных коллекций</b>: иначе правка
      * одного скрипта делала бы «изменённым» весь компонент и конфликтовала бы с любой чужой
-     * правкой в нём.
+     * правкой в нём — вложенные коллекции сливаются отдельно, своим кодом, и своя же правка там
+     * даёт свою запись в {@code changes}/{@code conflicts}.
+     * <p>
+     * Исключение — развилки «удалили ли меня»/«удалили ли их» ниже: для них берём
+     * {@code sameFull}, полное сравнение с вложенными коллекциями. Иначе правка скрипта внутри
+     * компонента, чьи собственные скалярные поля не менялись, не признавалась бы правкой вовсе —
+     * и удаление компонента другой стороной проходило бы тихо, без конфликта, теряя эту правку.
      */
     private <T> Resolution<T> resolve(T b, T m, T t, String entity, String path,
                                       List<MergeConflict> conflicts, List<MergeChange> changes) {
@@ -109,7 +116,7 @@ public class SceneMerger {
                 changes.add(new MergeChange(entity, path, ChangeKind.ADDED));
                 return new Resolution<>(t, true);
             }
-            if (changedByThem) {
+            if (!sameFull(b, t)) {
                 conflicts.add(new MergeConflict(ConflictKind.DELETED_BY_YOU, entity, path,
                         text(b), null, text(t)));
                 return new Resolution<>(null, false);
@@ -123,7 +130,7 @@ public class SceneMerger {
                 // поэтому в changes оно не попадает.
                 return new Resolution<>(m, true);
             }
-            if (changedByMe) {
+            if (!sameFull(b, m)) {
                 conflicts.add(new MergeConflict(ConflictKind.DELETED_BY_THEM, entity, path,
                         text(b), text(m), null));
                 return new Resolution<>(null, false);
@@ -191,6 +198,15 @@ public class SceneMerger {
         return Objects.equals(scalars(a), scalars(b));
     }
 
+    /** Равенство по полному каноническому виду, вложенные коллекции включая. */
+    private boolean sameFull(Object a, Object b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return Objects.equals(MergeShape.canonical(mapper.valueToTree(a)),
+                MergeShape.canonical(mapper.valueToTree(b)));
+    }
+
     private JsonNode scalars(Object value) {
         JsonNode node = MergeShape.canonical(mapper.valueToTree(value));
         if (node != null && node.isObject()) {
@@ -211,9 +227,8 @@ public class SceneMerger {
     }
 
     /**
-     * Временная реализация: обрабатывает только один уровень дерева, без спуска в
-     * {@code children}. Рекурсию по вложенным компонентам достраивает следующая задача плана —
-     * этот метод её не подменяет.
+     * Слияние списка компонентов одного уровня дерева. Рекурсивна: в конце сама вызывает себя для
+     * {@code children} каждого выжившего компонента, поэтому обходит дерево на любую глубину.
      */
     private List<ComponentCreateDto> mergeComponents(
             List<ComponentCreateDto> base, List<ComponentCreateDto> mine,
@@ -259,6 +274,12 @@ public class SceneMerger {
                     rows(m, ComponentCreateDto::getBindings),
                     rows(t, ComponentCreateDto::getBindings),
                     BINDINGS, componentPath, conflicts, changes));
+            checkChildrenOrder(b, m, t, componentPath, conflicts);
+            merged.setChildren(mergeComponents(
+                    rows(b, ComponentCreateDto::getChildren),
+                    rows(m, ComponentCreateDto::getChildren),
+                    rows(t, ComponentCreateDto::getChildren),
+                    componentPath, conflicts, changes));
             result.add(merged);
         }
         return result;
@@ -266,5 +287,47 @@ public class SceneMerger {
 
     private <T> List<T> rows(ComponentCreateDto component, Function<ComponentCreateDto, List<T>> of) {
         return component == null ? List.of() : nullToEmpty(of.apply(component));
+    }
+
+    /**
+     * Одновременная перестановка детей с двух сторон. Разрешить её автоматически нельзя: обе
+     * очерёдности осмысленны, а выбрать за человека — значит молча испортить порядок отрисовки.
+     * Перестановка одной стороной конфликтом не считается — там спорить не с кем.
+     */
+    private void checkChildrenOrder(ComponentCreateDto b, ComponentCreateDto m,
+                                    ComponentCreateDto t, String path,
+                                    List<MergeConflict> conflicts) {
+        if (b == null || m == null || t == null) {
+            return;
+        }
+        List<String> baseOrder = order(b);
+        List<String> myOrder = order(m);
+        List<String> theirOrder = order(t);
+        // Сравниваем только общую часть: добавления и удаления разбирает основной алгоритм,
+        // и они сами по себе порядок не ломают.
+        List<String> common = new ArrayList<>(baseOrder);
+        common.retainAll(myOrder);
+        common.retainAll(theirOrder);
+        List<String> mineCommon = new ArrayList<>(myOrder);
+        mineCommon.retainAll(common);
+        List<String> theirsCommon = new ArrayList<>(theirOrder);
+        theirsCommon.retainAll(common);
+        List<String> baseCommon = new ArrayList<>(baseOrder);
+        baseCommon.retainAll(common);
+
+        if (!mineCommon.equals(baseCommon) && !theirsCommon.equals(baseCommon)
+                && !mineCommon.equals(theirsCommon)) {
+            conflicts.add(new MergeConflict(ConflictKind.BOTH_MODIFIED, "children_order", path,
+                    String.join(", ", baseCommon), String.join(", ", mineCommon),
+                    String.join(", ", theirsCommon)));
+        }
+    }
+
+    private List<String> order(ComponentCreateDto component) {
+        RowSpec<ComponentCreateDto> spec =
+                new RowSpec<>("component", ComponentCreateDto::getId, ComponentCreateDto::getName);
+        return rows(component, ComponentCreateDto::getChildren).stream()
+                .map(child -> keyOf(child, spec))
+                .collect(Collectors.toList());
     }
 }
