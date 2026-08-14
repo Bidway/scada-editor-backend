@@ -5,6 +5,12 @@ import lombok.Data;
 
 @Data
 public class PropertyCreateDto {
+    /**
+     * id существующей строки. {@code null} означает «строка новая» — это значение, а не пропуск:
+     * у объекта, которого ещё нет в базе, id взяться неоткуда. Прислали id — сопоставляем по
+     * нему, и переименование остаётся переименованием, а не парой «удалили + создали».
+     */
+    private Long id;
     private Long component_id;
     @NotBlank
     private String name;

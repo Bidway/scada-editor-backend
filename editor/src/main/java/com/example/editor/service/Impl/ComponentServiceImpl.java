@@ -292,7 +292,7 @@ public class ComponentServiceImpl implements ComponentService {
             entity.getChildren().addAll(children);
         }
 
-        ComponentScriptBindingApplier.applyProperties(entity, dto);
+        ComponentScriptBindingApplier.applyProperties(entity, dto, repository::flush);
         ComponentScriptBindingApplier.apply(entity, dto, propertyRepository, repository::flush);
         return entity;
     }
