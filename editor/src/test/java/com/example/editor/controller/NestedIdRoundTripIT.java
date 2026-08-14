@@ -61,7 +61,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalScriptId = scriptId(created, "Открыть");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(componentJson(
+        JsonNode updated = updateScene(sceneId, componentJson(
                 sceneId, componentId, "Открыть клапан", originalScriptId, "Норма", null), base).get(0);
 
         assertThat(updated.get("scripts")).hasSize(1);
@@ -79,7 +79,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalStateId = stateId(created, "Норма");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(componentJson(
+        JsonNode updated = updateScene(sceneId, componentJson(
                 sceneId, componentId, "Открыть", null, "Нормальное", originalStateId), base).get(0);
 
         assertThat(updated.get("states")).hasSize(1);
@@ -104,7 +104,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalScriptId = scriptId(created, "Открыть");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(component(sceneId, componentId,
+        JsonNode updated = updateScene(sceneId, component(sceneId, componentId,
                 "\"scripts\":[{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                         + "\"script\":\"return 1;\"},"
                         + "{\"name\":\"Открыть\",\"script\":\"return 2;\"}],"
@@ -136,7 +136,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long closeId = scriptId(created, "Закрыть");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(component(sceneId, componentId,
+        JsonNode updated = updateScene(sceneId, component(sceneId, componentId,
                 "\"scripts\":[{\"id\":" + openId + ",\"name\":\"Закрыть\",\"script\":\"return 1;\"},"
                         + "{\"id\":" + closeId + ",\"name\":\"Открыть\",\"script\":\"return 2;\"}]"),
                 base).get(0);
@@ -158,7 +158,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long alarmId = stateId(created, "Авария");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(component(sceneId, componentId,
+        JsonNode updated = updateScene(sceneId, component(sceneId, componentId,
                 "\"states\":[{\"id\":" + normalId + ",\"name\":\"Авария\",\"image\":{},"
                         + "\"isDefault\":true},"
                         + "{\"id\":" + alarmId + ",\"name\":\"Норма\",\"image\":{},"
@@ -181,7 +181,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long hoverId = eventId(created, "onHover");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(component(sceneId, componentId,
+        JsonNode updated = updateScene(sceneId, component(sceneId, componentId,
                 "\"events\":[{\"id\":" + clickId + ",\"event_type\":\"onHover\",\"script\":\"a()\"},"
                         + "{\"id\":" + hoverId + ",\"event_type\":\"onClick\",\"script\":\"b()\"}]"),
                 base).get(0);
@@ -201,7 +201,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         Integer base = currentVersion(sceneId, "scenes");
 
         // Переименование без занятия освободившегося имени — обычный случай, он проходить обязан.
-        JsonNode updated = updateComponents(componentJson(
+        JsonNode updated = updateScene(sceneId, componentJson(
                 sceneId, componentId, "Закрыть", originalScriptId, "Норма", null), base).get(0);
 
         assertThat(updated.get("scripts")).hasSize(1);
@@ -217,7 +217,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalScriptId = scriptId(created, "Открыть");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(componentJson(
+        JsonNode updated = updateScene(sceneId, componentJson(
                 sceneId, componentId, "Открыть", null, "Норма", null), base).get(0);
 
         assertThat(scriptId(updated, "Открыть"))
@@ -239,7 +239,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         // второй set молча затирает первый, и скрипт "Открыть" пропадает без ошибки. Порядок
         // элементов в массиве не должен значить ничего.
         Integer base = currentVersion(sceneId, "scenes");
-        JsonNode updated = updateComponents(component(sceneId, componentId,
+        JsonNode updated = updateScene(sceneId, component(sceneId, componentId,
                 "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"},"
                         + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                         + "\"script\":\"return 2;\"}],"
@@ -272,6 +272,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                                 + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
                                 + "\"script\":\"return 2;\"}],"
                                 + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
+                                + "\"scene_id\":" + sceneId + ","
                                 + "\"based_on_version\":" + base + ","
                                 + "\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
@@ -310,7 +311,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalBindingId = bindingId(created, "цвет");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(
+        JsonNode updated = updateScene(sceneId, 
                 withBinding(sceneId, componentId, "цвет", null), base).get(0);
 
         assertThat(bindingId(updated, "цвет"))
@@ -326,7 +327,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalBindingId = bindingId(created, "цвет");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(
+        JsonNode updated = updateScene(sceneId, 
                 withBinding(sceneId, componentId, "заливка", originalBindingId), base).get(0);
 
         assertThat(updated.get("bindings")).hasSize(1);
@@ -356,7 +357,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalEventId = eventId(created, "onClick");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(
+        JsonNode updated = updateScene(sceneId, 
                 withEvent(sceneId, componentId, "onHover", originalEventId), base).get(0);
 
         assertThat(updated.get("events")).hasSize(1);
@@ -387,11 +388,12 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 + "\"script\":\"{}\"}]}";
     }
 
-    private String rejectedUpdate(String componentsJson, Integer base) throws Exception {
+    private String rejectedUpdate(String componentsJson, Integer base, long sceneId) throws Exception {
         return mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"components\":" + componentsJson
+                                + ",\"scene_id\":" + sceneId
                                 + ",\"based_on_version\":" + base
                                 + ",\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest())
@@ -416,7 +418,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         String body = rejectedUpdate("[{\"id\":" + componentId + ",\"name\":\"Насос\","
                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"scripts\":[{\"id\":" + foreignScriptId + ",\"name\":\"Открыть\","
-                + "\"script\":\"return 1;\"}]}]", base);
+                + "\"script\":\"return 1;\"}]}]", base, sceneId);
 
         assertThat(body).contains("Script " + foreignScriptId + " does not belong to component "
                 + componentId);
@@ -434,7 +436,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         String body = rejectedUpdate("[{\"id\":" + componentId + ",\"name\":\"Насос\","
                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"states\":[{\"id\":" + foreignStateId + ",\"name\":\"Норма\",\"image\":{},"
-                + "\"isDefault\":true}]}]", base);
+                + "\"isDefault\":true}]}]", base, sceneId);
 
         assertThat(body).contains("State " + foreignStateId + " does not belong to component "
                 + componentId);
@@ -452,7 +454,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         String body = rejectedUpdate("[{\"id\":" + componentId + ",\"name\":\"Насос\","
                 + "\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"events\":[{\"id\":" + foreignEventId + ",\"event_type\":\"onClick\","
-                + "\"script\":\"a()\"}]}]", base);
+                + "\"script\":\"a()\"}]}]", base, sceneId);
 
         assertThat(body).contains("Event " + foreignEventId + " does not belong to component "
                 + componentId);
@@ -473,7 +475,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 + "\"property_type\":\"Тег\"}],"
                 + "\"bindings\":[{\"id\":" + foreignBindingId + ","
                 + "\"component_property_name\":\"Уставка\",\"name\":\"цвет\","
-                + "\"script\":\"{}\"}]}]", base);
+                + "\"script\":\"{}\"}]}]", base, sceneId);
 
         assertThat(body).contains("Binding " + foreignBindingId + " does not belong to component "
                 + componentId);
@@ -489,7 +491,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         Integer base = currentVersion(sceneId, "scenes");
 
         String body = rejectedUpdate(componentJson(
-                sceneId, componentId, "Открыть", 999_999_999L, "Норма", null), base);
+                sceneId, componentId, "Открыть", 999_999_999L, "Норма", null), base, sceneId);
 
         assertThat(body).contains("Script 999999999 does not belong to component " + componentId);
     }
@@ -516,7 +518,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalId = propertyIdOf(created, "Уставка");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(withProperties(sceneId, componentId,
+        JsonNode updated = updateScene(sceneId, withProperties(sceneId, componentId,
                 "{\"id\":" + originalId + ",\"name\":\"Уставка ПИД\",\"value_type\":\"double\","
                         + "\"property_type\":\"Тег\"}"), base).get(0);
 
@@ -538,7 +540,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long bottomId = propertyIdOf(created, "Низ");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateComponents(withProperties(sceneId, componentId,
+        JsonNode updated = updateScene(sceneId, withProperties(sceneId, componentId,
                 "{\"id\":" + topId + ",\"name\":\"Низ\",\"value_type\":\"double\","
                         + "\"property_type\":\"Тег\"},"
                         + "{\"id\":" + bottomId + ",\"name\":\"Верх\",\"value_type\":\"double\","

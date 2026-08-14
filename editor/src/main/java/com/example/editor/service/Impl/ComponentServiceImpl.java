@@ -14,6 +14,7 @@ import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
 import com.example.editor.exception.NotFoundException;
 import com.example.editor.mapper.ComponentMapper;
+import com.example.editor.merge.ComponentTreePruner;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentState;
 import com.example.editor.model.component.ComponentTypes;
@@ -100,17 +101,52 @@ public class ComponentServiceImpl implements ComponentService {
         return componentMapper.toScenesDtoList(repository.findByType(ComponentTypes.SCENE));
     }
 
-    /** Одна транзакция на данные и снимок — по той же причине, что в {@link #create}. */
+    /**
+     * Одна транзакция на данные и снимок — по той же причине, что в {@link #create}.
+     * <p>
+     * {@code sceneId} обязателен для клиентских вызовов: с планом 3b {@code PUT} несёт сцену
+     * целиком, и без него по присланному списку (тем более пустому) не понять, чьи это дети —
+     * а «стереть не ту сцену» здесь самая дорогая ошибка. Восстановление версии
+     * ({@link SceneDocumentSource#restore}) сцену не передаёт: оно само вычищает лишнее до
+     * вызова {@code update} и зовёт четырёхаргументную обёртку с {@code kind = RESTORE}.
+     */
     @Override
     @Transactional
     public ComponentSaveResponseDto update(List<ComponentCreateDto> dtos, String userName,
-                                           VersionKind kind, Integer basedOnVersion) {
+                                           VersionKind kind, Integer basedOnVersion, Long sceneId) {
+        if (sceneId == null && kind != VersionKind.RESTORE) {
+            throw new IllegalArgumentException(
+                    "scene_id is required: PUT carries the whole scene, so a missing component"
+                            + " means it was deleted");
+        }
         requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
         List<Component> prepared = dtos.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
+        if (sceneId != null) {
+            deleteMissing(sceneId, dtos);
+        }
         Integer versionNo = snapshotScenesOf(prepared, userName, kind);
         return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
+    }
+
+    /**
+     * Компоненты сцены, которых нет в присланном дереве, удаляются: тело {@code PUT} — это
+     * состав сцены целиком, а не список правок.
+     * <p>
+     * Удаление идёт <b>через граф</b>, выбытием из коллекции родителя: связь объявлена с
+     * {@code cascade = ALL} и {@code orphanRemoval}, и пока компонент остаётся в коллекции
+     * живого родителя, каскад воскрешает его на flush. Тот же приём и тот же обход дерева, что в
+     * {@link SceneDocumentSource#restore} — вынесен в {@link ComponentTreePruner}, чтобы не
+     * заводить вторую копию.
+     */
+    private void deleteMissing(Long sceneId, List<ComponentCreateDto> sent) {
+        Set<Long> keep = new HashSet<>();
+        ComponentTreePruner.collectIds(sent, keep);
+        Component scene = repository.findById(sceneId)
+                .orElseThrow(() -> new NotFoundException("Scene not found: " + sceneId));
+        ComponentTreePruner.pruneObsolete(scene, keep);
+        repository.saveAndFlush(scene);
     }
 
     /**

@@ -98,9 +98,9 @@ class UndoIT extends EditorApiTestSupport {
         long sceneId = newScene();
         long componentId = createComponent(sceneId, ONE_ROW);
 
-        updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
+        updateScene(sceneId, "[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
                 + "\"parent_id\":" + sceneId + ",\"properties\":"
-                + "[{\"name\":\"Режим\",\"value_type\":\"int\",\"property_type\":\"Тег\"}]}]");
+                + "[{\"name\":\"Режим\",\"value_type\":\"int\",\"property_type\":\"Тег\"}]}]", null);
         assertThat(getComponent(componentId).get("properties")).hasSize(1);
         assertThat(getComponent(componentId).get("properties").get(0).get("name").asText())
                 .isEqualTo("Режим");

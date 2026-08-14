@@ -61,7 +61,8 @@ public class ComponentController {
             @RequestBody ComponentSaveRequestDto request,
             @RequestHeader("X-Username") String userName) {
         return service.update(request.getComponents(), userName,
-                VersionKinds.orManual(request.getSave_kind()), request.getBased_on_version());
+                VersionKinds.orManual(request.getSave_kind()), request.getBased_on_version(),
+                request.getScene_id());
     }
 
     @DeleteMapping

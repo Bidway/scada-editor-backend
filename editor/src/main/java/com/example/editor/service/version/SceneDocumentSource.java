@@ -8,6 +8,7 @@ import com.example.editor.dto.component.ScriptCreateDto;
 import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.exception.NotFoundException;
 import com.example.editor.mapper.ComponentMapper;
+import com.example.editor.merge.ComponentTreePruner;
 import com.example.editor.merge.MergeShape;
 import com.example.editor.model.component.Binding;
 import com.example.editor.model.component.Component;
@@ -92,7 +93,8 @@ public class SceneDocumentSource implements DocumentSource {
      * коллекции живого родителя, каскад воскрешает его на flush — проверено, тест видел
      * компонент на месте после удаления. Выбытие из коллекции с {@code orphanRemoval} уносит и
      * всё его поддерево, поэтому обход рекурсивный: компонент, добавленный после снимка на
-     * третьем уровне, иначе остался бы.
+     * третьем уровне, иначе остался бы. Сам обход — {@link ComponentTreePruner}, тот же приём
+     * использует {@code ComponentServiceImpl.deleteMissing} при сохранении сцены целиком.
      * <p>
      * Корень сцены в {@code update} не отдаём: {@code populateComponent} запрещает сохранять
      * компонент с типом scene или project.
@@ -103,11 +105,11 @@ public class SceneDocumentSource implements DocumentSource {
         List<ComponentCreateDto> children = MergeShape.childrenOf(content, objectMapper);
 
         Set<Long> keep = new HashSet<>();
-        collectIds(children, keep);
+        ComponentTreePruner.collectIds(children, keep);
 
         Component scene = componentRepository.findById(sceneId)
                 .orElseThrow(() -> new NotFoundException("Scene not found: " + sceneId));
-        pruneObsolete(scene, keep);
+        ComponentTreePruner.pruneObsolete(scene, keep);
         componentRepository.saveAndFlush(scene);
 
         // Компонента (и вложенной строки), удалённых после снимка, в базе больше нет — id
@@ -119,25 +121,6 @@ public class SceneDocumentSource implements DocumentSource {
             child.setParent_id(sceneId);
         }
         componentService.update(children, userName, VersionKind.RESTORE, null);
-    }
-
-    /** Всё, чего нет в снимке, выбывает из коллекции родителя — orphanRemoval доделает. */
-    private void pruneObsolete(Component parent, Set<Long> keep) {
-        parent.getChildren().removeIf(child -> !keep.contains(child.getId()));
-        for (Component child : parent.getChildren()) {
-            pruneObsolete(child, keep);
-        }
-    }
-
-    private void collectIds(List<ComponentCreateDto> dtos, Set<Long> into) {
-        for (ComponentCreateDto dto : dtos) {
-            if (dto.getId() != null) {
-                into.add(dto.getId());
-            }
-            if (dto.getChildren() != null) {
-                collectIds(dto.getChildren(), into);
-            }
-        }
     }
 
     /**
