@@ -173,6 +173,11 @@ public class ComponentScriptBindingApplier {
      * <p>
      * {@code position} — номер для представления: если фронт его не прислал, проставляем по
      * позиции в массиве.
+     * <p>
+     * Переименование по id этот метод распознаёт (строка не пересоздаётся), но значения набора
+     * на новое имя не переносит — меняется только {@code ComponentProperty.name},
+     * {@code recipe_value.row_name} остаётся прежним. Перенос делает только точечный
+     * {@code ComponentPropertyServiceImpl.update} (см. его javadoc и {@code scada-v3g}).
      */
     public void applyProperties(Component entity, ComponentCreateDto dto, Runnable flush) {
         if (dto.getProperties() == null) {
