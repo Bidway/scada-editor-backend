@@ -15,6 +15,7 @@ import com.example.editor.repository.component.ComponentPropertyRepository;
 import lombok.experimental.UtilityClass;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -22,7 +23,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * Синхронизирует коллекции scripts/bindings/events с DTO при создании/обновлении дерева
@@ -42,39 +46,110 @@ public class ComponentScriptBindingApplier {
     }
 
     /**
-     * Отвергает обмен именами внутри одного запроса: имя, освобождаемое переименованием
-     * существующей строки, одновременно занимается новой строкой.
+     * Освобождает ключи (имена, типы событий), которые переименование отдаёт другим строкам того
+     * же запроса, — переводя переименовываемые строки через временный ключ.
      * <p>
-     * Записать это нельзя: Hibernate на flush выполняет вставки раньше обновлений, поэтому
-     * INSERT новой строки упирается в {@code UNIQUE (component_id, name)} прежде, чем UPDATE
-     * освободит имя. Порядок операций внутри flush менять нельзя, поэтому ловим до записи и
-     * объясняем, что делать. Полноценная поддержка — {@code scada-wob}.
+     * Итоговое состояние {@code UNIQUE (component_id, name)} никогда не нарушает, а вот путь к
+     * нему нарушает: Hibernate на flush выполняет вставки раньше обновлений, а порядок обновлений
+     * между собой не определён вовсе. Поэтому «переименовать A и создать новую строку под
+     * освободившимся именем» падало на INSERT, а обмен именами между двумя существующими
+     * строками — на одном из двух UPDATE. Порядок внутри flush не настраивается, поэтому
+     * освобождение делается отдельным ходом: переименовываемые строки получают временный ключ,
+     * запись сбрасывается в базу, и только потом ставятся настоящие ключи (scada-wob).
+     * <p>
+     * Промежуточный flush стоит денег, поэтому делается только когда ключ действительно оспорен:
+     * кто-то в этом же запросе претендует на ключ, который освобождает переименование. Обычное
+     * сохранение и обычное переименование идут прежним путём, без единого лишнего запроса.
+     * <p>
+     * Удаления сюда не относятся: {@code orphanRemoval} Hibernate выполняет <b>раньше</b>
+     * вставок, поэтому «удалить строку и создать новую под её именем» работает и без всего этого.
      *
-     * @param originalKeys ключ (имя либо тип) каждой существующей строки ДО применения dto
-     * @param what         человекочитаемое название сущности для сообщения
+     * @param originalKeys ключ каждой существующей строки ДО применения dto
+     * @param setKey       присвоение ключа сущности — им ставится временное значение и обратно
+     * @param tempKeyOf    временный ключ по номеру: у имён это случайная строка, у типов событий —
+     *                     свободное значение домена, потому что там стоит CHECK
+     * @param flush        сброс персистентного контекста в базу
      */
-    public <T> void rejectNameSwaps(List<T> incoming, Map<Long, String> originalKeys,
-                                    Function<T, Long> idOf, Function<T, String> keyOf,
-                                    String what) {
+    public <T> void freeContestedKeys(List<T> incoming, Map<Long, String> originalKeys,
+                                      Function<T, Long> idOf, Function<T, String> keyOf,
+                                      BiConsumer<T, String> setKey, IntFunction<String> tempKeyOf,
+                                      Runnable flush) {
+        Map<T, String> finalKeys = new IdentityHashMap<>();
         Set<String> freed = new HashSet<>();
+        for (T item : incoming) {
+            String key = keyOf.apply(item);
+            finalKeys.put(item, key);
+            Long id = idOf.apply(item);
+            if (id == null) {
+                continue;
+            }
+            String original = originalKeys.get(id);
+            if (original != null && !original.equals(key)) {
+                freed.add(original);
+            }
+        }
+        if (freed.isEmpty()) {
+            return;
+        }
+        boolean contested = finalKeys.values().stream().anyMatch(freed::contains);
+        if (!contested) {
+            return;
+        }
+
+        int index = 0;
         for (T item : incoming) {
             Long id = idOf.apply(item);
             if (id == null) {
                 continue;
             }
             String original = originalKeys.get(id);
-            if (original != null && !original.equals(keyOf.apply(item))) {
-                freed.add(original);
+            if (original != null && !original.equals(finalKeys.get(item))) {
+                setKey.accept(item, tempKeyOf.apply(index++));
             }
         }
+        flush.run();
         for (T item : incoming) {
-            if (idOf.apply(item) == null && freed.contains(keyOf.apply(item))) {
-                throw new IllegalStateException(
-                        what + " '" + keyOf.apply(item) + "' is freed by a rename in the same"
-                                + " request and taken by a new one; save the rename first,"
-                                + " then create the new one");
-            }
+            setKey.accept(item, finalKeys.get(item));
         }
+    }
+
+    /**
+     * Временные ключи для имён: домен свободный, поэтому годится случайная строка. Префикс
+     * случаен, чтобы не столкнуться ни с настоящим именем, ни с временным ключом соседней
+     * транзакции, переименовывающей строки того же компонента; длина держится в пределах самой
+     * узкой колонки.
+     */
+    public IntFunction<String> temporaryNames() {
+        String prefix = "~" + UUID.randomUUID().toString().substring(0, 8) + "-";
+        return index -> prefix + index;
+    }
+
+    /**
+     * Временные ключи для типов событий: выдуманное значение здесь не пройдёт — на колонке стоит
+     * {@code CHECK} по списку {@link EventTypes#ALL} (и ослаблять его ради перестановки нельзя,
+     * он и держит тип события от превращения в свободную строку). Поэтому временное значение
+     * берётся из того же домена — из типов, которых нет ни среди прежних, ни среди присланных.
+     * <p>
+     * Свободного не найдётся только у компонента, занявшего все восемь типов сразу. Тогда —
+     * внятный отказ, а не 500 с констрейнтом наружу.
+     */
+    private IntFunction<String> spareEventTypes(Component entity, Collection<String> original,
+                                                Collection<String> incoming) {
+        Set<String> occupied = new HashSet<>(original);
+        occupied.addAll(incoming);
+        List<String> spare = EventTypes.ALL.stream()
+                .filter(type -> !occupied.contains(type))
+                .sorted()
+                .toList();
+        return index -> {
+            if (index >= spare.size()) {
+                throw new IllegalStateException(
+                        "Cannot rearrange event types of component " + entity.getId()
+                                + ": all event types are taken, so there is no free slot to move"
+                                + " a handler through; remove one handler first, then rearrange");
+            }
+            return spare.get(index);
+        };
     }
 
     /**
@@ -158,14 +233,19 @@ public class ComponentScriptBindingApplier {
         }
     }
 
+    /**
+     * @param flush сброс контекста в базу; нужен, чтобы освободить имя, отданное переименованием
+     *              другой строке того же запроса (см. {@link #freeContestedKeys})
+     */
     public void apply(
             Component entity,
             ComponentCreateDto dto,
-            ComponentPropertyRepository propertyRepository
+            ComponentPropertyRepository propertyRepository,
+            Runnable flush
     ) {
-        applyScripts(entity, dto);
+        applyScripts(entity, dto, flush);
         applyBindings(entity, dto, propertyRepository);
-        applyEvents(entity, dto);
+        applyEvents(entity, dto, flush);
     }
 
     /**
@@ -180,7 +260,7 @@ public class ComponentScriptBindingApplier {
      * Поэтому одноимённые скрипты отвергаем — они делали бы неоднозначным и вызов, и это
      * сопоставление.
      */
-    private void applyScripts(Component entity, ComponentCreateDto dto) {
+    private void applyScripts(Component entity, ComponentCreateDto dto, Runnable flush) {
         if (dto.getScripts() == null) {
             entity.getScripts().clear();
             return;
@@ -246,8 +326,8 @@ public class ComponentScriptBindingApplier {
             incoming.add(target);
         }
 
-        rejectNameSwaps(incoming, originalNames, Script::getId,
-                s -> matchKey(s.getName()), "Script name");
+        freeContestedKeys(incoming, originalNames, Script::getId,
+                s -> matchKey(s.getName()), Script::setName, temporaryNames(), flush);
 
         entity.getScripts().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
@@ -423,7 +503,7 @@ public class ComponentScriptBindingApplier {
      * {@code events == null} по-прежнему означает «обработчиков нет»: узел сохраняется целиком,
      * и отсутствующее поле — это удаление, а не «не трогать» (в отличие от {@code properties}).
      */
-    private void applyEvents(Component entity, ComponentCreateDto dto) {
+    private void applyEvents(Component entity, ComponentCreateDto dto, Runnable flush) {
         if (dto.getEvents() == null) {
             entity.getEvents().clear();
             return;
@@ -494,8 +574,9 @@ public class ComponentScriptBindingApplier {
             incoming.add(target);
         }
 
-        rejectNameSwaps(incoming, originalTypes, ComponentEvent::getId,
-                ComponentEvent::getEventType, "Event type");
+        freeContestedKeys(incoming, originalTypes, ComponentEvent::getId,
+                ComponentEvent::getEventType, ComponentEvent::setEventType,
+                spareEventTypes(entity, originalTypes.values(), seenTypes), flush);
 
         entity.getEvents().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
