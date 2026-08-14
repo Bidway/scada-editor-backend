@@ -11,6 +11,7 @@ import java.util.List;
 public interface BindingMapper {
 
     @Mapping(target = "component_property_id", source = "componentProperty.id")
+    @Mapping(target = "component_property_name", source = "componentProperty.name")
     BindingResponseDto toDto(Binding entity);
 
     List<BindingResponseDto> toDtoList(List<Binding> entities);

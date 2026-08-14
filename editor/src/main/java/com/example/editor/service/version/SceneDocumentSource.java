@@ -10,6 +10,7 @@ import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Binding;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentEvent;
+import com.example.editor.model.component.ComponentProperty;
 import com.example.editor.model.component.ComponentState;
 import com.example.editor.model.component.ComponentTypes;
 import com.example.editor.model.component.Script;
@@ -169,6 +170,33 @@ public class SceneDocumentSource implements DocumentSource {
         }
     }
 
+    /**
+     * Ссылка биндинга на свойство — не id строки, а указатель на соседнюю, и протухает она
+     * отдельно. Свойство, удалённое после снимка, восстановление создаёт заново <b>с новым
+     * id</b> (у {@code PropertyCreateDto} поля id нет вовсе, сопоставление идёт по имени),
+     * поэтому номер из снимка адресует пустоту и валит всё восстановление в 400 (scada-3hw).
+     * <p>
+     * Снимаем номер только вместе с именем на замену: у снимков, записанных до появления
+     * {@code component_property_name}, подменить его нечем, и осмысленная ошибка «свойство N не
+     * найдено» полезнее невнятной «биндингу нужен id или имя». Такой снимок восстановится, как
+     * только сцену сохранят заново.
+     */
+    private void dropDeadPropertyRefs(ComponentCreateDto dto, Component existing) {
+        if (dto.getBindings() == null) {
+            return;
+        }
+        Set<Long> known = idsOf(existing == null ? null : existing.getProperties(),
+                ComponentProperty::getId);
+        for (BindingPayloadDto binding : dto.getBindings()) {
+            Long propertyId = binding.getComponent_property_id();
+            boolean hasName = binding.getComponent_property_name() != null
+                    && !binding.getComponent_property_name().isBlank();
+            if (propertyId != null && !known.contains(propertyId) && hasName) {
+                binding.setComponent_property_id(null);
+            }
+        }
+    }
+
     /** Компонента нет — значит, нет и ни одной его строки: id снимаются все. */
     private void dropMissingNestedIds(ComponentCreateDto dto, Component existing) {
         dropUnknownIds(dto.getScripts(), ScriptCreateDto::getId, ScriptCreateDto::setId,
@@ -179,6 +207,7 @@ public class SceneDocumentSource implements DocumentSource {
                 idsOf(existing == null ? null : existing.getEvents(), ComponentEvent::getId));
         dropUnknownIds(dto.getBindings(), BindingPayloadDto::getId, BindingPayloadDto::setId,
                 idsOf(existing == null ? null : existing.getBindings(), Binding::getId));
+        dropDeadPropertyRefs(dto, existing);
     }
 
     private <T> void dropUnknownIds(List<T> incoming, Function<T, Long> idOf,
