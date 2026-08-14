@@ -210,6 +210,11 @@ public class SceneMerger {
         return list == null ? List.of() : list;
     }
 
+    /**
+     * Временная реализация: обрабатывает только один уровень дерева, без спуска в
+     * {@code children}. Рекурсию по вложенным компонентам достраивает следующая задача плана —
+     * этот метод её не подменяет.
+     */
     private List<ComponentCreateDto> mergeComponents(
             List<ComponentCreateDto> base, List<ComponentCreateDto> mine,
             List<ComponentCreateDto> theirs, String path,
