@@ -130,6 +130,43 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
     }
 
     /**
+     * Биндинг ссылается на свойство номером, и этот номер тоже может протухнуть.
+     * <p>
+     * {@code dropMissingIds} снимает id самих сущностей, но {@code component_property_id} внутри
+     * биндинга — это ссылка, а не id строки, и её он не трогает. Свойство, удалённое после
+     * снимка, восстановление создаёт заново <b>с новым id</b> (у {@code PropertyCreateDto} поля
+     * id нет вовсе, сопоставление идёт по имени), а биндинг из снимка продолжает адресовать
+     * старый — и {@code resolveBindingProperty} валит всё восстановление в 400.
+     * <p>
+     * Сценарий «удалил и вернул как было» — обычная работа инженера, поэтому снимок обязан
+     * нести имя свойства, а не только его номер.
+     */
+    @Test
+    void restoringVersionWithDeletedBindingProperty_recreatesBoth() throws Exception {
+        long sceneId = newScene();
+        String properties = "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
+                + "\"property_type\":\"Тег\"}],";
+        JsonNode created = saveComponents(pump(sceneId, null, properties + "\"bindings\":["
+                + "{\"component_property_name\":\"Уставка\",\"name\":\"цвет\",\"script\":\"{}\"}]"))
+                .get(0);
+        long componentId = created.get("id").asLong();
+
+        // Свойство удалено после снимка — вместе с ним уходит и биндинг на него.
+        updateComponents(pump(sceneId, componentId, "\"properties\":[],\"bindings\":[]"),
+                currentVersion(sceneId, "scenes"));
+
+        restore(sceneId, 1);
+
+        JsonNode component = getComponent(componentId);
+        assertThat(names(component, "bindings"))
+                .as("биндинг обязан вернуться вместе со свойством, а не уронить восстановление")
+                .hasSize(1);
+        assertThat(component.get("bindings").get(0).get("component_property_id").asLong())
+                .as("ссылка обязана вести на воскресшее свойство, а не на его прежний номер")
+                .isEqualTo(propertyId(component, "Уставка"));
+    }
+
+    /**
      * Обратная сторона правки: снимать id подряд у всех вложенных сущностей нельзя. Сценарий
      * подобран так, чтобы отличить принятую правку от отвергнутого варианта («снимать вложенные
      * id безусловно»): скрипт между версиями переименован, поэтому по имени пережившую строку
