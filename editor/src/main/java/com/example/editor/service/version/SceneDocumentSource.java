@@ -8,6 +8,7 @@ import com.example.editor.dto.component.ScriptCreateDto;
 import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.exception.NotFoundException;
 import com.example.editor.mapper.ComponentMapper;
+import com.example.editor.merge.MergeShape;
 import com.example.editor.model.component.Binding;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentEvent;
@@ -19,7 +20,6 @@ import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
@@ -100,8 +100,7 @@ public class SceneDocumentSource implements DocumentSource {
     @Override
     @Transactional
     public void restore(Long sceneId, JsonNode content, String userName) {
-        List<ComponentCreateDto> children = objectMapper.convertValue(
-                content.get("children"), new TypeReference<List<ComponentCreateDto>>() {});
+        List<ComponentCreateDto> children = MergeShape.childrenOf(content, objectMapper);
 
         Set<Long> keep = new HashSet<>();
         collectIds(children, keep);
