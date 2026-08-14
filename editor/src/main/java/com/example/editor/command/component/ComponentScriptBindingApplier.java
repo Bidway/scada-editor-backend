@@ -15,12 +15,18 @@ import com.example.editor.repository.component.ComponentPropertyRepository;
 import lombok.experimental.UtilityClass;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * Синхронизирует коллекции scripts/bindings/events с DTO при создании/обновлении дерева
@@ -37,6 +43,113 @@ public class ComponentScriptBindingApplier {
      */
     public String matchKey(String name) {
         return name == null ? null : name.trim();
+    }
+
+    /**
+     * Освобождает ключи (имена, типы событий), которые переименование отдаёт другим строкам того
+     * же запроса, — переводя переименовываемые строки через временный ключ.
+     * <p>
+     * Итоговое состояние {@code UNIQUE (component_id, name)} никогда не нарушает, а вот путь к
+     * нему нарушает: Hibernate на flush выполняет вставки раньше обновлений, а порядок обновлений
+     * между собой не определён вовсе. Поэтому «переименовать A и создать новую строку под
+     * освободившимся именем» падало на INSERT, а обмен именами между двумя существующими
+     * строками — на одном из двух UPDATE. Порядок внутри flush не настраивается, поэтому
+     * освобождение делается отдельным ходом: переименовываемые строки получают временный ключ,
+     * запись сбрасывается в базу, и только потом ставятся настоящие ключи (scada-wob).
+     * <p>
+     * Промежуточный flush стоит денег, поэтому делается только когда ключ действительно оспорен:
+     * кто-то в этом же запросе претендует на ключ, который освобождает переименование. Обычное
+     * сохранение и обычное переименование идут прежним путём, без единого лишнего запроса.
+     * <p>
+     * Удаления сюда не относятся: {@code orphanRemoval} Hibernate выполняет <b>раньше</b>
+     * вставок, поэтому «удалить строку и создать новую под её именем» работает и без всего этого.
+     *
+     * @param originalKeys ключ каждой существующей строки ДО применения dto
+     * @param setKey       присвоение ключа сущности — им ставится временное значение и обратно
+     * @param tempKeyOf    временный ключ по номеру: у имён это случайная строка, у типов событий —
+     *                     свободное значение домена, потому что там стоит CHECK
+     * @param flush        сброс персистентного контекста в базу
+     */
+    public <T> void freeContestedKeys(List<T> incoming, Map<Long, String> originalKeys,
+                                      Function<T, Long> idOf, Function<T, String> keyOf,
+                                      BiConsumer<T, String> setKey, IntFunction<String> tempKeyOf,
+                                      Runnable flush) {
+        Map<T, String> finalKeys = new IdentityHashMap<>();
+        Set<String> freed = new HashSet<>();
+        for (T item : incoming) {
+            String key = keyOf.apply(item);
+            finalKeys.put(item, key);
+            Long id = idOf.apply(item);
+            if (id == null) {
+                continue;
+            }
+            String original = originalKeys.get(id);
+            if (original != null && !original.equals(key)) {
+                freed.add(original);
+            }
+        }
+        if (freed.isEmpty()) {
+            return;
+        }
+        boolean contested = finalKeys.values().stream().anyMatch(freed::contains);
+        if (!contested) {
+            return;
+        }
+
+        int index = 0;
+        for (T item : incoming) {
+            Long id = idOf.apply(item);
+            if (id == null) {
+                continue;
+            }
+            String original = originalKeys.get(id);
+            if (original != null && !original.equals(finalKeys.get(item))) {
+                setKey.accept(item, tempKeyOf.apply(index++));
+            }
+        }
+        flush.run();
+        for (T item : incoming) {
+            setKey.accept(item, finalKeys.get(item));
+        }
+    }
+
+    /**
+     * Временные ключи для имён: домен свободный, поэтому годится случайная строка. Префикс
+     * случаен, чтобы не столкнуться ни с настоящим именем, ни с временным ключом соседней
+     * транзакции, переименовывающей строки того же компонента; длина держится в пределах самой
+     * узкой колонки.
+     */
+    public IntFunction<String> temporaryNames() {
+        String prefix = "~" + UUID.randomUUID().toString().substring(0, 8) + "-";
+        return index -> prefix + index;
+    }
+
+    /**
+     * Временные ключи для типов событий: выдуманное значение здесь не пройдёт — на колонке стоит
+     * {@code CHECK} по списку {@link EventTypes#ALL} (и ослаблять его ради перестановки нельзя,
+     * он и держит тип события от превращения в свободную строку). Поэтому временное значение
+     * берётся из того же домена — из типов, которых нет ни среди прежних, ни среди присланных.
+     * <p>
+     * Свободного не найдётся только у компонента, занявшего все восемь типов сразу. Тогда —
+     * внятный отказ, а не 500 с констрейнтом наружу.
+     */
+    private IntFunction<String> spareEventTypes(Component entity, Collection<String> original,
+                                                Collection<String> incoming) {
+        Set<String> occupied = new HashSet<>(original);
+        occupied.addAll(incoming);
+        List<String> spare = EventTypes.ALL.stream()
+                .filter(type -> !occupied.contains(type))
+                .sorted()
+                .toList();
+        return index -> {
+            if (index >= spare.size()) {
+                throw new IllegalStateException(
+                        "Cannot rearrange event types of component " + entity.getId()
+                                + ": all event types are taken, so there is no free slot to move"
+                                + " a handler through; remove one handler first, then rearrange");
+            }
+            return spare.get(index);
+        };
     }
 
     /**
@@ -120,28 +233,19 @@ public class ComponentScriptBindingApplier {
         }
     }
 
+    /**
+     * @param flush сброс контекста в базу; нужен, чтобы освободить имя, отданное переименованием
+     *              другой строке того же запроса (см. {@link #freeContestedKeys})
+     */
     public void apply(
             Component entity,
             ComponentCreateDto dto,
-            ComponentPropertyRepository propertyRepository
+            ComponentPropertyRepository propertyRepository,
+            Runnable flush
     ) {
-        applyScripts(entity, dto);
-
-        entity.getBindings().clear();
-        if (dto.getBindings() != null) {
-            for (BindingPayloadDto b : dto.getBindings()) {
-                entity.getBindings().add(
-                        Binding.builder()
-                                .name(b.getName())
-                                .script(b.getScript())
-                                .component(entity)
-                                .componentProperty(resolveBindingProperty(entity, b, propertyRepository))
-                                .build()
-                );
-            }
-        }
-
-        applyEvents(entity, dto);
+        applyScripts(entity, dto, flush);
+        applyBindings(entity, dto, propertyRepository);
+        applyEvents(entity, dto, flush);
     }
 
     /**
@@ -156,14 +260,45 @@ public class ComponentScriptBindingApplier {
      * Поэтому одноимённые скрипты отвергаем — они делали бы неоднозначным и вызов, и это
      * сопоставление.
      */
-    private void applyScripts(Component entity, ComponentCreateDto dto) {
+    private void applyScripts(Component entity, ComponentCreateDto dto, Runnable flush) {
         if (dto.getScripts() == null) {
             entity.getScripts().clear();
             return;
         }
         Map<String, Script> existingByName = new HashMap<>();
+        Map<Long, Script> existingById = new HashMap<>();
+        Map<Long, String> originalNames = new HashMap<>();
         for (Script existing : entity.getScripts()) {
             existingByName.put(matchKey(existing.getName()), existing);
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+                originalNames.put(existing.getId(), matchKey(existing.getName()));
+            }
+        }
+
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по имени. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<ScriptCreateDto, Script> resolved = new IdentityHashMap<>();
+        for (ScriptCreateDto s : dto.getScripts()) {
+            if (s.getId() == null) {
+                continue;
+            }
+            Script target = existingById.get(s.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "Script " + s.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "Script " + s.getId() + " is addressed twice in the same request");
+            }
+            // Забрали строку по id — её прежнее имя перестаёт быть ключом. Иначе элемент без id
+            // под старым именем найдёт её же и отберёт обратно: переименование молча отменится,
+            // а вторая сущность не создастся.
+            existingByName.remove(matchKey(target.getName()));
+            resolved.put(s, target);
         }
 
         List<Script> incoming = new ArrayList<>();
@@ -178,20 +313,121 @@ public class ComponentScriptBindingApplier {
                         "Duplicate script name '" + name + "' in component " + entity.getId()
                                 + "; runScript() addresses scripts by name, so names must be unique");
             }
-            Script target = existingByName.get(name);
+            Script target = s.getId() != null ? resolved.get(s) : existingByName.remove(name);
             if (target == null) {
                 target = new Script();
                 target.setComponent(entity);
-                target.setName(name);
             }
+            target.setName(name);
             target.setScript(s.getScript());
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
             incoming.add(target);
         }
 
-        entity.getScripts().removeIf(existing -> !seenNames.contains(matchKey(existing.getName())));
+        freeContestedKeys(incoming, originalNames, Script::getId,
+                s -> matchKey(s.getName()), Script::setName, temporaryNames(), flush);
+
+        entity.getScripts().removeIf(existing -> existing.getId() != null
+                ? !keptIds.contains(existing.getId())
+                : !seenNames.contains(matchKey(existing.getName())));
         for (Script target : incoming) {
             if (target.getId() == null) {
                 entity.getScripts().add(target);
+            }
+        }
+    }
+
+    /**
+     * Синхронизация биндингов. Раньше здесь стоял {@code clear()} с повторной вставкой, и
+     * {@code Binding.id} менялся на каждом сохранении сцены (scada-dna). Ключ сопоставления —
+     * сначала присланный id, затем имя: имя биндинга уникальным не объявлено, поэтому
+     * одноимённые разбираются по порядку — первый свободный с этим именем.
+     */
+    private void applyBindings(
+            Component entity,
+            ComponentCreateDto dto,
+            ComponentPropertyRepository propertyRepository
+    ) {
+        if (dto.getBindings() == null) {
+            entity.getBindings().clear();
+            return;
+        }
+        Map<Long, Binding> existingById = new HashMap<>();
+        Map<String, List<Binding>> existingByName = new HashMap<>();
+        for (Binding existing : entity.getBindings()) {
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+            }
+            existingByName
+                    .computeIfAbsent(matchKey(existing.getName()), k -> new ArrayList<>())
+                    .add(existing);
+        }
+
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по имени. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<BindingPayloadDto, Binding> resolved = new IdentityHashMap<>();
+        for (BindingPayloadDto b : dto.getBindings()) {
+            if (b.getId() == null) {
+                continue;
+            }
+            Binding target = existingById.get(b.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "Binding " + b.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "Binding " + b.getId() + " is addressed twice in the same request");
+            }
+            // Забрали строку по id — она не должна оставаться доступной кандидатом для
+            // сопоставления по имени.
+            List<Binding> sameName = existingByName.get(matchKey(target.getName()));
+            if (sameName != null) {
+                sameName.remove(target);
+            }
+            resolved.put(b, target);
+        }
+
+        List<Binding> incoming = new ArrayList<>();
+        for (BindingPayloadDto b : dto.getBindings()) {
+            Binding target;
+            if (b.getId() != null) {
+                target = resolved.get(b);
+            } else {
+                target = null;
+                List<Binding> sameName = existingByName.get(matchKey(b.getName()));
+                if (sameName != null) {
+                    for (Binding candidate : sameName) {
+                        if (candidate.getId() == null || !keptIds.contains(candidate.getId())) {
+                            target = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (target == null) {
+                target = new Binding();
+                target.setComponent(entity);
+            }
+            target.setName(b.getName());
+            target.setScript(b.getScript());
+            target.setComponentProperty(resolveBindingProperty(entity, b, propertyRepository));
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
+            incoming.add(target);
+        }
+
+        entity.getBindings().removeIf(existing ->
+                existing.getId() != null ? !keptIds.contains(existing.getId())
+                        : !incoming.contains(existing));
+        for (Binding target : incoming) {
+            if (target.getId() == null && !entity.getBindings().contains(target)) {
+                entity.getBindings().add(target);
             }
         }
     }
@@ -267,14 +503,45 @@ public class ComponentScriptBindingApplier {
      * {@code events == null} по-прежнему означает «обработчиков нет»: узел сохраняется целиком,
      * и отсутствующее поле — это удаление, а не «не трогать» (в отличие от {@code properties}).
      */
-    private void applyEvents(Component entity, ComponentCreateDto dto) {
+    private void applyEvents(Component entity, ComponentCreateDto dto, Runnable flush) {
         if (dto.getEvents() == null) {
             entity.getEvents().clear();
             return;
         }
         Map<String, ComponentEvent> existingByType = new HashMap<>();
+        Map<Long, ComponentEvent> existingById = new HashMap<>();
+        Map<Long, String> originalTypes = new HashMap<>();
         for (ComponentEvent existing : entity.getEvents()) {
             existingByType.put(existing.getEventType(), existing);
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+                originalTypes.put(existing.getId(), existing.getEventType());
+            }
+        }
+
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по типу. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<EventPayloadDto, ComponentEvent> resolved = new IdentityHashMap<>();
+        for (EventPayloadDto e : dto.getEvents()) {
+            if (e.getId() == null) {
+                continue;
+            }
+            ComponentEvent target = existingById.get(e.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "Event " + e.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "Event " + e.getId() + " is addressed twice in the same request");
+            }
+            // Забрали строку по id — её прежний тип перестаёт быть ключом. Иначе следующий
+            // элемент того же запроса, пришедший без id под старым типом, найдёт её же и
+            // отберёт обратно.
+            existingByType.remove(target.getEventType());
+            resolved.put(e, target);
         }
 
         List<ComponentEvent> incoming = new ArrayList<>();
@@ -293,17 +560,27 @@ public class ComponentScriptBindingApplier {
                         "Event " + e.getEvent_type() + " requires a script; omit the event to remove it");
             }
 
-            ComponentEvent target = existingByType.get(e.getEvent_type());
+            ComponentEvent target = e.getId() != null
+                    ? resolved.get(e) : existingByType.remove(e.getEvent_type());
             if (target == null) {
                 target = new ComponentEvent();
                 target.setComponent(entity);
-                target.setEventType(e.getEvent_type());
             }
+            target.setEventType(e.getEvent_type());
             target.setScript(e.getScript());
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
             incoming.add(target);
         }
 
-        entity.getEvents().removeIf(existing -> !seenTypes.contains(existing.getEventType()));
+        freeContestedKeys(incoming, originalTypes, ComponentEvent::getId,
+                ComponentEvent::getEventType, ComponentEvent::setEventType,
+                spareEventTypes(entity, originalTypes.values(), seenTypes), flush);
+
+        entity.getEvents().removeIf(existing -> existing.getId() != null
+                ? !keptIds.contains(existing.getId())
+                : !seenTypes.contains(existing.getEventType()));
         for (ComponentEvent target : incoming) {
             if (target.getId() == null) {
                 entity.getEvents().add(target);

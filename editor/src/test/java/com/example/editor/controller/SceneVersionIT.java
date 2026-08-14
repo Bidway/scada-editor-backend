@@ -137,12 +137,7 @@ class SceneVersionIT extends EditorApiTestSupport {
     }
 
     private void saveComponentsAs(String kind, String json) throws Exception {
-        mockMvc.perform(post("/api/editor/components")
-                        .header("X-Username", USER)
-                        .header("X-Save-Kind", kind)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isOk());
+        saveComponents(json, null, kind);
     }
 
     private String pumpJson(long sceneId, String setpoint) {
@@ -210,7 +205,7 @@ class SceneVersionIT extends EditorApiTestSupport {
         updateComponents("[{\"id\":" + componentId + ",\"name\":\"Насос\",\"type\":\"valve\","
                 + "\"parent_id\":" + sceneId + ",\"properties\":[{\"name\":\"Уставка\","
                 + "\"value_type\":\"double\",\"property_type\":\"Тег\","
-                + "\"default_value\":\"10\"}]}]");
+                + "\"default_value\":\"10\"}]}]", currentVersion(sceneId, "scenes"));
 
         assertThat(versionsOf(sceneId))
                 .as("содержимое то же — версии быть не должно; счётчик @Version, растущий на "

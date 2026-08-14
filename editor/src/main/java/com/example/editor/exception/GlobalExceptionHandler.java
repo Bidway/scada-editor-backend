@@ -3,11 +3,13 @@ package com.example.editor.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -31,6 +33,30 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return buildResponse(HttpStatus.BAD_REQUEST, message.isBlank() ? "Validation failed" : message);
+    }
+
+    /**
+     * Тело не разобралось в DTO — например, голый массив прислали туда, где теперь ждут
+     * конверт {@code {"components": [...]}}. Без отдельного обработчика этот кейс ловил бы
+     * общий {@code Exception.class} ниже и отвечал 500 вместо 400.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Malformed request body");
+    }
+
+    /**
+     * Форма ответа здесь своя, не через {@link #buildResponse}: контракт с фронтом обещает
+     * {@code error: "version_mismatch"} и оба номера версий, а общий обработчик кладёт в
+     * {@code error} reason phrase.
+     */
+    @ExceptionHandler(VersionMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleVersionMismatch(VersionMismatchException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "version_mismatch");
+        body.put("base_version", ex.getBaseVersion());
+        body.put("current_version", ex.getCurrentVersion());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(Exception.class)

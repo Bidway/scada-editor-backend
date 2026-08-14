@@ -2,6 +2,8 @@ package com.example.editor.controller;
 
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
+import com.example.editor.dto.component.ComponentSaveRequestDto;
+import com.example.editor.dto.component.ComponentSaveResponseDto;
 import com.example.editor.dto.project.ProjectCreateDto;
 import com.example.editor.dto.project.ProjectCreateResponseDto;
 import com.example.editor.dto.project.ProjectsResponseDto;
@@ -23,11 +25,11 @@ public class ComponentController {
     private final ComponentService service;
 
     @PostMapping
-    public List<ComponentResponseDto> create(
-            @RequestBody List<ComponentCreateDto> components,
-            @RequestHeader("X-Username") String userName,
-            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
-        return service.create(components, userName, VersionKinds.orManual(saveKind));
+    public ComponentSaveResponseDto create(
+            @RequestBody ComponentSaveRequestDto request,
+            @RequestHeader("X-Username") String userName) {
+        return service.create(request.getComponents(), userName,
+                VersionKinds.orManual(request.getSave_kind()), request.getBased_on_version());
     }
 
     @PostMapping("/project")
@@ -55,11 +57,11 @@ public class ComponentController {
     }
 
     @PutMapping
-    public List<ComponentResponseDto> update(
-            @RequestBody List<ComponentCreateDto> components,
-            @RequestHeader("X-Username") String userName,
-            @RequestHeader(value = "X-Save-Kind", required = false) String saveKind) {
-        return service.update(components, userName, VersionKinds.orManual(saveKind));
+    public ComponentSaveResponseDto update(
+            @RequestBody ComponentSaveRequestDto request,
+            @RequestHeader("X-Username") String userName) {
+        return service.update(request.getComponents(), userName,
+                VersionKinds.orManual(request.getSave_kind()), request.getBased_on_version());
     }
 
     @DeleteMapping

@@ -15,6 +15,12 @@ import lombok.Data;
  */
 @Data
 public class BindingPayloadDto {
+    /**
+     * id существующей строки. {@code null} означает «сущность новая» — это значение, а не
+     * пропуск: у объекта, которого ещё нет в базе, id взяться неоткуда. Прислали id —
+     * сопоставляем по нему, и переименование остаётся переименованием.
+     */
+    private Long id;
     private Long component_property_id;
     /** Альтернатива id: имя свойства в пределах того же компонента. */
     private String component_property_name;

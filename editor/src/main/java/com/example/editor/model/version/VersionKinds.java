@@ -3,12 +3,10 @@ package com.example.editor.model.version;
 import lombok.experimental.UtilityClass;
 
 /**
- * Разбор заголовка {@code X-Save-Kind}.
+ * Разбор поля {@code save_kind} из тела сохранения.
  * <p>
- * Признак автосохранения приходит заголовком, а не полем тела: тело у сохранения компонентов —
- * голый список, и добавление поля меняло бы форму запроса, которую до ответа фронта держим
- * неизменной. Не прислали — считаем ручным сохранением: ошибиться в эту сторону безопаснее,
- * лишнее автосохранение в истории не мешает, а вот пропавшее ручное — мешает.
+ * Не прислали — считаем ручным сохранением: ошибиться в эту сторону безопаснее, лишнее
+ * автосохранение в истории не мешает, а вот пропавшее ручное — мешает.
  */
 @UtilityClass
 public class VersionKinds {
@@ -17,10 +15,18 @@ public class VersionKinds {
         if (saveKind == null || saveKind.isBlank()) {
             return VersionKind.MANUAL;
         }
+        VersionKind kind;
         try {
-            return VersionKind.valueOf(saveKind.trim().toUpperCase());
+            kind = VersionKind.valueOf(saveKind.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown X-Save-Kind: " + saveKind);
+            throw new IllegalArgumentException("Unknown save_kind: " + saveKind);
         }
+        // RESTORE клиент прислать не может: этот kind ставит только сам сервер при
+        // восстановлении версии, и от него зависит обход проверки based_on_version — иначе
+        // сохранение с save_kind=RESTORE обходило бы её.
+        if (kind == VersionKind.RESTORE) {
+            throw new IllegalArgumentException("Unknown save_kind: " + saveKind);
+        }
+        return kind;
     }
 }
