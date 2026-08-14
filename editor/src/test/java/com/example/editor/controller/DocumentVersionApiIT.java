@@ -7,6 +7,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDateTime;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -25,6 +27,10 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         return "[{\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
                 + "\"properties\":[{\"name\":\"Уставка\",\"value_type\":\"double\","
                 + "\"property_type\":\"Тег\",\"default_value\":\"" + setpoint + "\"}]}]";
+    }
+
+    private void saveComponentsAs(String kind, String json, Integer basedOnVersion) throws Exception {
+        saveComponents(json, basedOnVersion, kind);
     }
 
     private String pumpUpdateJson(long sceneId, long componentId, String setpoint) {
@@ -46,7 +52,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
         long componentId = created.get("id").asLong();
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         JsonNode versions = getJson("/api/editor/scenes/" + sceneId + "/versions");
 
@@ -75,7 +81,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         String between = java.time.LocalDateTime.now().toString();
         Thread.sleep(20);
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         JsonNode content = getJson("/api/editor/scenes/" + sceneId + "/at?time=" + between);
 
@@ -103,7 +109,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         long propertyId = propertyId(created, "Уставка");
 
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
 
@@ -121,7 +127,7 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
         long componentId = created.get("id").asLong();
-        updateComponents(pumpUpdateJson(sceneId, componentId, "42"));
+        updateComponents(pumpUpdateJson(sceneId, componentId, "42"), currentVersion(sceneId, "scenes"));
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
 
@@ -136,12 +142,95 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
         long sceneId = newScene();
         saveComponents(pumpJson(sceneId, "10"));
         JsonNode extra = saveComponents("[{\"name\":\"Клапан\",\"type\":\"valve\","
-                + "\"parent_id\":" + sceneId + "}]").get(0);
+                + "\"parent_id\":" + sceneId + "}]", currentVersion(sceneId, "scenes"), "MANUAL").get(0);
         long extraId = extra.get("id").asLong();
 
         restore("/api/editor/scenes/" + sceneId + "/restore/1");
 
         mockMvc.perform(get("/api/editor/components/" + extraId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void versionList_filtersByKind() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        saveComponentsAs("AUTOSAVE", pumpJson(sceneId, "20"), currentVersion(sceneId, "scenes"));
+
+        String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("kind", "MANUAL"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode versions = objectMapper.readTree(body);
+        assertThat(versions).isNotEmpty();
+        for (JsonNode v : versions) {
+            assertThat(v.get("kind").asText())
+                    .as("фильтр по kind — ради «показать только ручные» в истории")
+                    .isEqualTo("MANUAL");
+        }
+    }
+
+    @Test
+    void versionList_respectsLimit() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        saveComponents(pumpJson(sceneId, "20"), currentVersion(sceneId, "scenes"), "MANUAL");
+        saveComponents(pumpJson(sceneId, "30"), currentVersion(sceneId, "scenes"), "MANUAL");
+
+        String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(objectMapper.readTree(body)).hasSize(2);
+    }
+
+    @Test
+    void versionList_rejectsLimitAboveCeiling() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+
+        mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("limit", "501"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void restore_returnsDocumentContentAndVersionNo() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        saveComponents(pumpJson(sceneId, "20"), currentVersion(sceneId, "scenes"), "MANUAL");
+
+        String body = mockMvc.perform(post("/api/editor/scenes/" + sceneId + "/restore/1")
+                        .header("X-Username", USER))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode response = objectMapper.readTree(body);
+        assertThat(response.get("restored_from").asInt()).isEqualTo(1);
+        assertThat(response.get("version_no").asInt())
+                .as("восстановление дописывает историю, номер растёт")
+                .isGreaterThan(2);
+        assertThat(response.get("components"))
+                .as("содержимое приходит сразу — второй запрос за ним не нужен")
+                .isNotNull();
+        assertThat(response.get("components").get("children")).isNotEmpty();
+    }
+
+    @Test
+    void versionList_filtersByPeriod() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+
+        String future = LocalDateTime.now().plusDays(1).toString();
+        String body = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("from", future))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(objectMapper.readTree(body))
+                .as("нижняя граница в будущем — в окно не попадает ничего")
+                .isEmpty();
     }
 }

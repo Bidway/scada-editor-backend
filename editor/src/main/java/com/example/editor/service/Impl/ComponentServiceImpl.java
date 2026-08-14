@@ -4,6 +4,7 @@ import com.example.editor.command.component.*;
 import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
+import com.example.editor.dto.component.ComponentSaveResponseDto;
 import com.example.editor.dto.component.ComponentStateDto;
 import com.example.editor.dto.project.ProjectCreateDto;
 import com.example.editor.dto.project.ProjectCreateResponseDto;
@@ -28,10 +29,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,14 +54,25 @@ public class ComponentServiceImpl implements ComponentService {
     private final DocumentVersionService versionService;
     private final SceneDocumentSource sceneDocumentSource;
 
+    /**
+     * Проверка версии, запись данных и запись снимка — одна транзакция.
+     * <p>
+     * Пока их было три, сбой снимка оставлял данные записанными без следа в истории, а два
+     * одновременных сохранения оба проходили проверку, оба коммитили данные и второй бился о
+     * {@code document_version_uk}: клиент получал 500, хотя его правка уже лежала в базе
+     * (scada-78j). Теперь неудача снимка забирает данные с собой, а гонка отвечает 409 — см.
+     * {@link DocumentVersionService#record}.
+     */
     @Override
-    public List<ComponentResponseDto> create(List<ComponentCreateDto> dtos, String userName,
-                                             VersionKind kind) {
+    @Transactional
+    public ComponentSaveResponseDto create(List<ComponentCreateDto> dtos, String userName,
+                                           VersionKind kind, Integer basedOnVersion) {
+        requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new CreateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        snapshotScenesOf(prepared, userName, kind);
-        return response;
+        Integer versionNo = snapshotScenesOf(prepared, userName, kind);
+        return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
     }
 
     @Override
@@ -86,14 +100,17 @@ public class ComponentServiceImpl implements ComponentService {
         return componentMapper.toScenesDtoList(repository.findByType(ComponentTypes.SCENE));
     }
 
+    /** Одна транзакция на данные и снимок — по той же причине, что в {@link #create}. */
     @Override
-    public List<ComponentResponseDto> update(List<ComponentCreateDto> dtos, String userName,
-                                             VersionKind kind) {
+    @Transactional
+    public ComponentSaveResponseDto update(List<ComponentCreateDto> dtos, String userName,
+                                           VersionKind kind, Integer basedOnVersion) {
+        requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
         List<Component> prepared = dtos.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        snapshotScenesOf(prepared, userName, kind);
-        return response;
+        Integer versionNo = snapshotScenesOf(prepared, userName, kind);
+        return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
     }
 
     /**
@@ -101,6 +118,7 @@ public class ComponentServiceImpl implements ComponentService {
      * видно. Сцены вычисляем ДО удаления: после него подниматься будет не от кого.
      */
     @Override
+    @Transactional
     public void delete(List<Long> ids, String userName, VersionKind kind) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Long id : ids) {
@@ -119,7 +137,7 @@ public class ComponentServiceImpl implements ComponentService {
      * поднимаемся по родителям до компонента с типом scene. Обычно она одна, но запрос вправе
      * задеть несколько, и тогда снимков будет несколько.
      */
-    private void snapshotScenesOf(List<Component> saved, String userName, VersionKind kind) {
+    private Integer snapshotScenesOf(List<Component> saved, String userName, VersionKind kind) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Component component : saved) {
             Long sceneId = sceneRootIdOf(component);
@@ -127,13 +145,51 @@ public class ComponentServiceImpl implements ComponentService {
                 sceneIds.add(sceneId);
             }
         }
-        snapshotScenes(sceneIds, userName, kind);
+        return snapshotScenes(sceneIds, userName, kind);
     }
 
-    private void snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind) {
+    private Integer snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind) {
+        Integer last = null;
         for (Long sceneId : sceneIds) {
-            versionService.record(DocumentType.SCENE, sceneId,
-                    sceneDocumentSource.contentOf(sceneId), userName, kind, null);
+            last = versionService.record(DocumentType.SCENE, sceneId,
+                    sceneDocumentSource.contentOf(sceneId), userName, kind, null).getVersionNo();
+        }
+        return last;
+    }
+
+    /**
+     * Восстановление — тоже {@code update} изнутри ({@link SceneDocumentSource#restore}), но
+     * без клиента и без версии на входе: оно всегда дописывает новую версию поверх текущей,
+     * какой бы она ни была, поэтому проверка тут смысла не имеет и обязана пропускаться.
+     * Клиент этот путь подделать не может: {@code save_kind=RESTORE} отклоняется раньше,
+     * в {@link com.example.editor.model.version.VersionKinds#orManual}.
+     */
+    private void requireBaseUnlessRestoring(List<ComponentCreateDto> dtos, VersionKind kind,
+                                            Integer basedOnVersion) {
+        if (kind != VersionKind.RESTORE) {
+            requireBaseForScenesOf(dtos, basedOnVersion);
+        }
+    }
+
+    /**
+     * Сцену для проверки ищем по присланным dto, а не по подготовленным сущностям: проверка
+     * обязана сработать до того, как что-либо записано. Для новых компонентов сцена берётся из
+     * {@code parent_id}, для существующих — подъёмом по дереву от самого компонента.
+     */
+    private void requireBaseForScenesOf(List<ComponentCreateDto> dtos, Integer basedOnVersion) {
+        Set<Long> sceneIds = new LinkedHashSet<>();
+        for (ComponentCreateDto dto : dtos) {
+            Long anchor = dto.getId() != null ? dto.getId() : dto.getParent_id();
+            if (anchor == null) {
+                continue;
+            }
+            repository.findById(anchor)
+                    .map(this::sceneRootIdOf)
+                    .filter(Objects::nonNull)
+                    .ifPresent(sceneIds::add);
+        }
+        for (Long sceneId : sceneIds) {
+            versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
         }
     }
 
@@ -181,8 +237,18 @@ public class ComponentServiceImpl implements ComponentService {
         return populateComponent(entity, dto, resolvedParent);
     }
 
+    /**
+     * Компонент без id здесь — новый: сохранение принимает дерево целиком, и в одном списке
+     * законно едут и существующие узлы, и добавленные. Внутри дерева это и так работало
+     * ({@code populateComponent} заводит новую сущность дочернему dto без id), а на верхнем
+     * уровне {@code findById(null)} валился в 500 из недр Spring Data. Ловилось это
+     * восстановлением версии, в снимке которой есть компонент, удалённый после снимка:
+     * {@code SceneDocumentSource} снимает у него id — и попадает ровно сюда (scada-yxk).
+     */
     private Component updateComponent(ComponentCreateDto dto) {
-        Component entity = repository.findById(dto.getId())
+        Component entity = dto.getId() == null
+                ? new Component()
+                : repository.findById(dto.getId())
                 .orElseThrow(() -> new IllegalStateException("Component not found: " + dto.getId()));
 
         Component resolvedParent = null;
@@ -227,7 +293,7 @@ public class ComponentServiceImpl implements ComponentService {
         }
 
         ComponentScriptBindingApplier.applyProperties(entity, dto);
-        ComponentScriptBindingApplier.apply(entity, dto, propertyRepository);
+        ComponentScriptBindingApplier.apply(entity, dto, propertyRepository, repository::flush);
         return entity;
     }
 
@@ -248,8 +314,38 @@ public class ComponentServiceImpl implements ComponentService {
             return;
         }
         Map<String, ComponentState> existingByName = new HashMap<>();
+        Map<Long, ComponentState> existingById = new HashMap<>();
+        Map<Long, String> originalNames = new HashMap<>();
         for (ComponentState existing : entity.getStates()) {
             existingByName.put(ComponentScriptBindingApplier.matchKey(existing.getName()), existing);
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+                originalNames.put(existing.getId(),
+                        ComponentScriptBindingApplier.matchKey(existing.getName()));
+            }
+        }
+
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по имени. Иначе элемент
+        // без id, пришедший раньше по списку, успел бы забрать строку, которую следующий элемент
+        // адресует по id, и две разные сущности молча слились бы в одну (одна из них теряется).
+        Map<ComponentStateDto, ComponentState> resolved = new IdentityHashMap<>();
+        for (ComponentStateDto s : dto.getStates()) {
+            if (s.getId() == null) {
+                continue;
+            }
+            ComponentState target = existingById.get(s.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "State " + s.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "State " + s.getId() + " is addressed twice in the same request");
+            }
+            // Тот же захват ключа, что в applyScripts.
+            existingByName.remove(ComponentScriptBindingApplier.matchKey(target.getName()));
+            resolved.put(s, target);
         }
 
         List<ComponentState> incoming = new ArrayList<>();
@@ -264,19 +360,29 @@ public class ComponentServiceImpl implements ComponentService {
                         "Duplicate state name '" + name + "' in component " + entity.getId()
                                 + "; setState() addresses states by name, so names must be unique");
             }
-            ComponentState target = existingByName.get(name);
+            ComponentState target = s.getId() != null ? resolved.get(s) : existingByName.remove(name);
             if (target == null) {
                 target = new ComponentState();
                 target.setComponent(entity);
-                target.setName(name);
             }
+            target.setName(name);
             target.setImage(stripEvents(s.getImage()));
             target.setIsDefault(s.getIsDefault());
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
             incoming.add(target);
         }
 
-        entity.getStates().removeIf(
-                existing -> !seenNames.contains(ComponentScriptBindingApplier.matchKey(existing.getName())));
+        ComponentScriptBindingApplier.freeContestedKeys(incoming, originalNames,
+                ComponentState::getId,
+                s -> ComponentScriptBindingApplier.matchKey(s.getName()),
+                ComponentState::setName, ComponentScriptBindingApplier.temporaryNames(),
+                repository::flush);
+
+        entity.getStates().removeIf(existing -> existing.getId() != null
+                ? !keptIds.contains(existing.getId())
+                : !seenNames.contains(ComponentScriptBindingApplier.matchKey(existing.getName())));
         for (ComponentState target : incoming) {
             if (target.getId() == null) {
                 entity.getStates().add(target);

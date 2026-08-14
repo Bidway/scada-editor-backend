@@ -56,11 +56,15 @@ class TemplateSaveIT extends EditorApiTestSupport {
         return objectMapper.readTree(body);
     }
 
+    /** Базовую версию подставляем сами — этим тестам важно только дерево, не конверт вокруг. */
     private JsonNode updateTemplate(long id, String json) throws Exception {
+        Integer base = currentVersion(id, "templates");
+        String withBase = base == null ? json
+                : json.replaceFirst("^\\{", "{\"based_on_version\":" + base + ",");
         String body = mockMvc.perform(put("/api/editor/templates/" + id)
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+                        .content(withBase))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body);

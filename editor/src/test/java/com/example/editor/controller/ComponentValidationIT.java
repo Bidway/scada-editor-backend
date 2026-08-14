@@ -20,11 +20,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class ComponentValidationIT extends EditorApiTestSupport {
 
-    private void expectRejected(String body) throws Exception {
+    private void expectRejected(String componentsJson) throws Exception {
         mockMvc.perform(post("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                        .content("{\"components\":" + componentsJson
+                                + ",\"save_kind\":\"MANUAL\"}"))
                 .andExpect(status().isBadRequest());
     }
 

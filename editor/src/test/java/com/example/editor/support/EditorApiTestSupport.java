@@ -55,24 +55,52 @@ public abstract class EditorApiTestSupport extends PostgresTestContainerSupport 
         return createScene("scene-" + System.nanoTime(), projectId);
     }
 
-    protected JsonNode saveComponents(String json) throws Exception {
+    /** Сохранение без указания базовой версии — годится, пока у сцены версий нет. */
+    protected JsonNode saveComponents(String componentsJson) throws Exception {
+        return saveComponents(componentsJson, null, "MANUAL");
+    }
+
+    protected JsonNode saveComponents(String componentsJson, Integer basedOnVersion,
+                                      String saveKind) throws Exception {
         String body = mockMvc.perform(post("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+                        .content(envelope(componentsJson, basedOnVersion, saveKind)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body);
+        return objectMapper.readTree(body).get("components");
     }
 
-    protected JsonNode updateComponents(String json) throws Exception {
+    protected JsonNode updateComponents(String componentsJson) throws Exception {
+        return updateComponents(componentsJson, null);
+    }
+
+    protected JsonNode updateComponents(String componentsJson, Integer basedOnVersion)
+            throws Exception {
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+                        .content(envelope(componentsJson, basedOnVersion, "MANUAL")))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body);
+        return objectMapper.readTree(body).get("components");
+    }
+
+    /** Текущий номер версии сцены; {@code null}, если версий ещё нет. */
+    protected Integer currentVersion(long documentId, String type) throws Exception {
+        String body = mockMvc.perform(get("/api/editor/" + type + "/" + documentId + "/versions"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode versions = objectMapper.readTree(body);
+        return versions.isEmpty() ? null : versions.get(0).get("version_no").asInt();
+    }
+
+    private String envelope(String componentsJson, Integer basedOnVersion, String saveKind) {
+        StringBuilder sb = new StringBuilder("{\"components\":").append(componentsJson);
+        if (basedOnVersion != null) {
+            sb.append(",\"based_on_version\":").append(basedOnVersion);
+        }
+        return sb.append(",\"save_kind\":\"").append(saveKind).append("\"}").toString();
     }
 
     protected JsonNode getComponent(long id) throws Exception {

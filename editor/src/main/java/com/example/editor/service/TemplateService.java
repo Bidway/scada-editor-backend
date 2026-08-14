@@ -16,6 +16,7 @@ import com.example.editor.service.version.DocumentVersionService;
 import com.example.editor.service.version.TemplateDocumentSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,13 +32,15 @@ public class TemplateService {
     private final DocumentVersionService versionService;
     private final TemplateDocumentSource templateDocumentSource;
 
+    /** Данные и снимок — одна транзакция, как у сцены (scada-78j). */
+    @Transactional
     public TemplateResponseDto createTemplate(TemplateCreateDto dto, String userName,
                                               VersionKind kind) {
         CreateTemplateCommand command = new CreateTemplateCommand(
                 templateRepository, componentRepository, componentMapper, dto, userName
         );
         TemplateResponseDto response = commandManager.execute(command);
-        snapshot(response.getId(), userName, kind);
+        response.setVersion_no(snapshot(response.getId(), userName, kind));
         return response;
     }
 
@@ -45,13 +48,26 @@ public class TemplateService {
         return createTemplate(dto, userName, VersionKind.MANUAL);
     }
 
+    /**
+     * Проверка базовой версии — до выполнения команды: отказ обязан случиться раньше, чем
+     * что-либо записано. У создания её нет — документа ещё не существует, базе взяться неоткуда.
+     * <p>
+     * Восстановление ({@code kind = RESTORE}) проверку пропускает: оно всегда дописывает версию
+     * поверх текущей и не несёт {@code based_on_version} в присланном dto (он собран из снимка).
+     * Подделать этот путь клиент не может — {@code save_kind=RESTORE} отклоняется раньше, в
+     * {@link com.example.editor.model.version.VersionKinds#orManual}.
+     */
+    @Transactional
     public TemplateResponseDto updateTemplate(Long templateId, TemplateCreateDto dto,
                                               String userName, VersionKind kind) {
+        if (kind != VersionKind.RESTORE) {
+            versionService.requireBase(DocumentType.TEMPLATE, templateId, dto.getBased_on_version());
+        }
         UpdateTemplateCommand command = new UpdateTemplateCommand(
                 templateRepository, componentRepository, componentMapper, templateId, dto, userName
         );
         TemplateResponseDto response = commandManager.execute(command);
-        snapshot(templateId, userName, kind);
+        response.setVersion_no(snapshot(templateId, userName, kind));
         return response;
     }
 
@@ -60,9 +76,9 @@ public class TemplateService {
         return updateTemplate(templateId, dto, userName, VersionKind.MANUAL);
     }
 
-    private void snapshot(Long templateId, String userName, VersionKind kind) {
-        versionService.record(DocumentType.TEMPLATE, templateId,
-                templateDocumentSource.contentOf(templateId), userName, kind, null);
+    private Integer snapshot(Long templateId, String userName, VersionKind kind) {
+        return versionService.record(DocumentType.TEMPLATE, templateId,
+                templateDocumentSource.contentOf(templateId), userName, kind, null).getVersionNo();
     }
 
     public void deleteTemplate(Long templateId, String userName) {

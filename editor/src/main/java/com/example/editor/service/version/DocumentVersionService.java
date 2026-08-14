@@ -2,6 +2,7 @@ package com.example.editor.service.version;
 
 import com.example.editor.dto.version.DocumentVersionDto;
 import com.example.editor.exception.NotFoundException;
+import com.example.editor.exception.VersionMismatchException;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.DocumentVersion;
 import com.example.editor.model.version.VersionKind;
@@ -13,6 +14,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,7 +70,62 @@ public class DocumentVersionService {
         version.setUserName(userName);
         version.setCreatedAt(LocalDateTime.now());
         version.setRestoredFrom(restoredFrom);
-        return repository.save(version);
+        try {
+            // saveAndFlush, а не save: INSERT обязан уйти в базу здесь, внутри try. Отложенный до
+            // коммита, он выбросил бы нарушение уже за границей метода, где номер версии не виден
+            // и перевести его в 409 нечем.
+            return repository.saveAndFlush(version);
+        } catch (DataIntegrityViolationException e) {
+            if (!isVersionCollision(e)) {
+                throw e;
+            }
+            // Номер заняли, пока мы готовили свой, — это и есть проигранная гонка. Оба числа
+            // известны без дополнительного чтения (а его тут и не сделать: транзакция уже
+            // помечена rollback-only): наш номер занят чужим сохранением, значит он и есть
+            // текущий, а отталкивались мы от предыдущего.
+            throw new VersionMismatchException(version.getVersionNo() - 1, version.getVersionNo());
+        }
+    }
+
+    /**
+     * Только столкновение по {@code document_version_uk} означает гонку. Любое другое нарушение
+     * целостности — это ошибка, и подменять её на 409 значит прятать её от себя же.
+     */
+    private boolean isVersionCollision(DataIntegrityViolationException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof ConstraintViolationException cve
+                    && "document_version_uk".equalsIgnoreCase(cve.getConstraintName())) {
+                return true;
+            }
+            if (t.getMessage() != null && t.getMessage().contains("document_version_uk")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Проверяет, что клиент основывался на текущей версии документа.
+     * <p>
+     * Обязательность определяется состоянием документа, а не HTTP-методом: сохранение
+     * существующей сцены через {@code POST} иначе прошло бы мимо проверки, и «последний
+     * победил» вернулось бы с другой стороны.
+     */
+    @Transactional(readOnly = true)
+    public void requireBase(DocumentType targetType, Long targetId, Integer basedOnVersion) {
+        Optional<DocumentVersion> last =
+                repository.findTopByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId);
+        if (last.isEmpty()) {
+            return;
+        }
+        Integer current = last.get().getVersionNo();
+        if (basedOnVersion == null) {
+            throw new IllegalArgumentException(
+                    "based_on_version is required: document already has version " + current);
+        }
+        if (!basedOnVersion.equals(current)) {
+            throw new VersionMismatchException(basedOnVersion, current);
+        }
     }
 
     /**
@@ -104,9 +163,31 @@ public class DocumentVersionService {
                 .orElseThrow(() -> new IllegalStateException("No DocumentSource for " + targetType));
     }
 
+    /** Потолок выборки: история сцены растёт на ~32 версии в день при автосохранении. */
+    public static final int MAX_LIMIT = 500;
+    public static final int DEFAULT_LIMIT = 100;
+
     @Transactional(readOnly = true)
     public List<DocumentVersionDto> list(DocumentType targetType, Long targetId) {
-        return repository.findByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId)
+        return list(targetType, targetId, null, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentVersionDto> list(DocumentType targetType, Long targetId,
+                                         LocalDateTime from, LocalDateTime to,
+                                         List<VersionKind> kinds, Integer limit) {
+        int effectiveLimit = limit == null ? DEFAULT_LIMIT : limit;
+        if (effectiveLimit < 1 || effectiveLimit > MAX_LIMIT) {
+            throw new IllegalArgumentException(
+                    "limit must be between 1 and " + MAX_LIMIT + ", got " + effectiveLimit);
+        }
+        // Фильтр не задан — подставляем все значения: пустой список в JPQL `in` биндить нельзя.
+        List<VersionKind> effectiveKinds = kinds == null || kinds.isEmpty()
+                ? List.of(VersionKind.values())
+                : kinds;
+        return repository
+                .findFiltered(targetType, targetId, from, to, effectiveKinds,
+                        PageRequest.of(0, effectiveLimit))
                 .stream()
                 .map(v -> new DocumentVersionDto(v.getVersionNo(), v.getKind(), v.getUserName(),
                         v.getCreatedAt(), v.getRestoredFrom()))
@@ -160,10 +241,20 @@ public class DocumentVersionService {
      * <p>
      * Из самого содержимого счётчик не убираем: снимок обязан совпадать по форме с обычным
      * {@code GET} документа, чтобы фронт рисовал старую версию тем же кодом.
+     * <p>
+     * {@code version_no} вырезается как структурная страховка, а не по факту текущего поведения:
+     * сегодня {@code TemplateDocumentSource.contentOf} собирает свой экземпляр
+     * {@code TemplateResponseDto} и номер версии в нём остаётся {@code null}, так что в снимок
+     * он и не попадает. Но держится это лишь на том, что два места сборки одного DTO ведут себя
+     * по-разному: стоит {@code contentOf} перейти на {@code templateService.getTemplateById} —
+     * шаг с виду безобидный, — как растущий номер версии окажется в хеше, дедупликация умрёт и
+     * история шаблона начнёт набиваться пустыми записями на каждое сохранение. Легитимного
+     * {@code version_no} в содержимом документа нет.
      */
     private JsonNode withoutLockCounters(JsonNode node) {
         if (node instanceof ObjectNode object) {
             object.remove("version");
+            object.remove("version_no");
             object.fields().forEachRemaining(entry -> withoutLockCounters(entry.getValue()));
         } else if (node instanceof ArrayNode array) {
             array.forEach(this::withoutLockCounters);
