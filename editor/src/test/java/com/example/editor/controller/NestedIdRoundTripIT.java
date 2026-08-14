@@ -36,6 +36,13 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
                 + "}]";
     }
 
+    /** Компонент с произвольным набором вложенных коллекций. */
+    private String component(long sceneId, Long componentId, String nested) {
+        return "[{" + (componentId == null ? "" : "\"id\":" + componentId + ",")
+                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
+                + nested + "}]";
+    }
+
     private long stateId(JsonNode component, String name) {
         for (JsonNode s : component.get("states")) {
             if (name.equals(s.get("name").asText())) {
@@ -79,8 +86,17 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         assertThat(stateId(updated, "Нормальное")).isEqualTo(originalStateId);
     }
 
+    /**
+     * Переименование по id и создание новой строки под освободившимся именем — одним запросом.
+     * <p>
+     * Итоговое состояние {@code UNIQUE (component_id, name)} не нарушает, но записать его в лоб
+     * нельзя: Hibernate на flush выполняет вставки раньше обновлений, и INSERT новой строки
+     * «Открыть» уходит в базу прежде, чем UPDATE уведёт старую строку с этого имени. Раньше это
+     * отвергалось четырёхсотой с объяснением; теперь переименование проводится через временное
+     * имя с промежуточным flush, и запрос проходит (scada-wob).
+     */
     @Test
-    void renameAndReuseOfTheFreedName_isRejectedWithExplanation() throws Exception {
+    void renameAndReuseOfTheFreedName_isApplied() throws Exception {
         long sceneId = newScene();
         JsonNode created = saveComponents(
                 componentJson(sceneId, null, "Открыть", null, "Норма", null)).get(0);
@@ -88,28 +104,91 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalScriptId = scriptId(created, "Открыть");
         Integer base = currentVersion(sceneId, "scenes");
 
-        // Переименование по id и создание нового скрипта под освободившимся именем — одним
-        // запросом. Поддержать это нельзя: Hibernate на flush выполняет INSERT раньше UPDATE,
-        // и вставка новой строки бьётся о UNIQUE (component_id, name) раньше, чем
-        // переименование освободит имя. Отвергаем до записи и объясняем, что делать.
-        String body = mockMvc.perform(put("/api/editor/components")
-                        .header("X-Username", USER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"components\":[{\"id\":" + componentId + ","
-                                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
-                                + "\"scripts\":[{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
-                                + "\"script\":\"return 1;\"},"
-                                + "{\"name\":\"Открыть\",\"script\":\"return 2;\"}],"
-                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
-                                + "\"based_on_version\":" + base + ","
-                                + "\"save_kind\":\"MANUAL\"}"))
-                .andExpect(status().isBadRequest())
-                .andReturn().getResponse().getContentAsString();
+        JsonNode updated = updateComponents(component(sceneId, componentId,
+                "\"scripts\":[{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
+                        + "\"script\":\"return 1;\"},"
+                        + "{\"name\":\"Открыть\",\"script\":\"return 2;\"}],"
+                        + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]"),
+                base).get(0);
 
-        assertThat(body)
-                .as("ошибка обязана объяснять, что делать, а не показывать констрейнт Postgres")
-                .contains("Открыть")
-                .doesNotContain("scripts_uk");
+        assertThat(updated.get("scripts")).hasSize(2);
+        assertThat(scriptId(updated, "Закрыть"))
+                .as("прислали id — это переименование, строка обязана остаться собой")
+                .isEqualTo(originalScriptId);
+        assertThat(scriptId(updated, "Открыть"))
+                .as("освободившееся имя занимает новая строка, а не воскресшая старая")
+                .isNotEqualTo(originalScriptId);
+    }
+
+    /**
+     * Обмен именами между двумя существующими строками. Сложнее предыдущего случая: здесь нет
+     * ни одной новой строки, конфликтуют два UPDATE между собой, и порядок их выполнения внутри
+     * flush не определён вовсе. Разводит их только временное имя.
+     */
+    @Test
+    void swappingTwoScriptNames_isApplied() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(component(sceneId, null,
+                "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"},"
+                        + "{\"name\":\"Закрыть\",\"script\":\"return 2;\"}]")).get(0);
+        long componentId = created.get("id").asLong();
+        long openId = scriptId(created, "Открыть");
+        long closeId = scriptId(created, "Закрыть");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        JsonNode updated = updateComponents(component(sceneId, componentId,
+                "\"scripts\":[{\"id\":" + openId + ",\"name\":\"Закрыть\",\"script\":\"return 1;\"},"
+                        + "{\"id\":" + closeId + ",\"name\":\"Открыть\",\"script\":\"return 2;\"}]"),
+                base).get(0);
+
+        assertThat(updated.get("scripts")).hasSize(2);
+        assertThat(scriptId(updated, "Закрыть")).isEqualTo(openId);
+        assertThat(scriptId(updated, "Открыть")).isEqualTo(closeId);
+    }
+
+    /** Состояния живут в {@code ComponentServiceImpl.applyStates} — код тот же, констрейнт свой. */
+    @Test
+    void swappingTwoStateNames_isApplied() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(component(sceneId, null,
+                "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true},"
+                        + "{\"name\":\"Авария\",\"image\":{},\"isDefault\":false}]")).get(0);
+        long componentId = created.get("id").asLong();
+        long normalId = stateId(created, "Норма");
+        long alarmId = stateId(created, "Авария");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        JsonNode updated = updateComponents(component(sceneId, componentId,
+                "\"states\":[{\"id\":" + normalId + ",\"name\":\"Авария\",\"image\":{},"
+                        + "\"isDefault\":true},"
+                        + "{\"id\":" + alarmId + ",\"name\":\"Норма\",\"image\":{},"
+                        + "\"isDefault\":false}]"), base).get(0);
+
+        assertThat(updated.get("states")).hasSize(2);
+        assertThat(stateId(updated, "Авария")).isEqualTo(normalId);
+        assertThat(stateId(updated, "Норма")).isEqualTo(alarmId);
+    }
+
+    /** У событий ключ — {@code event_type}, констрейнт {@code component_event_uk}. */
+    @Test
+    void swappingTwoEventTypes_isApplied() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(component(sceneId, null,
+                "\"events\":[{\"event_type\":\"onClick\",\"script\":\"a()\"},"
+                        + "{\"event_type\":\"onHover\",\"script\":\"b()\"}]")).get(0);
+        long componentId = created.get("id").asLong();
+        long clickId = eventId(created, "onClick");
+        long hoverId = eventId(created, "onHover");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        JsonNode updated = updateComponents(component(sceneId, componentId,
+                "\"events\":[{\"id\":" + clickId + ",\"event_type\":\"onHover\",\"script\":\"a()\"},"
+                        + "{\"id\":" + hoverId + ",\"event_type\":\"onClick\",\"script\":\"b()\"}]"),
+                base).get(0);
+
+        assertThat(updated.get("events")).hasSize(2);
+        assertThat(eventId(updated, "onHover")).isEqualTo(clickId);
+        assertThat(eventId(updated, "onClick")).isEqualTo(hoverId);
     }
 
     @Test
@@ -154,32 +233,24 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long componentId = created.get("id").asLong();
         long originalScriptId = scriptId(created, "Открыть");
 
-        // Обратный порядок относительно renameAndReuseOfTheFreedName_isRejectedWithExplanation:
-        // элемент без id идёт первым. Без двухпроходного разрешения оба элемента находят одну и
-        // ту же строку по id (карта имён чистится только когда элемент С id обработан, а он ещё
-        // не наступил) — второй set молча затирает первый, и скрипт "Открыть" пропадает без
-        // ошибки. После правки id разбирается первым проходом, элемент без id получает новую
-        // строку под именем "Открыть", которое как раз освобождает переименование — это ловит
-        // rejectNameSwaps.
+        // Обратный порядок относительно renameAndReuseOfTheFreedName_isApplied: элемент без id
+        // идёт первым. Без двухпроходного разрешения оба элемента находят одну и ту же строку по
+        // id (карта имён чистится только когда элемент С id обработан, а он ещё не наступил) —
+        // второй set молча затирает первый, и скрипт "Открыть" пропадает без ошибки. Порядок
+        // элементов в массиве не должен значить ничего.
         Integer base = currentVersion(sceneId, "scenes");
-        String body = mockMvc.perform(put("/api/editor/components")
-                        .header("X-Username", USER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"components\":[{\"id\":" + componentId + ","
-                                + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
-                                + "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"},"
-                                + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
-                                + "\"script\":\"return 2;\"}],"
-                                + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]}],"
-                                + "\"based_on_version\":" + base + ","
-                                + "\"save_kind\":\"MANUAL\"}"))
-                .andExpect(status().isBadRequest())
-                .andReturn().getResponse().getContentAsString();
+        JsonNode updated = updateComponents(component(sceneId, componentId,
+                "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"},"
+                        + "{\"id\":" + originalScriptId + ",\"name\":\"Закрыть\","
+                        + "\"script\":\"return 2;\"}],"
+                        + "\"states\":[{\"name\":\"Норма\",\"image\":{},\"isDefault\":true}]"),
+                base).get(0);
 
-        assertThat(body)
+        assertThat(updated.get("scripts"))
                 .as("явный id не должен молча съедать элемент без id того же имени")
-                .contains("Открыть")
-                .doesNotContain("scripts_uk");
+                .hasSize(2);
+        assertThat(scriptId(updated, "Закрыть")).isEqualTo(originalScriptId);
+        assertThat(scriptId(updated, "Открыть")).isNotEqualTo(originalScriptId);
     }
 
     @Test

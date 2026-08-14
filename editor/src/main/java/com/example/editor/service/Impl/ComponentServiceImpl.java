@@ -293,7 +293,7 @@ public class ComponentServiceImpl implements ComponentService {
         }
 
         ComponentScriptBindingApplier.applyProperties(entity, dto);
-        ComponentScriptBindingApplier.apply(entity, dto, propertyRepository);
+        ComponentScriptBindingApplier.apply(entity, dto, propertyRepository, repository::flush);
         return entity;
     }
 
@@ -374,9 +374,11 @@ public class ComponentServiceImpl implements ComponentService {
             incoming.add(target);
         }
 
-        ComponentScriptBindingApplier.rejectNameSwaps(incoming, originalNames,
+        ComponentScriptBindingApplier.freeContestedKeys(incoming, originalNames,
                 ComponentState::getId,
-                s -> ComponentScriptBindingApplier.matchKey(s.getName()), "State name");
+                s -> ComponentScriptBindingApplier.matchKey(s.getName()),
+                ComponentState::setName, ComponentScriptBindingApplier.temporaryNames(),
+                repository::flush);
 
         entity.getStates().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
