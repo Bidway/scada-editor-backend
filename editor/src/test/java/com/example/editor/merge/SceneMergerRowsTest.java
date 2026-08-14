@@ -177,4 +177,49 @@ class SceneMergerRowsTest {
         assertThat(result.merged().get(0).getScripts()).singleElement()
                 .satisfies(script -> assertThat(script.getName()).isEqualTo("Открыть клапан"));
     }
+
+    @Test
+    void rowAddedByMeThatTheyDidNotTouch_isKeptWithoutConflict() {
+        List<ComponentCreateDto> base = tree(List.of());
+        List<ComponentCreateDto> mine = tree(List.of(script(null, "Стоп", "return 1;")));
+        List<ComponentCreateDto> theirs = tree(List.of());
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged().get(0).getScripts()).singleElement()
+                .satisfies(script -> assertThat(script.getName()).isEqualTo("Стоп"));
+        assertThat(result.changes())
+                .as("это моя правка — показывать её мне самому незачем")
+                .isEmpty();
+    }
+
+    @Test
+    void bothDeletedTheRow_isNotAConflict() {
+        List<ComponentCreateDto> base = tree(List.of(script(10L, "Открыть", "return 1;")));
+        List<ComponentCreateDto> mine = tree(List.of());
+        List<ComponentCreateDto> theirs = tree(List.of());
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean())
+                .as("согласованное удаление — не конфликт")
+                .isTrue();
+        assertThat(result.merged().get(0).getScripts()).isEmpty();
+    }
+
+    @Test
+    void independentIdenticalAddition_isNotDuplicated() {
+        List<ComponentCreateDto> base = tree(List.of());
+        List<ComponentCreateDto> mine = tree(List.of(script(null, "Стоп", "return 1;")));
+        List<ComponentCreateDto> theirs = tree(List.of(script(null, "Стоп", "return 1;")));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged().get(0).getScripts())
+                .as("обе стороны независимо завели одно и то же — строка не задваивается")
+                .singleElement()
+                .satisfies(script -> assertThat(script.getScript()).isEqualTo("return 1;"));
+    }
 }
