@@ -5,6 +5,7 @@ import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentStateDto;
 import com.example.editor.dto.component.EventPayloadDto;
 import com.example.editor.dto.component.ScriptCreateDto;
+import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.exception.NotFoundException;
 import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Binding;
@@ -172,9 +173,10 @@ public class SceneDocumentSource implements DocumentSource {
 
     /**
      * Ссылка биндинга на свойство — не id строки, а указатель на соседнюю, и протухает она
-     * отдельно. Свойство, удалённое после снимка, восстановление создаёт заново <b>с новым
-     * id</b> (у {@code PropertyCreateDto} поля id нет вовсе, сопоставление идёт по имени),
-     * поэтому номер из снимка адресует пустоту и валит всё восстановление в 400 (scada-3hw).
+     * отдельно от собственного id свойства (тот снимает {@code dropUnknownIds} выше — так же,
+     * как у скриптов, состояний, событий и биндингов). Свойство, удалённое после снимка,
+     * восстановление создаёт заново <b>с новым id</b>, поэтому номер из снимка адресует пустоту
+     * и валит всё восстановление в 400 (scada-3hw).
      * <p>
      * Снимаем номер только вместе с именем на замену: у снимков, записанных до появления
      * {@code component_property_name}, подменить его нечем, и осмысленная ошибка «свойство N не
@@ -207,6 +209,8 @@ public class SceneDocumentSource implements DocumentSource {
                 idsOf(existing == null ? null : existing.getEvents(), ComponentEvent::getId));
         dropUnknownIds(dto.getBindings(), BindingPayloadDto::getId, BindingPayloadDto::setId,
                 idsOf(existing == null ? null : existing.getBindings(), Binding::getId));
+        dropUnknownIds(dto.getProperties(), PropertyCreateDto::getId, PropertyCreateDto::setId,
+                idsOf(existing == null ? null : existing.getProperties(), ComponentProperty::getId));
         dropDeadPropertyRefs(dto, existing);
     }
 

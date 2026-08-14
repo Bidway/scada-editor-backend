@@ -493,4 +493,59 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
 
         assertThat(body).contains("Script 999999999 does not belong to component " + componentId);
     }
+
+    private long propertyIdOf(JsonNode component, String name) {
+        for (JsonNode p : component.get("properties")) {
+            if (name.equals(p.get("name").asText())) {
+                return p.get("id").asLong();
+            }
+        }
+        throw new AssertionError("Нет свойства '" + name + "' в " + component);
+    }
+
+    private String withProperties(long sceneId, Long componentId, String properties) {
+        return component(sceneId, componentId, "\"properties\":[" + properties + "]");
+    }
+
+    @Test
+    void renamingPropertyById_keepsItsId() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(withProperties(sceneId, null,
+                "{\"name\":\"Уставка\",\"value_type\":\"double\",\"property_type\":\"Тег\"}")).get(0);
+        long componentId = created.get("id").asLong();
+        long originalId = propertyIdOf(created, "Уставка");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        JsonNode updated = updateComponents(withProperties(sceneId, componentId,
+                "{\"id\":" + originalId + ",\"name\":\"Уставка ПИД\",\"value_type\":\"double\","
+                        + "\"property_type\":\"Тег\"}"), base).get(0);
+
+        assertThat(updated.get("properties")).hasSize(1);
+        assertThat(propertyIdOf(updated, "Уставка ПИД"))
+                .as("прислали id — это переименование строки таблицы, а не новая строка")
+                .isEqualTo(originalId);
+    }
+
+    @Test
+    void swappingTwoPropertyNames_isApplied() throws Exception {
+        long sceneId = newScene();
+        JsonNode created = saveComponents(withProperties(sceneId, null,
+                "{\"name\":\"Верх\",\"value_type\":\"double\",\"property_type\":\"Тег\"},"
+                        + "{\"name\":\"Низ\",\"value_type\":\"double\",\"property_type\":\"Тег\"}"))
+                .get(0);
+        long componentId = created.get("id").asLong();
+        long topId = propertyIdOf(created, "Верх");
+        long bottomId = propertyIdOf(created, "Низ");
+        Integer base = currentVersion(sceneId, "scenes");
+
+        JsonNode updated = updateComponents(withProperties(sceneId, componentId,
+                "{\"id\":" + topId + ",\"name\":\"Низ\",\"value_type\":\"double\","
+                        + "\"property_type\":\"Тег\"},"
+                        + "{\"id\":" + bottomId + ",\"name\":\"Верх\",\"value_type\":\"double\","
+                        + "\"property_type\":\"Тег\"}"), base).get(0);
+
+        assertThat(updated.get("properties")).hasSize(2);
+        assertThat(propertyIdOf(updated, "Низ")).isEqualTo(topId);
+        assertThat(propertyIdOf(updated, "Верх")).isEqualTo(bottomId);
+    }
 }

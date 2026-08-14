@@ -160,29 +160,55 @@ public class ComponentScriptBindingApplier {
      * ломать их ведение через отдельный {@code ComponentPropertyController}. Прислали список —
      * он задаёт набор строк целиком: чего в нём нет, то удаляется.
      * <p>
-     * <b>Сопоставление идёт по имени, а строки переиспользуются, а не пересоздаются.</b> Раньше
-     * здесь стоял {@code clear()} с последующей вставкой новых сущностей, и у всех строк при
-     * каждом сохранении таблицы менялись id. Ломалось от этого многое: биндинг, присланный тем же
-     * запросом, ссылался на уже удалённое свойство и валил запрос в 500
-     * ({@code TransientObjectException} из недр Hibernate, без внятного сообщения наружу); а
-     * значениям наборов пришлось искать свою строку по имени, потому что id под ними уезжал.
-     * Имя и так ключ строки везде — по нему адресуют {@code RecipeValue} и {@code writeTag}, —
-     * поэтому оно же служит ключом сопоставления здесь. Имена приводятся {@code trim}'ом и
-     * обязаны быть уникальными в пределах компонента: два одноимённых свойства сделали бы все
-     * эти привязки неоднозначными.
+     * <b>Сопоставление — сначала присланный id, затем имя, строки переиспользуются, а не
+     * пересоздаются.</b> Раньше здесь стоял {@code clear()} с последующей вставкой новых
+     * сущностей, и у всех строк при каждом сохранении таблицы менялись id. Ломалось от этого
+     * многое: биндинг, присланный тем же запросом, ссылался на уже удалённое свойство и валил
+     * запрос в 500 ({@code TransientObjectException} из недр Hibernate, без внятного сообщения
+     * наружу); а значениям наборов пришлось искать свою строку по имени, потому что id под ними
+     * уезжал. Имя и так ключ строки везде — по нему адресуют {@code RecipeValue} и
+     * {@code writeTag}, — поэтому без id оно же служит ключом сопоставления здесь. Имена
+     * приводятся {@code trim}'ом и обязаны быть уникальными в пределах компонента: два
+     * одноимённых свойства сделали бы все эти привязки неоднозначными.
      * <p>
      * {@code position} — номер для представления: если фронт его не прислал, проставляем по
-     * позиции в массиве. Переименование строки от «удалили одну, добавили другую» здесь
-     * по-прежнему неотличимо, поэтому значения наборов не переносятся — для переименования есть
-     * точечный {@code ComponentPropertyController} (см. {@code ComponentPropertyServiceImpl.update}).
+     * позиции в массиве.
      */
-    public void applyProperties(Component entity, ComponentCreateDto dto) {
+    public void applyProperties(Component entity, ComponentCreateDto dto, Runnable flush) {
         if (dto.getProperties() == null) {
             return;
         }
         Map<String, ComponentProperty> existingByName = new HashMap<>();
+        Map<Long, ComponentProperty> existingById = new HashMap<>();
+        Map<Long, String> originalNames = new HashMap<>();
         for (ComponentProperty existing : entity.getProperties()) {
             existingByName.put(matchKey(existing.getName()), existing);
+            if (existing.getId() != null) {
+                existingById.put(existing.getId(), existing);
+                originalNames.put(existing.getId(), matchKey(existing.getName()));
+            }
+        }
+
+        Set<Long> keptIds = new HashSet<>();
+        // Первый проход — только явные id: они старше сопоставления по имени. Иначе элемент без
+        // id, пришедший раньше по списку, забрал бы строку, которую следующий элемент адресует
+        // по id, и две разные строки молча слились бы в одну. Тот же приём, что в applyScripts.
+        Map<PropertyCreateDto, ComponentProperty> resolved = new IdentityHashMap<>();
+        for (PropertyCreateDto p : dto.getProperties()) {
+            if (p.getId() == null) {
+                continue;
+            }
+            ComponentProperty target = existingById.get(p.getId());
+            if (target == null) {
+                throw new IllegalStateException(
+                        "Property " + p.getId() + " does not belong to component " + entity.getId());
+            }
+            if (!keptIds.add(target.getId())) {
+                throw new IllegalStateException(
+                        "Property " + p.getId() + " is addressed twice in the same request");
+            }
+            existingByName.remove(matchKey(target.getName()));
+            resolved.put(p, target);
         }
 
         List<ComponentProperty> incoming = new ArrayList<>();
@@ -205,8 +231,7 @@ public class ComponentScriptBindingApplier {
                 throw new IllegalStateException("Property value_type is required for '" + name + "'");
             }
 
-            // Строка с таким именем уже есть — обновляем её на месте, сохраняя id.
-            ComponentProperty target = existingByName.get(name);
+            ComponentProperty target = p.getId() != null ? resolved.get(p) : existingByName.remove(name);
             if (target == null) {
                 target = new ComponentProperty();
                 target.setComponent(entity);
@@ -220,12 +245,19 @@ public class ComponentScriptBindingApplier {
             target.setPosition(p.getPosition() != null ? p.getPosition() : index);
             target.setLogging(p.isLogging());
             target.setOnChange(p.getOnChange());
+            if (target.getId() != null) {
+                keptIds.add(target.getId());
+            }
             incoming.add(target);
             index++;
         }
 
-        // Сначала убираем выпавшие строки (orphanRemoval их удалит), затем добавляем новые.
-        entity.getProperties().removeIf(existing -> !seenNames.contains(matchKey(existing.getName())));
+        freeContestedKeys(incoming, originalNames, ComponentProperty::getId,
+                cp -> matchKey(cp.getName()), ComponentProperty::setName, temporaryNames(), flush);
+
+        entity.getProperties().removeIf(existing -> existing.getId() != null
+                ? !keptIds.contains(existing.getId())
+                : !seenNames.contains(matchKey(existing.getName())));
         for (ComponentProperty target : incoming) {
             if (target.getId() == null) {
                 entity.getProperties().add(target);
