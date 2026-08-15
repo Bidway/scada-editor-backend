@@ -118,11 +118,12 @@ class UndoIT extends EditorApiTestSupport {
     void undo_ofDelete_bringsComponentBack() throws Exception {
         long sceneId = newScene();
         long componentId = createComponent(sceneId, ONE_ROW);
+        Integer base = currentVersion(sceneId, "scenes");
 
         mockMvc.perform(delete("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[" + componentId + "]"))
+                        .content("{\"ids\":[" + componentId + "],\"based_on_version\":" + base + "}"))
                 .andExpect(status().isOk());
         assertThat(componentExists(componentId)).isFalse();
 
