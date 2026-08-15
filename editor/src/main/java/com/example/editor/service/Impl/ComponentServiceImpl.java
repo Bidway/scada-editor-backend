@@ -131,6 +131,15 @@ public class ComponentServiceImpl implements ComponentService {
      * {@link #deleteMissing} после развилки идёт по слитому дереву, а не по присланному {@code
      * dtos}: иначе компоненты, добавленные чужой стороной, выглядели бы «отсутствующими в
      * запросе» и чистка вычистила бы их же.
+     * <p>
+     * Снимок в конце берётся по {@code scene_id} из конверта, а <b>не</b> по сценам, вычисленным
+     * из записанных сущностей ({@link #snapshotScenesOf}, как в {@link #create}). У пустого
+     * {@code PUT} записывать нечего: множество сцен выходило пустым, {@link #snapshotScenes} не
+     * делал ни одного витка, {@code record} не звался — сцена стиралась, клиент получал 200 с
+     * {@code version_no: null}, а последняя версия в истории продолжала описывать полную сцену
+     * (C-1). Восстанавливаться после такого было не из чего, и разъезжались живое состояние с
+     * последней версией — тот самый инвариант, на котором стоит {@code SceneMergeService.merge},
+     * когда берёт «чужое» из живого состояния, а не из снимка.
      */
     @Override
     @Transactional
@@ -162,7 +171,14 @@ public class ComponentServiceImpl implements ComponentService {
         List<Component> prepared = tree.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        Integer versionNo = snapshotScenesOf(prepared, userName, kind, basedOnVersion);
+        // Снимок делается по сцене из конверта, а не по тому, что записалось: см. javadoc метода
+        // про пустой PUT (C-1).
+        Set<Long> snapshotTargets = new LinkedHashSet<>();
+        if (sceneId != null) {
+            snapshotTargets.add(sceneId);
+        }
+        snapshotTargets.addAll(scenesOf(prepared));
+        Integer versionNo = snapshotScenes(snapshotTargets, userName, kind, basedOnVersion);
         return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null,
                 mergedReport(outcome));
     }
@@ -279,6 +295,11 @@ public class ComponentServiceImpl implements ComponentService {
      */
     private Integer snapshotScenesOf(List<Component> saved, String userName, VersionKind kind,
                                      Integer basedOnVersion) {
+        return snapshotScenes(scenesOf(saved), userName, kind, basedOnVersion);
+    }
+
+    /** Сцены, которых коснулись записанные сущности; для {@code update} — см. {@link #update}. */
+    private Set<Long> scenesOf(List<Component> saved) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Component component : saved) {
             Long sceneId = sceneRootIdOf(component);
@@ -286,7 +307,7 @@ public class ComponentServiceImpl implements ComponentService {
                 sceneIds.add(sceneId);
             }
         }
-        return snapshotScenes(sceneIds, userName, kind, basedOnVersion);
+        return sceneIds;
     }
 
     private Integer snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind,
