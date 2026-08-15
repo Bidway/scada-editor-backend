@@ -74,6 +74,15 @@ public abstract class EditorApiTestSupport extends PostgresTestContainerSupport 
     /** Сохранение сцены целиком: с 3b это единственный корректный способ звать PUT. */
     protected JsonNode updateScene(long sceneId, String componentsJson, Integer basedOnVersion)
             throws Exception {
+        return updateSceneResponse(sceneId, componentsJson, basedOnVersion).get("components");
+    }
+
+    /**
+     * То же сохранение, но ответ целиком: кроме {@code components} в конверте едут
+     * {@code version_no} и блок {@code merged}, и проверять их приходится тоже.
+     */
+    protected JsonNode updateSceneResponse(long sceneId, String componentsJson,
+                                           Integer basedOnVersion) throws Exception {
         StringBuilder body = new StringBuilder("{\"components\":").append(componentsJson)
                 .append(",\"scene_id\":").append(sceneId);
         if (basedOnVersion != null) {
@@ -87,15 +96,29 @@ public abstract class EditorApiTestSupport extends PostgresTestContainerSupport 
                         .content(body.toString()))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(response).get("components");
+        return objectMapper.readTree(response);
+    }
+
+    /** Вся история документа, новые версии первыми — в том порядке, в каком её отдаёт API. */
+    protected JsonNode versionsOf(long documentId, String type) throws Exception {
+        String body = mockMvc.perform(get("/api/editor/" + type + "/" + documentId + "/versions"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body);
+    }
+
+    /** Содержимое конкретной версии документа — снимок, а не живое состояние. */
+    protected JsonNode versionContent(long documentId, String type, int versionNo) throws Exception {
+        String body = mockMvc.perform(
+                        get("/api/editor/" + type + "/" + documentId + "/versions/" + versionNo))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body);
     }
 
     /** Текущий номер версии сцены; {@code null}, если версий ещё нет. */
     protected Integer currentVersion(long documentId, String type) throws Exception {
-        String body = mockMvc.perform(get("/api/editor/" + type + "/" + documentId + "/versions"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        JsonNode versions = objectMapper.readTree(body);
+        JsonNode versions = versionsOf(documentId, type);
         return versions.isEmpty() ? null : versions.get(0).get("version_no").asInt();
     }
 

@@ -58,15 +58,38 @@ class WholeSceneSaveIT extends EditorApiTestSupport {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * C-1 (критично, найдено финальным ревью ветки): пустой {@code PUT} стирал сцену, не
+     * записывая ни версии, ни строки в {@code command_log}. Снимок делался по сценам, вычисленным
+     * из <b>записанного</b> ({@code snapshotScenesOf(prepared)}), а после пустого тела записывать
+     * нечего — множество сцен выходило пустым, {@code record} не звался вовсе. Клиент получал 200
+     * с {@code version_no: null}, сцена оказывалась пустой, а последняя версия в истории всё ещё
+     * описывала полную сцену: восстановиться некуда и следа не осталось. Заодно это ломало
+     * инвариант, на котором стоит слияние (живое состояние и последняя версия не расходятся,
+     * потому что пишутся одной транзакцией) — {@code SceneMergeService.merge} берёт «чужое» из
+     * живого состояния именно поэтому.
+     * <p>
+     * Проверка версии здесь — половина теста: без неё дефект и пережил весь прогон.
+     */
     @Test
     void emptyPutWithSceneId_clearsTheScene() throws Exception {
         long sceneId = newScene();
         saveComponents(twoComponents(sceneId));
         Integer base = currentVersion(sceneId, "scenes");
+        int versionsBefore = versionsOf(sceneId, "scenes").size();
 
-        updateScene(sceneId, "[]", base);
+        JsonNode response = updateSceneResponse(sceneId, "[]", base);
 
         assertThat(getComponent(sceneId).get("children")).isEmpty();
+        assertThat(response.hasNonNull("version_no"))
+                .as("стирание сцены обязано быть версией, а не 200 с version_no: null")
+                .isTrue();
+        assertThat(versionsOf(sceneId, "scenes").size())
+                .as("в истории обязана появиться версия опустевшей сцены")
+                .isEqualTo(versionsBefore + 1);
+        assertThat(versionContent(sceneId, "scenes", base + 1).get("children"))
+                .as("последняя версия обязана описывать пустую сцену, а не прежнюю полную")
+                .isEmpty();
     }
 
     /**
