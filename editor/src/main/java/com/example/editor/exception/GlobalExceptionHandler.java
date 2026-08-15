@@ -59,6 +59,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    /**
+     * Конфликт слияния. Форма намеренно совпадает с {@code version_mismatch} по первым трём
+     * полям: контракт обещает фронту один обработчик {@code 409} на оба случая, а различает их
+     * поле {@code error}.
+     */
+    @ExceptionHandler(MergeConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleMergeConflict(MergeConflictException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "merge_conflict");
+        body.put("base_version", ex.getBaseVersion());
+        body.put("current_version", ex.getCurrentVersion());
+        body.put("conflicts", ex.getConflicts().stream().map(conflict -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("kind", conflict.kind().name());
+            row.put("entity", conflict.entity());
+            row.put("path", conflict.path());
+            row.put("base", conflict.base());
+            row.put("yours", conflict.yours());
+            row.put("theirs", conflict.theirs());
+            row.put("their_user", ex.getTheirUser());
+            return row;
+        }).toList());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
         log.error("Unhandled exception -> 500", ex);

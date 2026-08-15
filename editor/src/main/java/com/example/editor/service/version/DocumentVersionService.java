@@ -104,6 +104,14 @@ public class DocumentVersionService {
         return false;
     }
 
+    /** Номер последней версии документа; {@code null}, если версий ещё нет. */
+    @Transactional(readOnly = true)
+    public Integer currentVersionNo(DocumentType targetType, Long targetId) {
+        return repository.findTopByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId)
+                .map(DocumentVersion::getVersionNo)
+                .orElse(null);
+    }
+
     /**
      * Проверяет, что клиент основывался на текущей версии документа.
      * <p>
