@@ -222,4 +222,83 @@ class SceneMergerRowsTest {
                 .singleElement()
                 .satisfies(script -> assertThat(script.getScript()).isEqualTo("return 1;"));
     }
+
+    /**
+     * Регрессия: сырой ввод клиента для нетронутой строки вправе не нести id вовсе — это уже
+     * допускает остальной код проекта (сопоставление по имени в ComponentScriptBindingApplier,
+     * см. ComponentSaveIT.resave_keepsScriptIds). Раньше строка без id ложилась в мою карту под
+     * "name:...", а в карты базы и "их" стороны, где id есть всегда (обе приходят из БД), — под
+     * "id:...", и слияние решало, что я её удалил и тут же завёл заново — ложный конфликт
+     * DELETED_BY_YOU там, где я строку вообще не трогал.
+     */
+    @Test
+    void theirEditSurvives_whenMyUnchangedRowOmitsId() {
+        List<ComponentCreateDto> base = tree(List.of(script(10L, "Открыть", "return 1;")));
+        List<ComponentCreateDto> mine = tree(List.of(script(null, "Открыть", "return 1;")));
+        List<ComponentCreateDto> theirs = tree(List.of(script(10L, "Открыть", "return 2;")));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean())
+                .as("я строку не трогал и не прислал её id — это не удаление и не новая строка")
+                .isTrue();
+        assertThat(result.merged().get(0).getScripts().get(0).getScript())
+                .as("чужая правка обязана уцелеть")
+                .isEqualTo("return 2;");
+    }
+
+    /**
+     * Симметричный случай: правку без id принёс не я, а посылаю без id. Строка должна
+     * сопоставиться с базой/их стороной так же, а не потеряться как «моё новое добавление».
+     */
+    @Test
+    void myEditSurvives_whenISendItWithoutId() {
+        List<ComponentCreateDto> base = tree(List.of(script(10L, "Открыть", "return 1;")));
+        List<ComponentCreateDto> mine = tree(List.of(script(null, "Открыть", "return 42;")));
+        List<ComponentCreateDto> theirs = tree(List.of(script(10L, "Открыть", "return 1;")));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged().get(0).getScripts()).singleElement()
+                .as("моя правка без id не должна задвоиться со строкой из базы")
+                .satisfies(script -> assertThat(script.getScript()).isEqualTo("return 42;"));
+    }
+
+    /**
+     * Поправка не должна прятать настоящий конфликт: если обе стороны правда изменили одну
+     * строку по-разному, отсутствие id на моей стороне не превращает это в тихое принятие правки.
+     */
+    @Test
+    void bothModifiedIsStillAConflict_evenWhenIOmitTheId() {
+        List<ComponentCreateDto> base = tree(List.of(script(10L, "Открыть", "return 1;")));
+        List<ComponentCreateDto> mine = tree(List.of(script(null, "Открыть", "return 42;")));
+        List<ComponentCreateDto> theirs = tree(List.of(script(10L, "Открыть", "return 55;")));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isFalse();
+        assertThat(result.conflicts()).singleElement()
+                .satisfies(conflict -> assertThat(conflict.kind()).isEqualTo(ConflictKind.BOTH_MODIFIED));
+    }
+
+    /**
+     * Поправка не должна и переусердствовать: моя строка без id, которой нет ни в базе, ни у
+     * «них» под тем же именем, — это по-прежнему новое добавление, а не случайное сопоставление
+     * с чем-то посторонним.
+     */
+    @Test
+    void myNewRowWithoutId_staysAnAddition() {
+        List<ComponentCreateDto> base = tree(List.of(script(10L, "Открыть", "return 1;")));
+        List<ComponentCreateDto> mine = tree(List.of(
+                script(10L, "Открыть", "return 1;"), script(null, "Стоп", "return 9;")));
+        List<ComponentCreateDto> theirs = tree(List.of(script(10L, "Открыть", "return 1;")));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged().get(0).getScripts())
+                .extracting(ScriptCreateDto::getScript)
+                .containsExactlyInAnyOrder("return 1;", "return 9;");
+    }
 }
