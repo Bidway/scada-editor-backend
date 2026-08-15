@@ -76,7 +76,7 @@ public class ComponentServiceImpl implements ComponentService {
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new CreateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        Integer versionNo = snapshotScenesOf(prepared, userName, kind);
+        Integer versionNo = snapshotScenesOf(prepared, userName, kind, basedOnVersion);
         return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
     }
 
@@ -162,7 +162,7 @@ public class ComponentServiceImpl implements ComponentService {
         List<Component> prepared = tree.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        Integer versionNo = snapshotScenesOf(prepared, userName, kind);
+        Integer versionNo = snapshotScenesOf(prepared, userName, kind, basedOnVersion);
         return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null,
                 mergedReport(outcome));
     }
@@ -222,11 +222,15 @@ public class ComponentServiceImpl implements ComponentService {
 
     /**
      * Удаление компонента — такое же изменение сцены, как правка, и в истории обязано быть
-     * видно. Сцены вычисляем ДО удаления: после него подниматься будет не от кого.
+     * видно, а версию обязано проверять точно так же, как {@link #update} (scada-ybr): без
+     * этого DELETE был единственной дверью, через которую «последний победил» всё ещё
+     * возвращался после того, как её закрыли в PUT. Сцены вычисляем ДО удаления: после него
+     * подниматься будет не от кого. Проверка версии — тоже до {@link CommandManager#execute}:
+     * иначе отказ придёт уже после того, как данные записаны.
      */
     @Override
     @Transactional
-    public void delete(List<Long> ids, String userName, VersionKind kind) {
+    public void delete(List<Long> ids, String userName, VersionKind kind, Integer basedOnVersion) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Long id : ids) {
             repository.findById(id)
@@ -234,8 +238,11 @@ public class ComponentServiceImpl implements ComponentService {
                     .filter(Objects::nonNull)
                     .ifPresent(sceneIds::add);
         }
+        for (Long sceneId : sceneIds) {
+            versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
+        }
         commandManager.execute(new DeleteComponentCommand(repository, ids, userName, mapper));
-        snapshotScenes(sceneIds, userName, kind);
+        snapshotScenes(sceneIds, userName, kind, basedOnVersion);
     }
 
     /**
@@ -244,7 +251,8 @@ public class ComponentServiceImpl implements ComponentService {
      * поднимаемся по родителям до компонента с типом scene. Обычно она одна, но запрос вправе
      * задеть несколько, и тогда снимков будет несколько.
      */
-    private Integer snapshotScenesOf(List<Component> saved, String userName, VersionKind kind) {
+    private Integer snapshotScenesOf(List<Component> saved, String userName, VersionKind kind,
+                                     Integer basedOnVersion) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Component component : saved) {
             Long sceneId = sceneRootIdOf(component);
@@ -252,14 +260,16 @@ public class ComponentServiceImpl implements ComponentService {
                 sceneIds.add(sceneId);
             }
         }
-        return snapshotScenes(sceneIds, userName, kind);
+        return snapshotScenes(sceneIds, userName, kind, basedOnVersion);
     }
 
-    private Integer snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind) {
+    private Integer snapshotScenes(Set<Long> sceneIds, String userName, VersionKind kind,
+                                   Integer basedOnVersion) {
         Integer last = null;
         for (Long sceneId : sceneIds) {
             last = versionService.record(DocumentType.SCENE, sceneId,
-                    sceneDocumentSource.contentOf(sceneId), userName, kind, null).getVersionNo();
+                    sceneDocumentSource.contentOf(sceneId), userName, kind, null, basedOnVersion)
+                    .getVersionNo();
         }
         return last;
     }
