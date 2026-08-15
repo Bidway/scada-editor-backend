@@ -37,6 +37,13 @@ public interface ComponentService {
 
     void delete(List<Long> ids, String userName, VersionKind kind, Integer basedOnVersion);
 
+    /**
+     * Оставлена для вызывающих, которым {@code based_on_version} неоткуда взять. Не «прежнее
+     * поведение без проверки версии» — {@code basedOnVersion = null} доходит до
+     * {@link com.example.editor.service.version.DocumentVersionService#requireBaseVersion} и для
+     * любой сцены, у которой версия уже есть, даёт {@code IllegalArgumentException} (400), а не
+     * тихий обход гарда.
+     */
     default void delete(List<Long> ids, String userName, VersionKind kind) {
         delete(ids, userName, kind, null);
     }
@@ -45,6 +52,7 @@ public interface ComponentService {
         return create(components, userName, VersionKind.MANUAL, null);
     }
 
+    /** См. {@link #delete(List, String, VersionKind)} — то же самое, {@code kind = MANUAL}. */
     default void delete(List<Long> ids, String userName) {
         delete(ids, userName, VersionKind.MANUAL, null);
     }

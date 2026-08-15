@@ -233,10 +233,26 @@ public class ComponentServiceImpl implements ComponentService {
     public void delete(List<Long> ids, String userName, VersionKind kind, Integer basedOnVersion) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Long id : ids) {
-            repository.findById(id)
-                    .map(this::sceneRootIdOf)
-                    .filter(Objects::nonNull)
-                    .ifPresent(sceneIds::add);
+            Component component = repository.findById(id).orElse(null);
+            if (component == null) {
+                // id не резолвится: компонент уже удалён (кем-то ещё, например) или никогда не
+                // существовал. Гарда для него нет и не может быть — без строки нечего сверять
+                // по версии. DELETE по такому id сегодня тихо ничего не делает (deleteById не
+                // находит строку) и отвечает 200 без всякой проверки — известная дыра, не эта
+                // задача её чинит (scada-crk).
+                continue;
+            }
+            Long sceneId = sceneRootIdOf(component);
+            if (sceneId == null) {
+                // Компонент есть, но не под сценой — сегодня единственный такой случай: сам
+                // проект (type=PROJECT, parent=null). У проекта нет версионируемого документа
+                // (DocumentType знает только SCENE и TEMPLATE), поэтому гард версии и снимок
+                // истории здесь сознательно пропускаются, а не забыты по недосмотру — заведено
+                // отдельно, каскадное удаление сцен внутри проекта тоже проходит без проверки
+                // и без снимка (scada-69s).
+                continue;
+            }
+            sceneIds.add(sceneId);
         }
         for (Long sceneId : sceneIds) {
             versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);

@@ -84,7 +84,13 @@ public class DocumentVersion {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    /** Версия, от которой отталкивался клиент. Заполнится планом 3b, пока всегда null. */
+    /**
+     * Версия, от которой отталкивался клиент. Заполняется в {@code create}/{@code update}/
+     * {@code delete} компонентов сцены (задача 8, scada-ybr) — там, где клиент реально
+     * присылает {@code based_on_version}. {@code null} для {@link VersionKind#RESTORE}
+     * (восстановление версию не присылает) и для шаблонов ({@code TemplateService} эту колонку
+     * пока не заполняет — задача 8 шаблонов не касалась, см. scada-8nz).
+     */
     @Column(name = "based_on_version")
     private Integer basedOnVersion;
 
