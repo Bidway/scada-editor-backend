@@ -35,14 +35,18 @@ public interface ComponentService {
         return update(dtos, userName, kind, basedOnVersion, null);
     }
 
-    void delete(List<Long> ids, String userName, VersionKind kind);
+    void delete(List<Long> ids, String userName, VersionKind kind, Integer basedOnVersion);
+
+    default void delete(List<Long> ids, String userName, VersionKind kind) {
+        delete(ids, userName, kind, null);
+    }
 
     default ComponentSaveResponseDto create(List<ComponentCreateDto> components, String userName) {
         return create(components, userName, VersionKind.MANUAL, null);
     }
 
     default void delete(List<Long> ids, String userName) {
-        delete(ids, userName, VersionKind.MANUAL);
+        delete(ids, userName, VersionKind.MANUAL, null);
     }
 
     ComponentResponseDto getById(Long id);

@@ -206,11 +206,12 @@ class SceneRestoreDeletedRowsIT extends EditorApiTestSupport {
         JsonNode created = saveComponents(pump(sceneId, null,
                 "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"return 1;\"}]")).get(0);
         long componentId = created.get("id").asLong();
+        Integer base = currentVersion(sceneId, "scenes");
 
         mockMvc.perform(delete("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[" + componentId + "]"))
+                        .content("{\"ids\":[" + componentId + "],\"based_on_version\":" + base + "}"))
                 .andExpect(status().isOk());
 
         restore(sceneId, 1);
