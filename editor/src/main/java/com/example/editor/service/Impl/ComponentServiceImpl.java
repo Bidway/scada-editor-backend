@@ -154,6 +154,7 @@ public class ComponentServiceImpl implements ComponentService {
         SceneMergeService.MergeOutcome outcome = null;
         if (sceneId != null) {
             Component scene = requireScene(sceneId);
+            requireSceneMembership(dtos, sceneId);
             if (kind != VersionKind.RESTORE) {
                 Integer current =
                         versionService.requireBaseVersion(DocumentType.SCENE, sceneId, basedOnVersion);
@@ -216,6 +217,50 @@ public class ComponentServiceImpl implements ComponentService {
                     "scene_id " + sceneId + " does not address a scene (type=" + scene.getType() + ")");
         }
         return scene;
+    }
+
+    /**
+     * Всё присланное обязано принадлежать названной сцене — и то, что правится ({@code id}), и
+     * то, куда оно кладётся ({@code parent_id}).
+     * <p>
+     * До плана 3b гард версии выводил набор сцен из тела ({@link #requireBaseForScenesOf}) и
+     * потому накрывал каждую задетую сцену. Теперь гардится ровно одна — та, что в {@code
+     * scene_id}, — а {@code updateComponent} по-прежнему берёт родителя из {@code parent_id}
+     * каждого dto и ничьей принадлежности не проверяет. Тело с {@code scene_id: A}, несущее
+     * компонент сцены B, правило бы B без проверки версии и без слияния, вычищало бы A целиком
+     * (детей A в теле нет) и записывало бы сцене B версию с {@code based_on_version} от A (I-1).
+     * <p>
+     * Обход вверх — тот же {@link #sceneRootIdOf}, что и у гарда версии: второй копии обхода
+     * дерева здесь заводить нельзя, они разойдутся. Нерезолвимый id не наша забота: строки нет,
+     * сцены у неё тоже нет, и ошибку про неё выдаст {@code updateComponent} — так же, как до
+     * ветки.
+     * <p>
+     * Побочно это запрещает переезд компонента между сценами одним {@code PUT}. Он и не был
+     * выразим: тело — состав <b>одной</b> сцены целиком, и сцена-источник в нём не описана, так
+     * что «переезд» неотличим от «правлю чужую сцену вслепую».
+     */
+    private void requireSceneMembership(List<ComponentCreateDto> dtos, Long sceneId) {
+        for (ComponentCreateDto dto : dtos) {
+            requireInScene(dto.getId(), sceneId, "component");
+            requireInScene(dto.getParent_id(), sceneId, "parent");
+        }
+    }
+
+    private void requireInScene(Long componentId, Long sceneId, String role) {
+        if (componentId == null) {
+            return;
+        }
+        Component existing = repository.findById(componentId).orElse(null);
+        if (existing == null) {
+            return;
+        }
+        Long root = sceneRootIdOf(existing);
+        if (!sceneId.equals(root)) {
+            throw new IllegalArgumentException(
+                    role + " " + componentId + " belongs to scene " + root + ", not to scene_id "
+                            + sceneId + ": PUT carries one scene, so a foreign component would be"
+                            + " written unguarded while the named scene is wiped");
+        }
     }
 
     /**
