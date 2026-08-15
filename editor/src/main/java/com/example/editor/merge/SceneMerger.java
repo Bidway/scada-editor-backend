@@ -59,10 +59,11 @@ public class SceneMerger {
         List<ComponentCreateDto> baseList = nullToEmpty(base);
         List<ComponentCreateDto> mineList = nullToEmpty(mine);
         List<ComponentCreateDto> theirsList = nullToEmpty(theirs);
+        Map<String, String> rootAlias = nameAlias(baseList, theirsList, COMPONENTS);
         // Порядок компонентов верхнего уровня сцены — тот же вопрос, что и порядок детей внутри
         // компонента, просто без родителя: сравниваем его тем же способом (см. resolveOrder).
-        List<String> rootOrder =
-                resolveOrder(order(baseList), order(mineList), order(theirsList), "Сцена", conflicts);
+        List<String> rootOrder = resolveOrder(order(baseList, rootAlias), order(mineList, rootAlias),
+                order(theirsList, rootAlias), "Сцена", conflicts);
         List<ComponentCreateDto> merged = applyOrder(
                 mergeComponents(baseList, mineList, theirsList, "", conflicts, changes), rootOrder);
         return new SceneMerge(merged, conflicts, changes);
@@ -75,9 +76,10 @@ public class SceneMerger {
     private <T> List<T> mergeRows(List<T> base, List<T> mine, List<T> theirs, RowSpec<T> spec,
                                   String path, List<MergeConflict> conflicts,
                                   List<MergeChange> changes) {
-        Map<String, T> baseByKey = byKey(base, spec);
-        Map<String, T> mineByKey = byKey(mine, spec);
-        Map<String, T> theirsByKey = byKey(theirs, spec);
+        Map<String, String> alias = nameAlias(base, theirs, spec);
+        Map<String, T> baseByKey = byKey(base, spec, alias);
+        Map<String, T> mineByKey = byKey(mine, spec, alias);
+        Map<String, T> theirsByKey = byKey(theirs, spec, alias);
 
         List<T> result = new ArrayList<>();
         for (String key : allKeys(baseByKey, mineByKey, theirsByKey)) {
@@ -170,9 +172,13 @@ public class SceneMerger {
     }
 
     private <T> Map<String, T> byKey(List<T> rows, RowSpec<T> spec) {
+        return byKey(rows, spec, java.util.Map.of());
+    }
+
+    private <T> Map<String, T> byKey(List<T> rows, RowSpec<T> spec, Map<String, String> alias) {
         Map<String, T> byKey = new java.util.LinkedHashMap<>();
         for (T row : nullToEmpty(rows)) {
-            byKey.put(keyOf(row, spec), row);
+            byKey.put(keyOf(row, spec, alias), row);
         }
         return byKey;
     }
@@ -182,12 +188,60 @@ public class SceneMerger {
      * «id=7» и «имя 7» не столкнулись в одной карте.
      */
     private <T> String keyOf(T row, RowSpec<T> spec) {
+        return keyOf(row, spec, java.util.Map.of());
+    }
+
+    /**
+     * То же, что {@link #keyOf(Object, RowSpec)}, с поправкой на пропущенный id: если строка его
+     * не несёт, а {@code alias} (см. {@link #nameAlias}) знает эту сущность под чужим id, берём
+     * его. Без этого строка без id (её сторона — сырой ввод клиента, для нетронутой строки он
+     * законно может отсутствовать, см. {@link #nameAlias}) ложилась бы в карту под
+     * {@code "name:..."}, а сопоставляемая с ней строка там, где id есть, — под {@code "id:..."},
+     * и они никогда бы не встретились в {@link #allKeys}.
+     */
+    private <T> String keyOf(T row, RowSpec<T> spec, Map<String, String> alias) {
         Long id = spec.idOf().apply(row);
         if (id != null) {
             return "id:" + id;
         }
+        String nameKey = "name:" + nameKeyOf(row, spec);
+        return alias.getOrDefault(nameKey, nameKey);
+    }
+
+    private <T> String nameKeyOf(T row, RowSpec<T> spec) {
         String key = spec.keyOf().apply(row);
-        return "name:" + (key == null ? "" : key.trim());
+        return key == null ? "" : key.trim();
+    }
+
+    /**
+     * «Имя → id-ключ» по сторонам, где id есть всегда, когда сущность вообще существует: и база
+     * (снимок версии), и «их» текущее состояние приходят из БД, а не из тела запроса. «Моя»
+     * сторона — сырой {@code ComponentCreateDto} клиента, и для нетронутой строки id законно
+     * может отсутствовать: остальной код проекта это уже допускает и сам сопоставляет по имени
+     * ({@code ComponentScriptBindingApplier}, {@code applyStates} — id не пришёл, ищем среди
+     * текущих строк компонента по имени). Без этого алиаса такая строка на «моей» стороне ложилась
+     * бы под {@code "name:..."}, а на базовой/чужой — под {@code "id:..."}: слияние решало бы, что
+     * я её удалил (в паре с базой) и тут же завёл заново (в паре с самой собой) — ложный
+     * {@code DELETED_BY_YOU} там, где я строку вообще не трогал.
+     * <p>
+     * Складываются обе стороны сразу, а не одна база: независимое добавление одноимённой строки
+     * с обеих сторон — это {@code BOTH_ADDED}, повод спросить человека, а не тихо задвоить строку
+     * с тем же именем.
+     */
+    private <T> Map<String, String> nameAlias(List<T> base, List<T> theirs, RowSpec<T> spec) {
+        Map<String, String> alias = new java.util.LinkedHashMap<>();
+        addAlias(alias, base, spec);
+        addAlias(alias, theirs, spec);
+        return alias;
+    }
+
+    private <T> void addAlias(Map<String, String> alias, List<T> rows, RowSpec<T> spec) {
+        for (T row : nullToEmpty(rows)) {
+            Long id = spec.idOf().apply(row);
+            if (id != null) {
+                alias.put("name:" + nameKeyOf(row, spec), "id:" + id);
+            }
+        }
     }
 
     private <T> String label(String key, RowSpec<T> spec, T m, T t, T b) {
@@ -260,9 +314,12 @@ public class SceneMerger {
      */
     private <T> boolean hasNestedWork(List<T> base, List<T> side, RowSpec<T> spec,
                                       BiPredicate<T, T> isWork) {
-        Map<String, T> baseByKey = byKey(base, spec);
+        // Только база, без «их»: здесь спрашивают «то же ли это, что было в базе», а не «то же
+        // ли, что завели независимо с двух сторон» — второе разбирает mergeRows/mergeComponents.
+        Map<String, String> alias = nameAlias(base, List.of(), spec);
+        Map<String, T> baseByKey = byKey(base, spec, alias);
         for (T row : nullToEmpty(side)) {
-            T baseRow = baseByKey.get(keyOf(row, spec));
+            T baseRow = baseByKey.get(keyOf(row, spec, alias));
             if (baseRow == null || isWork.test(baseRow, row)) {
                 return true;
             }
@@ -270,11 +327,20 @@ public class SceneMerger {
         return false;
     }
 
+    /**
+     * Каноническое содержимое без вложенных коллекций и без {@code id}. Идентичность сущности к
+     * этому моменту уже решена сопоставлением по ключу ({@link #keyOf}/{@link #nameAlias}) —
+     * сравнивать {@code id} здесь второй раз как содержимое нельзя: у строки без id (см.
+     * {@link #nameAlias}) он в каноническом виде попросту отсутствует, а у сопоставленной с ней
+     * пары на базовой/чужой стороне — присутствует, и разница по единственному полю {@code id}
+     * выглядела бы как правка, которой не было.
+     */
     private JsonNode scalars(Object value) {
         JsonNode node = MergeShape.canonical(mapper.valueToTree(value));
         if (node != null && node.isObject()) {
             com.fasterxml.jackson.databind.node.ObjectNode copy = node.deepCopy();
             copy.remove(List.of("children", "properties", "scripts", "states", "events", "bindings"));
+            copy.remove("id");
             return copy;
         }
         return node;
@@ -303,9 +369,10 @@ public class SceneMerger {
             List<ComponentCreateDto> base, List<ComponentCreateDto> mine,
             List<ComponentCreateDto> theirs, String path,
             List<MergeConflict> conflicts, List<MergeChange> changes) {
-        Map<String, ComponentCreateDto> baseByKey = byKey(base, COMPONENTS);
-        Map<String, ComponentCreateDto> mineByKey = byKey(mine, COMPONENTS);
-        Map<String, ComponentCreateDto> theirsByKey = byKey(theirs, COMPONENTS);
+        Map<String, String> alias = nameAlias(base, theirs, COMPONENTS);
+        Map<String, ComponentCreateDto> baseByKey = byKey(base, COMPONENTS, alias);
+        Map<String, ComponentCreateDto> mineByKey = byKey(mine, COMPONENTS, alias);
+        Map<String, ComponentCreateDto> theirsByKey = byKey(theirs, COMPONENTS, alias);
 
         List<ComponentCreateDto> result = new ArrayList<>();
         for (String key : allKeys(baseByKey, mineByKey, theirsByKey)) {
@@ -371,7 +438,9 @@ public class SceneMerger {
         if (b == null || m == null || t == null) {
             return null;
         }
-        return resolveOrder(order(b), order(m), order(t), path, conflicts);
+        Map<String, String> alias = nameAlias(rows(b, ComponentCreateDto::getChildren),
+                rows(t, ComponentCreateDto::getChildren), COMPONENTS);
+        return resolveOrder(order(b, alias), order(m, alias), order(t, alias), path, conflicts);
     }
 
     /**
@@ -429,13 +498,13 @@ public class SceneMerger {
         return reordered;
     }
 
-    private List<String> order(ComponentCreateDto component) {
-        return order(rows(component, ComponentCreateDto::getChildren));
+    private List<String> order(ComponentCreateDto component, Map<String, String> alias) {
+        return order(rows(component, ComponentCreateDto::getChildren), alias);
     }
 
-    private List<String> order(List<ComponentCreateDto> components) {
+    private List<String> order(List<ComponentCreateDto> components, Map<String, String> alias) {
         return nullToEmpty(components).stream()
-                .map(component -> keyOf(component, COMPONENTS))
+                .map(component -> keyOf(component, COMPONENTS, alias))
                 .collect(Collectors.toList());
     }
 }

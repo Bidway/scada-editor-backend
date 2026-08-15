@@ -21,23 +21,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class SceneMergeIT extends EditorApiTestSupport {
 
-    /**
-     * Id скриптов передаются явно (как их вернуло бы предыдущее чтение сцены реальным фронтом):
-     * слияние сопоставляет вложенные строки сперва по id и лишь при его отсутствии — по имени, а
-     * «моя» сторона здесь всегда собрана из живого ответа сервера, а не с нуля. Без id и «моя», и
-     * «чужая», и базовая версия одного скрипта попадали бы в разные ключи (id-ключ у слепка,
-     * name-ключ у меня) и слияние решило бы, что я эту строку удалил, хотя я её просто не менял.
-     */
-    private String pumpAndValve(long sceneId, Long pumpId, Long pumpScriptId, String pumpScript,
-                                Long valveId, Long valveScriptId, String valveScript) {
+    private String pumpAndValve(long sceneId, Long pumpId, String pumpScript,
+                                Long valveId, String valveScript) {
         return "[{" + (pumpId == null ? "" : "\"id\":" + pumpId + ",")
                 + "\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
-                + "\"scripts\":[{" + (pumpScriptId == null ? "" : "\"id\":" + pumpScriptId + ",")
-                + "\"name\":\"Открыть\",\"script\":\"" + pumpScript + "\"}]},"
+                + "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"" + pumpScript + "\"}]},"
                 + "{" + (valveId == null ? "" : "\"id\":" + valveId + ",")
                 + "\"name\":\"Клапан\",\"type\":\"valve\",\"parent_id\":" + sceneId + ","
-                + "\"scripts\":[{" + (valveScriptId == null ? "" : "\"id\":" + valveScriptId + ",")
-                + "\"name\":\"Открыть\",\"script\":\"" + valveScript + "\"}]}]";
+                + "\"scripts\":[{\"name\":\"Открыть\",\"script\":\"" + valveScript + "\"}]}]";
     }
 
     private String envelope(long sceneId, String components, Integer base, String kind) {
@@ -48,24 +39,20 @@ class SceneMergeIT extends EditorApiTestSupport {
     @Test
     void changesInDifferentComponents_areMerged() throws Exception {
         long sceneId = newScene();
-        JsonNode created = saveComponents(pumpAndValve(sceneId, null, null, "a()", null, null, "b()"));
+        JsonNode created = saveComponents(pumpAndValve(sceneId, null, "a()", null, "b()"));
         long pumpId = created.get(0).get("id").asLong();
-        long pumpScriptId = created.get(0).get("scripts").get(0).get("id").asLong();
         long valveId = created.get(1).get("id").asLong();
-        long valveScriptId = created.get(1).get("scripts").get(0).get("id").asLong();
         Integer base = currentVersion(sceneId, "scenes");
 
         // Чужое сохранение: правит клапан, версия становится base + 1.
-        updateScene(sceneId, pumpAndValve(sceneId, pumpId, pumpScriptId, "a()",
-                valveId, valveScriptId, "ИХ()"), base);
+        updateScene(sceneId, pumpAndValve(sceneId, pumpId, "a()", valveId, "ИХ()"), base);
 
         // Моё: правит насос и всё ещё думает, что текущая версия — base.
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(envelope(sceneId,
-                                pumpAndValve(sceneId, pumpId, pumpScriptId, "МОЁ()",
-                                        valveId, valveScriptId, "b()"),
+                                pumpAndValve(sceneId, pumpId, "МОЁ()", valveId, "b()"),
                                 base, "MANUAL")))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
@@ -86,22 +73,18 @@ class SceneMergeIT extends EditorApiTestSupport {
     @Test
     void changesInTheSameComponent_conflictAndWriteNothing() throws Exception {
         long sceneId = newScene();
-        JsonNode created = saveComponents(pumpAndValve(sceneId, null, null, "a()", null, null, "b()"));
+        JsonNode created = saveComponents(pumpAndValve(sceneId, null, "a()", null, "b()"));
         long pumpId = created.get(0).get("id").asLong();
-        long pumpScriptId = created.get(0).get("scripts").get(0).get("id").asLong();
         long valveId = created.get(1).get("id").asLong();
-        long valveScriptId = created.get(1).get("scripts").get(0).get("id").asLong();
         Integer base = currentVersion(sceneId, "scenes");
 
-        updateScene(sceneId, pumpAndValve(sceneId, pumpId, pumpScriptId, "ИХ()",
-                valveId, valveScriptId, "b()"), base);
+        updateScene(sceneId, pumpAndValve(sceneId, pumpId, "ИХ()", valveId, "b()"), base);
 
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(envelope(sceneId,
-                                pumpAndValve(sceneId, pumpId, pumpScriptId, "МОЁ()",
-                                        valveId, valveScriptId, "b()"),
+                                pumpAndValve(sceneId, pumpId, "МОЁ()", valveId, "b()"),
                                 base, "MANUAL")))
                 .andExpect(status().isConflict())
                 .andReturn().getResponse().getContentAsString();
@@ -121,22 +104,18 @@ class SceneMergeIT extends EditorApiTestSupport {
     @Test
     void autosaveDoesNotMerge() throws Exception {
         long sceneId = newScene();
-        JsonNode created = saveComponents(pumpAndValve(sceneId, null, null, "a()", null, null, "b()"));
+        JsonNode created = saveComponents(pumpAndValve(sceneId, null, "a()", null, "b()"));
         long pumpId = created.get(0).get("id").asLong();
-        long pumpScriptId = created.get(0).get("scripts").get(0).get("id").asLong();
         long valveId = created.get(1).get("id").asLong();
-        long valveScriptId = created.get(1).get("scripts").get(0).get("id").asLong();
         Integer base = currentVersion(sceneId, "scenes");
 
-        updateScene(sceneId, pumpAndValve(sceneId, pumpId, pumpScriptId, "a()",
-                valveId, valveScriptId, "ИХ()"), base);
+        updateScene(sceneId, pumpAndValve(sceneId, pumpId, "a()", valveId, "ИХ()"), base);
 
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(envelope(sceneId,
-                                pumpAndValve(sceneId, pumpId, pumpScriptId, "МОЁ()",
-                                        valveId, valveScriptId, "b()"),
+                                pumpAndValve(sceneId, pumpId, "МОЁ()", valveId, "b()"),
                                 base, "AUTOSAVE")))
                 .andExpect(status().isConflict())
                 .andReturn().getResponse().getContentAsString();
@@ -149,18 +128,15 @@ class SceneMergeIT extends EditorApiTestSupport {
     @Test
     void missingBaseVersion_answers409() throws Exception {
         long sceneId = newScene();
-        JsonNode created = saveComponents(pumpAndValve(sceneId, null, null, "a()", null, null, "b()"));
+        JsonNode created = saveComponents(pumpAndValve(sceneId, null, "a()", null, "b()"));
         long pumpId = created.get(0).get("id").asLong();
-        long pumpScriptId = created.get(0).get("scripts").get(0).get("id").asLong();
         long valveId = created.get(1).get("id").asLong();
-        long valveScriptId = created.get(1).get("scripts").get(0).get("id").asLong();
 
         String body = mockMvc.perform(put("/api/editor/components")
                         .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(envelope(sceneId,
-                                pumpAndValve(sceneId, pumpId, pumpScriptId, "МОЁ()",
-                                        valveId, valveScriptId, "b()"),
+                                pumpAndValve(sceneId, pumpId, "МОЁ()", valveId, "b()"),
                                 999, "MANUAL")))
                 .andExpect(status().isConflict())
                 .andReturn().getResponse().getContentAsString();
