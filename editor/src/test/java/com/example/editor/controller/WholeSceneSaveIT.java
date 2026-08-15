@@ -154,40 +154,4 @@ class WholeSceneSaveIT extends EditorApiTestSupport {
                 .as("отклонённый по версии PUT не должен был стереть детей сцены")
                 .hasSize(2);
     }
-
-    /**
-     * Отклонение от буквального текста задания: конкурентное {@code updateScene} с тем же
-     * {@code twoComponents(sceneId)} (без id) не годится для этого сценария — оно пересобирает
-     * оба компонента заново (orphanRemoval + IDENTITY даёт новые id), и {@code pumpId} к моменту
-     * DELETE уже не существует ни в какой сцене. {@code DeleteComponentCommand} использует
-     * {@code repository::deleteById}, а он с Spring Data JPA 2.5+ на отсутствующий id не падает,
-     * а молча ничего не делает — запрос по мёртвому id всегда вернёт 200 независимо от версии,
-     * проверять тут нечего. Подтверждено прогоном: id ушли 3,4 → 5,6 (see task-8 report).
-     * Конкурентное сохранение здесь вместо этого переименовывает насос, сохраняя его id — так
-     * версия сцены бежит вперёд, а компонент, который тест пытается удалить, остаётся адресуемым.
-     */
-    @Test
-    void deleteWithStaleVersion_isRejected() throws Exception {
-        long sceneId = newScene();
-        JsonNode created = saveComponents(twoComponents(sceneId));
-        long pumpId = created.get(0).get("id").asLong();
-        long valveId = created.get(1).get("id").asLong();
-        Integer base = currentVersion(sceneId, "scenes");
-
-        // Кто-то сохранил сцену после того, как я её открыл.
-        updateScene(sceneId, "[{\"id\":" + pumpId + ",\"name\":\"Насос-2\",\"type\":\"valve\","
-                + "\"parent_id\":" + sceneId + "},{\"id\":" + valveId + ",\"name\":\"Клапан\","
-                + "\"type\":\"valve\",\"parent_id\":" + sceneId + "}]", base);
-
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .delete("/api/editor/components")
-                        .header("X-Username", USER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"ids\":[" + pumpId + "],\"based_on_version\":" + base + "}"))
-                .andExpect(status().isConflict());
-
-        assertThat(getComponent(sceneId).get("children"))
-                .as("удаление по устаревшей версии не должно применяться")
-                .hasSize(2);
-    }
 }

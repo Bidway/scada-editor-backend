@@ -45,17 +45,13 @@ public class DocumentVersionService {
     private final List<DocumentSource> sources;
 
     /**
-     * Записывает снимок с версией, на которой основывался клиент. Возвращает созданную версию
-     * либо прежнюю, если содержимое не менялось.
+     * Записывает снимок. Возвращает созданную версию либо прежнюю, если содержимое не менялось.
      *
      * @param restoredFrom номер восстановленной версии для {@code kind = RESTORE}, иначе null
-     * @param basedOnVersion версия, от которой клиент отталкивался при сохранении; {@code null},
-     *                      если вызывающий её не знает (например, {@link #restore})
      */
     @Transactional
     public DocumentVersion record(DocumentType targetType, Long targetId, JsonNode content,
-                                  String userName, VersionKind kind, Integer restoredFrom,
-                                  Integer basedOnVersion) {
+                                  String userName, VersionKind kind, Integer restoredFrom) {
         String hash = hashOf(content);
         Optional<DocumentVersion> last =
                 repository.findTopByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId);
@@ -74,7 +70,6 @@ public class DocumentVersionService {
         version.setUserName(userName);
         version.setCreatedAt(LocalDateTime.now());
         version.setRestoredFrom(restoredFrom);
-        version.setBasedOnVersion(basedOnVersion);
         try {
             // saveAndFlush, а не save: INSERT обязан уйти в базу здесь, внутри try. Отложенный до
             // коммита, он выбросил бы нарушение уже за границей метода, где номер версии не виден
@@ -90,17 +85,6 @@ public class DocumentVersionService {
             // текущий, а отталкивались мы от предыдущего.
             throw new VersionMismatchException(version.getVersionNo() - 1, version.getVersionNo());
         }
-    }
-
-    /**
-     * Обёртка для вызывающих, которым {@code based_on_version} неизвестен или не нужен в
-     * истории — сегодня это {@link #restore} (клиент восстановления версию не присылает) и
-     * шаблоны, которых задача 8 не касалась.
-     */
-    @Transactional
-    public DocumentVersion record(DocumentType targetType, Long targetId, JsonNode content,
-                                  String userName, VersionKind kind, Integer restoredFrom) {
-        return record(targetType, targetId, content, userName, kind, restoredFrom, null);
     }
 
     /**

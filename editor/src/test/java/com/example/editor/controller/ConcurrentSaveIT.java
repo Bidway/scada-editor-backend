@@ -122,8 +122,9 @@ class ConcurrentSaveIT extends EditorApiTestSupport {
     @Test
     void saveThatFailsToRecordVersion_writesNoData() throws Exception {
         long sceneId = newScene();
+        // create() зовёт семиаргументный record (с basedOnVersion) — задача 8.
         doThrow(new RuntimeException("снимок не записался"))
-                .when(versionService).record(any(), any(), any(), any(), any(), any());
+                .when(versionService).record(any(), any(), any(), any(), any(), any(), any());
 
         mockMvc.perform(post("/api/editor/components")
                         .header("X-Username", USER)
