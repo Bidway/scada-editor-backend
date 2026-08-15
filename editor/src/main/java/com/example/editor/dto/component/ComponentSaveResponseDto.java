@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Map;
+
 /**
  * Ответ сохранения и восстановления документа.
  * <p>
@@ -26,4 +28,14 @@ public class ComponentSaveResponseDto {
     private Integer version_no;
 
     private Integer restored_from;
+
+    /**
+     * Отчёт о подмешанных чужих правках. {@code null} у обычного сохранения — за это отвечает
+     * {@code @JsonInclude(NON_NULL)} на классе.
+     */
+    private Map<String, Object> merged;
+
+    public ComponentSaveResponseDto(JsonNode components, Integer version_no, Integer restored_from) {
+        this(components, version_no, restored_from, null);
+    }
 }

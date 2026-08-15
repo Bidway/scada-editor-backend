@@ -13,6 +13,7 @@ import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
 import com.example.editor.exception.NotFoundException;
+import com.example.editor.exception.VersionMismatchException;
 import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.merge.ComponentTreePruner;
 import com.example.editor.model.component.Component;
@@ -25,6 +26,7 @@ import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
 import com.example.editor.service.version.DocumentVersionService;
 import com.example.editor.service.version.SceneDocumentSource;
+import com.example.editor.service.version.SceneMergeService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -36,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +57,7 @@ public class ComponentServiceImpl implements ComponentService {
     private final ComponentMapper componentMapper;
     private final DocumentVersionService versionService;
     private final SceneDocumentSource sceneDocumentSource;
+    private final SceneMergeService sceneMergeService;
 
     /**
      * Проверка версии, запись данных и запись снимка — одна транзакция.
@@ -116,6 +120,15 @@ public class ComponentServiceImpl implements ComponentService {
      * (там лежат только явные id из dto) и удаляет только что созданную строку — клиент получает
      * 200 с id несуществующей записи. {@link SceneDocumentSource#restore} делает то же самое в
      * том же порядке — чистка прежде записи.
+     * <p>
+     * Расхождение версий (план 3b) сначала пробует слиться, а не отказывает сразу: базовая
+     * проверка {@code versionService.requireBase} заменена ручным сравнением здесь, потому что
+     * для слияния нужен сам номер текущей версии, а не только факт расхождения. Автосохранение
+     * в развилку не попадает — {@code AUTOSAVE} при расхождении отказывается безусловно, как и
+     * раньше, потому что блок {@code merged} в ответе некому прочитать, когда сохранение сделал
+     * таймер, а не человек. Чистка {@link #deleteMissing} после развилки идёт по слитому дереву,
+     * а не по присланному {@code dtos}: иначе компоненты, добавленные чужой стороной, выглядели
+     * бы «отсутствующими в запросе» и чистка вычистила бы их же.
      */
     @Override
     @Transactional
@@ -126,18 +139,53 @@ public class ComponentServiceImpl implements ComponentService {
                     "scene_id is required: PUT carries the whole scene, so a missing component"
                             + " means it was deleted");
         }
+        List<ComponentCreateDto> tree = dtos;
+        SceneMergeService.MergeOutcome outcome = null;
         if (sceneId != null) {
             Component scene = requireScene(sceneId);
             if (kind != VersionKind.RESTORE) {
-                versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
+                Integer current = versionService.currentVersionNo(DocumentType.SCENE, sceneId);
+                if (current != null && !current.equals(basedOnVersion)) {
+                    if (basedOnVersion == null) {
+                        throw new IllegalArgumentException(
+                                "based_on_version is required: document already has version "
+                                        + current);
+                    }
+                    if (kind == VersionKind.AUTOSAVE) {
+                        // Автосохранение не сливает: блок merged некому прочитать.
+                        throw new VersionMismatchException(basedOnVersion, current);
+                    }
+                    outcome = sceneMergeService.merge(sceneId, dtos, basedOnVersion, current);
+                    tree = outcome.tree();
+                }
             }
-            deleteMissing(scene, dtos);
+            deleteMissing(scene, tree);
         }
-        List<Component> prepared = dtos.stream().map(this::updateComponent).toList();
+        List<Component> prepared = tree.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
         Integer versionNo = snapshotScenesOf(prepared, userName, kind);
-        return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
+        return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null,
+                mergedReport(outcome));
+    }
+
+    /** Блок {@code merged} контракта; {@code null}, если слияния не было. */
+    private Map<String, Object> mergedReport(SceneMergeService.MergeOutcome outcome) {
+        if (outcome == null || outcome.changes().isEmpty()) {
+            return null;
+        }
+        Map<String, Object> merged = new LinkedHashMap<>();
+        merged.put("base_version", outcome.baseVersion());
+        merged.put("merged_with_version", outcome.mergedWithVersion());
+        merged.put("changes", outcome.changes().stream().map(change -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("user_name", outcome.theirUser());
+            row.put("entity", change.entity());
+            row.put("path", change.path());
+            row.put("change", change.change().name());
+            return row;
+        }).toList());
+        return merged;
     }
 
     /**
