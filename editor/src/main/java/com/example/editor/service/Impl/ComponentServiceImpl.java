@@ -242,6 +242,16 @@ public class ComponentServiceImpl implements ComponentService {
             versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
         }
         commandManager.execute(new DeleteComponentCommand(repository, ids, userName, mapper));
+        // Флаш обязателен здесь: DeleteComponentCommand удаляет через repository.deleteById,
+        // в обход графа сущностей (в отличие от deleteMissing/restore, которые чистят через
+        // orphanRemoval у живого родителя). Пока удаление не сброшено в базу, ниже
+        // sceneDocumentSource.contentOf(sceneId) лениво подгружает scene.children тем же
+        // запросом впервые за транзакцию — и, не будь явного флаша, отложенный DELETE рискует
+        // проиграть гонку каскаду cascade=ALL: Hibernate видит компонент снова в живой коллекции
+        // родителя и на очередном флаше воскрешает его вместо удаления (тот же эффект, от
+        // которого предостерегает комментарий в SceneDocumentSource.restore, только здесь на
+        // входе, а не на выходе). Явный flush() ставит DELETE в базу до этого чтения.
+        repository.flush();
         snapshotScenes(sceneIds, userName, kind, basedOnVersion);
     }
 
