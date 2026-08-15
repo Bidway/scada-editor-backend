@@ -41,10 +41,6 @@ public interface ComponentService {
         return create(components, userName, VersionKind.MANUAL, null);
     }
 
-    default ComponentSaveResponseDto update(List<ComponentCreateDto> components, String userName) {
-        return update(components, userName, VersionKind.MANUAL, null);
-    }
-
     default void delete(List<Long> ids, String userName) {
         delete(ids, userName, VersionKind.MANUAL);
     }

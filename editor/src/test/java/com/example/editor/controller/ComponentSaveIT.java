@@ -72,7 +72,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         componentStateRepository.save(legacy);
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateScene(sceneId, 
+        JsonNode resaved = updateScene(sceneId,
                 componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(resaved.get("states")).hasSize(1);
@@ -92,7 +92,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long modeId = propertyId(created, "Режим");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateScene(sceneId, 
+        JsonNode resaved = updateScene(sceneId,
                 componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(propertyId(resaved, "Уставка")).isEqualTo(setpointId);
@@ -127,7 +127,7 @@ class ComponentSaveIT extends EditorApiTestSupport {
         long eventId = created.get("events").get(0).get("id").asLong();
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode resaved = updateScene(sceneId, 
+        JsonNode resaved = updateScene(sceneId,
                 componentJson(sceneId, componentId, TWO_ROWS, ONE_SCRIPT, ONE_STATE, ONE_EVENT), base).get(0);
 
         assertThat(resaved.get("states").get(0).get("id").asLong()).isEqualTo(stateId);

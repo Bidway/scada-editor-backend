@@ -311,7 +311,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalBindingId = bindingId(created, "цвет");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateScene(sceneId, 
+        JsonNode updated = updateScene(sceneId,
                 withBinding(sceneId, componentId, "цвет", null), base).get(0);
 
         assertThat(bindingId(updated, "цвет"))
@@ -327,7 +327,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalBindingId = bindingId(created, "цвет");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateScene(sceneId, 
+        JsonNode updated = updateScene(sceneId,
                 withBinding(sceneId, componentId, "заливка", originalBindingId), base).get(0);
 
         assertThat(updated.get("bindings")).hasSize(1);
@@ -357,7 +357,7 @@ class NestedIdRoundTripIT extends EditorApiTestSupport {
         long originalEventId = eventId(created, "onClick");
         Integer base = currentVersion(sceneId, "scenes");
 
-        JsonNode updated = updateScene(sceneId, 
+        JsonNode updated = updateScene(sceneId,
                 withEvent(sceneId, componentId, "onHover", originalEventId), base).get(0);
 
         assertThat(updated.get("events")).hasSize(1);
