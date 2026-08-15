@@ -155,13 +155,24 @@ class SceneVersionIT extends EditorApiTestSupport {
     void savingComponent_createsManualVersionOfItsScene() throws Exception {
         long sceneId = newScene();
 
-        saveComponents(pumpJson(sceneId, "10"));
+        JsonNode created = saveComponents(pumpJson(sceneId, "10")).get(0);
+        long componentId = created.get("id").asLong();
 
         List<DocumentVersion> versions = versionsOf(sceneId);
         assertThat(versions).hasSize(1);
         assertThat(versions.get(0).getKind()).isEqualTo(VersionKind.MANUAL);
         assertThat(versions.get(0).getUserName()).isEqualTo(USER);
         assertThat(versions.get(0).getContent().get("children")).hasSize(1);
+
+        // Первое сохранение своей версии ещё не знает (base = null) — based_on_version
+        // проверяем на втором, где клиент реально называет версию, от которой отталкивался.
+        Integer base = versions.get(0).getVersionNo();
+        updateScene(sceneId, "[{\"id\":" + componentId + ",\"name\":\"Насос-2\",\"type\":\"valve\","
+                + "\"parent_id\":" + sceneId + "}]", base);
+
+        assertThat(versionsOf(sceneId).get(0).getBasedOnVersion())
+                .as("based_on_version обязан попасть в историю (scada-ybr)")
+                .isEqualTo(base);
     }
 
     @Test
@@ -194,6 +205,9 @@ class SceneVersionIT extends EditorApiTestSupport {
         assertThat(versions.get(0).getContent().get("children"))
                 .as("удаление компонента — такое же изменение сцены, как правка")
                 .isEmpty();
+        assertThat(versions.get(0).getBasedOnVersion())
+                .as("based_on_version обязан попасть в историю и для удаления (scada-ybr)")
+                .isEqualTo(base);
     }
 
     @Test
