@@ -154,6 +154,73 @@ class WholeSceneSaveIT extends EditorApiTestSupport {
     }
 
     /**
+     * I-1 (найдено финальным ревью ветки): тело, названное одной сценой, но несущее компонент
+     * другой. До ветки гард версии выводил набор сцен из тела и накрывал каждую задетую; с
+     * планом 3b гардится только {@code scene_id}, а {@code updateComponent} берёт родителя из
+     * {@code parent_id} каждого dto, ничьей принадлежности не проверяя. Итог был тройной:
+     * чужая сцена правилась без проверки версии и без слияния, названная сцена вычищалась
+     * целиком (её детей в теле нет), а версия записывалась чужой сцене с {@code
+     * based_on_version} от названной. Принадлежность проверяется тем же обходом вверх
+     * ({@code sceneRootIdOf}), которым гард версии искал сцены раньше.
+     */
+    @Test
+    void componentOfAnotherScene_isRejectedAndTouchesNeitherScene() throws Exception {
+        long projectId = createProject("proj-" + System.nanoTime());
+        long sceneA = createScene("A-" + System.nanoTime(), projectId);
+        long sceneB = createScene("B-" + System.nanoTime(), projectId);
+        saveComponents(twoComponents(sceneA));
+        long alienId = saveComponents("[{\"name\":\"Чужой\",\"type\":\"valve\",\"parent_id\":"
+                + sceneB + "}]").get(0).get("id").asLong();
+        Integer baseA = currentVersion(sceneA, "scenes");
+        Integer baseB = currentVersion(sceneB, "scenes");
+
+        mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":[{\"id\":" + alienId
+                                + ",\"name\":\"Переименован\",\"type\":\"valve\",\"parent_id\":"
+                                + sceneB + "}],\"scene_id\":" + sceneA
+                                + ",\"based_on_version\":" + baseA + ",\"save_kind\":\"MANUAL\"}"))
+                .andExpect(status().isBadRequest());
+
+        assertThat(getComponent(sceneA).get("children"))
+                .as("названную сцену нельзя вычищать по телу, которое ей не принадлежит")
+                .hasSize(2);
+        assertThat(getComponent(alienId).get("name").asText())
+                .as("чужая сцена правится только своим PUT — со своим гардом версии")
+                .isEqualTo("Чужой");
+        assertThat(currentVersion(sceneB, "scenes"))
+                .as("чужой сцене не место в истории с чужим же based_on_version")
+                .isEqualTo(baseB);
+    }
+
+    /**
+     * Обратная сторона того же гарда: {@code parent_id}, уводящий новый компонент в другую
+     * сцену. Тут перезаписывать нечего, но компонент молча уехал бы в сцену, версия которой не
+     * проверялась и снимок которой сделан от чужого {@code based_on_version}.
+     */
+    @Test
+    void newComponentParentedIntoAnotherScene_isRejected() throws Exception {
+        long projectId = createProject("proj-" + System.nanoTime());
+        long sceneA = createScene("A-" + System.nanoTime(), projectId);
+        long sceneB = createScene("B-" + System.nanoTime(), projectId);
+        saveComponents(twoComponents(sceneA));
+        Integer baseA = currentVersion(sceneA, "scenes");
+
+        mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":[{\"name\":\"Подкидыш\",\"type\":\"valve\","
+                                + "\"parent_id\":" + sceneB + "}],\"scene_id\":" + sceneA
+                                + ",\"based_on_version\":" + baseA + ",\"save_kind\":\"MANUAL\"}"))
+                .andExpect(status().isBadRequest());
+
+        assertThat(getComponent(sceneB).get("children"))
+                .as("подкидыш не должен был доехать до чужой сцены")
+                .isEmpty();
+    }
+
+    /**
      * I3 (найдено ревью 5285aa4): самый разрушительный запрос — пустой {@code components} — был
      * единственным, что шёл без проверки версии, потому что {@code requireBaseUnlessRestoring}
      * искал сцены по присланным dto, а по пустому списку не находил ни одной. Проверка версии
