@@ -249,4 +249,63 @@ class SceneMergerTreeTest {
             assertThat(conflict.entity()).isEqualTo("children_order");
         });
     }
+
+    /**
+     * Регрессия на фикс раунда 1 (C1): в теле запроса я присылаю и существующий компонент 5 без
+     * изменений, и новый компонент с тем же именем без id — например, переименовал старый и
+     * завёл второй под освободившимся именем в одном сохранении. Раньше алиас по имени клал
+     * id-less компонент в мою карту под тем же ключом {@code "id:5"}, что и явный, обычный
+     * {@code Map.put} тихо стирал первую запись — компонент 5 пропадал из слитого дерева и
+     * {@code deleteMissing} на стороне сервиса удалил бы его вместе со всем поддеревом, хотя
+     * клиент его прислал и получил бы 200.
+     */
+    @Test
+    void myIdComponentAndMyIdLessComponentWithSameName_bothSurvive() {
+        List<ComponentCreateDto> base = List.of(component(5L, "Насос"));
+        List<ComponentCreateDto> mine = List.of(component(5L, "Насос"), component(null, "Насос"));
+        List<ComponentCreateDto> theirs = List.of(component(5L, "Насос"));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged())
+                .as("оригинал не должен пропасть под весом одноимённого id-less добавления")
+                .hasSize(2);
+        assertThat(result.merged())
+                .filteredOn(c -> c.getId() != null)
+                .singleElement()
+                .satisfies(c -> assertThat(c.getId()).isEqualTo(5L));
+        assertThat(result.merged())
+                .filteredOn(c -> c.getId() == null)
+                .hasSize(1);
+    }
+
+    /**
+     * Регрессия на фикс раунда 1 (I2): я пересылаю нетронутый компонент без id (обычное дело для
+     * сырого ввода клиента — см. {@code nameAlias}), а «они» в это время переставили детей.
+     * {@code applyOrder} ищет объект в списке порядка по его собственному id; раньше объект
+     * оставался id-less и в списке не находился — сортировка молча откидывала его в конец,
+     * несмотря на то что список порядка (посчитанный через алиас) содержал верную позицию.
+     */
+    @Test
+    void reorderByThemOnly_isAppliedEvenWhenIOmitAnId() {
+        ComponentCreateDto a = component(2L, "Насос");
+        ComponentCreateDto b = component(3L, "Клапан");
+        List<ComponentCreateDto> base = List.of(a, b);
+        List<ComponentCreateDto> mine = List.of(component(null, "Насос"), component(3L, "Клапан"));
+        List<ComponentCreateDto> theirs = List.of(component(3L, "Клапан"), component(2L, "Насос"));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean())
+                .as("переставили только они — спорить не с кем, а моё отсутствие id не мешает")
+                .isTrue();
+        assertThat(result.merged())
+                .extracting(ComponentCreateDto::getName)
+                .as("их порядок обязан примениться, а не откинуть безымянный объект в конец")
+                .containsExactly("Клапан", "Насос");
+        assertThat(result.merged().get(1).getId())
+                .as("сопоставленная по алиасу идентичность обязана перенестись на объект")
+                .isEqualTo(2L);
+    }
 }

@@ -121,14 +121,16 @@ public class ComponentServiceImpl implements ComponentService {
      * 200 с id несуществующей записи. {@link SceneDocumentSource#restore} делает то же самое в
      * том же порядке — чистка прежде записи.
      * <p>
-     * Расхождение версий (план 3b) сначала пробует слиться, а не отказывает сразу: базовая
-     * проверка {@code versionService.requireBase} заменена ручным сравнением здесь, потому что
-     * для слияния нужен сам номер текущей версии, а не только факт расхождения. Автосохранение
-     * в развилку не попадает — {@code AUTOSAVE} при расхождении отказывается безусловно, как и
-     * раньше, потому что блок {@code merged} в ответе некому прочитать, когда сохранение сделал
-     * таймер, а не человек. Чистка {@link #deleteMissing} после развилки идёт по слитому дереву,
-     * а не по присланному {@code dtos}: иначе компоненты, добавленные чужой стороной, выглядели
-     * бы «отсутствующими в запросе» и чистка вычистила бы их же.
+     * Расхождение версий (план 3b) сначала пробует слиться, а не отказывает сразу, поэтому вместо
+     * {@link DocumentVersionService#requireBase} (он безусловно отказывает) здесь зовётся его
+     * сосед {@link DocumentVersionService#requireBaseVersion}: та же обязательность {@code
+     * based_on_version}, но с номером текущей версии на руках — он нужен и для решения «сливать
+     * или нет», и для самого вызова слияния. Автосохранение в развилку не попадает — {@code
+     * AUTOSAVE} при расхождении отказывается безусловно, как и раньше, потому что блок {@code
+     * merged} в ответе некому прочитать, когда сохранение сделал таймер, а не человек. Чистка
+     * {@link #deleteMissing} после развилки идёт по слитому дереву, а не по присланному {@code
+     * dtos}: иначе компоненты, добавленные чужой стороной, выглядели бы «отсутствующими в
+     * запросе» и чистка вычистила бы их же.
      */
     @Override
     @Transactional
@@ -144,13 +146,9 @@ public class ComponentServiceImpl implements ComponentService {
         if (sceneId != null) {
             Component scene = requireScene(sceneId);
             if (kind != VersionKind.RESTORE) {
-                Integer current = versionService.currentVersionNo(DocumentType.SCENE, sceneId);
+                Integer current =
+                        versionService.requireBaseVersion(DocumentType.SCENE, sceneId, basedOnVersion);
                 if (current != null && !current.equals(basedOnVersion)) {
-                    if (basedOnVersion == null) {
-                        throw new IllegalArgumentException(
-                                "based_on_version is required: document already has version "
-                                        + current);
-                    }
                     if (kind == VersionKind.AUTOSAVE) {
                         // Автосохранение не сливает: блок merged некому прочитать.
                         throw new VersionMismatchException(basedOnVersion, current);

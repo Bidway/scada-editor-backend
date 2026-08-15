@@ -47,11 +47,10 @@ public class SceneMergeService {
     @Transactional(readOnly = true)
     public MergeOutcome merge(Long sceneId, List<ComponentCreateDto> mine, Integer basedOnVersion,
                               Integer currentVersion) {
+        // Точечный запрос по (тип, id, номер) — не вся история сцены с фильтром в памяти: у
+        // каждой строки полное содержимое сцены, а автосохранение растит историю без предела.
         Optional<DocumentVersion> base = versionRepository
-                .findByTargetTypeAndTargetIdOrderByVersionNoDesc(DocumentType.SCENE, sceneId)
-                .stream()
-                .filter(version -> version.getVersionNo().equals(basedOnVersion))
-                .findFirst();
+                .findByTargetTypeAndTargetIdAndVersionNo(DocumentType.SCENE, sceneId, basedOnVersion);
         if (base.isEmpty()) {
             // Версию могло прорезать прореживание автосохранений: слить не от чего. Это не
             // ошибка клиента и не 500 — обычное «перезапросите документ».

@@ -34,17 +34,21 @@ import java.util.stream.Collectors;
 public class SceneMerger {
 
     private static final RowSpec<PropertyCreateDto> PROPERTIES = new RowSpec<>(
-            "component_property", PropertyCreateDto::getId, PropertyCreateDto::getName);
+            "component_property", PropertyCreateDto::getId, PropertyCreateDto::getName,
+            PropertyCreateDto::setId);
     private static final RowSpec<ScriptCreateDto> SCRIPTS = new RowSpec<>(
-            "script", ScriptCreateDto::getId, ScriptCreateDto::getName);
+            "script", ScriptCreateDto::getId, ScriptCreateDto::getName, ScriptCreateDto::setId);
     private static final RowSpec<ComponentStateDto> STATES = new RowSpec<>(
-            "component_state", ComponentStateDto::getId, ComponentStateDto::getName);
+            "component_state", ComponentStateDto::getId, ComponentStateDto::getName,
+            ComponentStateDto::setId);
     private static final RowSpec<EventPayloadDto> EVENTS = new RowSpec<>(
-            "component_event", EventPayloadDto::getId, EventPayloadDto::getEvent_type);
+            "component_event", EventPayloadDto::getId, EventPayloadDto::getEvent_type,
+            EventPayloadDto::setId);
     private static final RowSpec<BindingPayloadDto> BINDINGS = new RowSpec<>(
-            "binding", BindingPayloadDto::getId, BindingPayloadDto::getName);
+            "binding", BindingPayloadDto::getId, BindingPayloadDto::getName, BindingPayloadDto::setId);
     private static final RowSpec<ComponentCreateDto> COMPONENTS = new RowSpec<>(
-            "component", ComponentCreateDto::getId, ComponentCreateDto::getName);
+            "component", ComponentCreateDto::getId, ComponentCreateDto::getName,
+            ComponentCreateDto::setId);
 
     private final ObjectMapper mapper;
 
@@ -89,7 +93,7 @@ public class SceneMerger {
             String rowPath = path.isEmpty() ? label(key, spec, m, t, b)
                     : path + " / " + label(key, spec, m, t, b);
 
-            Resolution<T> resolution = resolve(b, m, t, spec.entity(), rowPath, conflicts, changes);
+            Resolution<T> resolution = resolve(b, m, t, spec, rowPath, conflicts, changes);
             if (resolution.value() != null) {
                 result.add(resolution.value());
             }
@@ -113,8 +117,13 @@ public class SceneMerger {
      * конфликта в тех же двух развилках строится по {@link #fullText}, а не по {@link #text}:
      * иначе человек увидел бы одинаковые base/yours и не понял бы, что теряет свою правку внутри.
      */
-    private <T> Resolution<T> resolve(T b, T m, T t, String entity, String path,
+    private <T> Resolution<T> resolve(T b, T m, T t, RowSpec<T> spec, String path,
                                       List<MergeConflict> conflicts, List<MergeChange> changes) {
+        // b/t уже сгруппированы с m под этим ключом в byKey — если m своего id не несёт, но у
+        // b или t он есть, значит m попала сюда через алиас по имени (см. nameAlias), и её
+        // идентичность нужно перенести на сам объект (см. javadoc stampAliasedId).
+        stampAliasedId(m, b, t, spec);
+        String entity = spec.entity();
         boolean changedByMe = !same(b, m);
         boolean changedByThem = !same(b, t);
 
@@ -171,14 +180,62 @@ public class SceneMerger {
     private record Resolution<T>(T value, boolean present) {
     }
 
-    private <T> Map<String, T> byKey(List<T> rows, RowSpec<T> spec) {
-        return byKey(rows, spec, java.util.Map.of());
+    /**
+     * Переносит на {@code m} id, добытый только сопоставлением по алиасу (см. {@link
+     * #nameAlias}): {@code b}/{@code t} уже сгруппированы с ней под общим ключом в {@link
+     * #byKey}, а сама она id не несёт — единственный способ такой группировки без алиаса
+     * невозможен, отдельного флага «сопоставлено по алиасу» поэтому не нужно.
+     * <p>
+     * Без переноса объект остаётся с {@code id == null} и после слияния: {@link #applyOrder}
+     * не находит его в списке порядка (тот считался по алиасу, а сам объект — нет) и сортирует в
+     * конец; {@code ComponentServiceImpl.deleteMissing} не видит его id в {@code keep} и удаляет
+     * оригинал как отсутствующий в запросе; запись на диск заводит дубликат вместо обновления
+     * существующей строки. Три следствия одной причины — чинятся переносом идентичности сюда,
+     * в точку, где решение уже принято.
+     */
+    private <T> void stampAliasedId(T m, T b, T t, RowSpec<T> spec) {
+        if (m == null || spec.idOf().apply(m) != null) {
+            return;
+        }
+        Long id = b != null ? spec.idOf().apply(b) : null;
+        if (id == null && t != null) {
+            id = spec.idOf().apply(t);
+        }
+        if (id != null) {
+            spec.setId().accept(m, id);
+        }
     }
 
+    /**
+     * Сопоставление по ключу для одной стороны — коллизионно-безопасно относительно алиаса.
+     * <p>
+     * Строки с явным id разбираются первым проходом и застолбляют свои ключи; только после этого
+     * id-less строка получает алиас — и то не любой, а лишь тот, что ещё не занят ни явным id, ни
+     * другой id-less строкой той же стороны. Без этого второй порядок разбора совпал бы — та же
+     * строка «Насос» без id отобрала бы ключ {@code "id:5"} у настоящего компонента 5 (обычный
+     * {@link Map#put}, вторая запись бы тихо стёрла первую), и чистка/запись увидели бы только
+     * одну сущность вместо двух, приняв вторую за первую и удалив весь её поддерево. Тот же
+     * приём, что {@code ComponentScriptBindingApplier.applyProperties} (:198-217) уже использует
+     * на записи: явные id — раньше сопоставления по имени.
+     */
     private <T> Map<String, T> byKey(List<T> rows, RowSpec<T> spec, Map<String, String> alias) {
         Map<String, T> byKey = new java.util.LinkedHashMap<>();
+        Set<String> claimed = new java.util.HashSet<>();
         for (T row : nullToEmpty(rows)) {
-            byKey.put(keyOf(row, spec, alias), row);
+            if (spec.idOf().apply(row) != null) {
+                String key = keyOf(row, spec, alias);
+                byKey.put(key, row);
+                claimed.add(key);
+            }
+        }
+        for (T row : nullToEmpty(rows)) {
+            if (spec.idOf().apply(row) != null) {
+                continue;
+            }
+            String nameKey = "name:" + nameKeyOf(row, spec);
+            String aliased = alias.get(nameKey);
+            String key = aliased != null && claimed.add(aliased) ? aliased : nameKey;
+            byKey.put(key, row);
         }
         return byKey;
     }
@@ -383,7 +440,7 @@ public class SceneMerger {
                     : path + " / " + label(key, COMPONENTS, m, t, b);
 
             Resolution<ComponentCreateDto> resolution =
-                    resolve(b, m, t, "component", componentPath, conflicts, changes);
+                    resolve(b, m, t, COMPONENTS, componentPath, conflicts, changes);
             if (!resolution.present()) {
                 continue;
             }

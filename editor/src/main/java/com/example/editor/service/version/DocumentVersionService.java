@@ -113,6 +113,27 @@ public class DocumentVersionService {
     }
 
     /**
+     * Общая часть {@link #requireBase} и развилки слияния в {@code ComponentServiceImpl.update}:
+     * обязательность {@code based_on_version}, когда у документа уже есть версия — то же условие,
+     * то же сообщение. Отличаются они только тем, что делает вызывающий с расхождением дальше:
+     * {@code requireBase} отказывает всегда, слияние сначала пробует сойтись. Раньше это была
+     * одна и та же проверка, продублированная в обоих местах текст в текст — а тексту свойственно
+     * расходиться при следующей правке одного места без другого, и разойдясь, он молча разрешил
+     * бы то, что обязан отвергать.
+     *
+     * @return номер текущей версии документа; {@code null}, если версий ещё нет
+     */
+    @Transactional(readOnly = true)
+    public Integer requireBaseVersion(DocumentType targetType, Long targetId, Integer basedOnVersion) {
+        Integer current = currentVersionNo(targetType, targetId);
+        if (current != null && basedOnVersion == null) {
+            throw new IllegalArgumentException(
+                    "based_on_version is required: document already has version " + current);
+        }
+        return current;
+    }
+
+    /**
      * Проверяет, что клиент основывался на текущей версии документа.
      * <p>
      * Обязательность определяется состоянием документа, а не HTTP-методом: сохранение
@@ -121,17 +142,8 @@ public class DocumentVersionService {
      */
     @Transactional(readOnly = true)
     public void requireBase(DocumentType targetType, Long targetId, Integer basedOnVersion) {
-        Optional<DocumentVersion> last =
-                repository.findTopByTargetTypeAndTargetIdOrderByVersionNoDesc(targetType, targetId);
-        if (last.isEmpty()) {
-            return;
-        }
-        Integer current = last.get().getVersionNo();
-        if (basedOnVersion == null) {
-            throw new IllegalArgumentException(
-                    "based_on_version is required: document already has version " + current);
-        }
-        if (!basedOnVersion.equals(current)) {
+        Integer current = requireBaseVersion(targetType, targetId, basedOnVersion);
+        if (current != null && !basedOnVersion.equals(current)) {
             throw new VersionMismatchException(basedOnVersion, current);
         }
     }
