@@ -301,4 +301,38 @@ class SceneMergerRowsTest {
                 .extracting(ScriptCreateDto::getScript)
                 .containsExactlyInAnyOrder("return 1;", "return 9;");
     }
+
+    /**
+     * Регрессия на фикс раунда 1 (C1): я в одном запросе шлю и id-строку, и id-less строку с тем
+     * же именем — например, переименовал одну и завёл вторую под старым именем. Раньше алиас по
+     * имени клал id-less строку в мою карту под тем же ключом {@code "id:5"}, что и id-строка, и
+     * обычный {@code Map.put} тихо стирал первую запись второй: строка 5 пропадала из слитого
+     * дерева, будто её никто не присылал. Коллизионно-безопасное сопоставление обязано развести
+     * их по разным ключам — id-less строка не имеет права отбирать чужой явный id.
+     */
+    @Test
+    void myIdRowAndMyIdLessRowWithSameName_bothSurvive() {
+        List<ComponentCreateDto> base = tree(List.of(script(5L, "Открыть", "a();")));
+        List<ComponentCreateDto> mine = tree(List.of(
+                script(5L, "Открыть", "a();"), script(null, "Открыть", "b();")));
+        List<ComponentCreateDto> theirs = tree(List.of(script(5L, "Открыть", "a();")));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged().get(0).getScripts())
+                .as("явная строка 5 не должна пропасть под весом одноимённой id-less строки")
+                .hasSize(2);
+        assertThat(result.merged().get(0).getScripts())
+                .filteredOn(script -> script.getId() != null)
+                .singleElement()
+                .satisfies(script -> {
+                    assertThat(script.getId()).isEqualTo(5L);
+                    assertThat(script.getScript()).isEqualTo("a();");
+                });
+        assertThat(result.merged().get(0).getScripts())
+                .filteredOn(script -> script.getId() == null)
+                .singleElement()
+                .satisfies(script -> assertThat(script.getScript()).isEqualTo("b();"));
+    }
 }
