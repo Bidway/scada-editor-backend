@@ -1,6 +1,7 @@
 package com.example.editor.controller;
 
 import com.example.editor.dto.component.ComponentCreateDto;
+import com.example.editor.dto.component.ComponentDeleteRequestDto;
 import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.dto.component.ComponentSaveRequestDto;
 import com.example.editor.dto.component.ComponentSaveResponseDto;
@@ -10,6 +11,7 @@ import com.example.editor.dto.project.ProjectsResponseDto;
 import com.example.editor.dto.scene.SceneCreateDto;
 import com.example.editor.dto.scene.SceneCreateResponseDto;
 import com.example.editor.dto.scene.ScenesResponseDto;
+import com.example.editor.model.version.VersionKind;
 import com.example.editor.model.version.VersionKinds;
 import com.example.editor.service.ComponentService;
 import lombok.RequiredArgsConstructor;
@@ -67,9 +69,10 @@ public class ComponentController {
 
     @DeleteMapping
     public void delete(
-            @RequestBody List<Long> ids,
+            @RequestBody ComponentDeleteRequestDto request,
             @RequestHeader("X-Username") String userName) {
-        service.delete(ids, userName);
+        service.delete(request.getIds(), userName, VersionKind.MANUAL,
+                request.getBased_on_version());
     }
 
     @GetMapping("/{id}")
