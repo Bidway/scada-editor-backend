@@ -172,8 +172,9 @@ public class ComponentServiceImpl implements ComponentService {
         List<Component> prepared = tree.stream().map(this::updateComponent).toList();
         List<ComponentResponseDto> response = commandManager.execute(
                 new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
-        // Снимок делается по сцене из конверта, а не по тому, что записалось: см. javadoc метода
-        // про пустой PUT (C-1).
+        // Сцена из конверта попадает в снимок всегда, а не только если в неё что-то записалось:
+        // см. javadoc метода про пустой PUT (C-1). Сцены записанного добавляются следом ради
+        // восстановления версии — оно зовёт update без scene_id, и там их больше взять негде.
         Set<Long> snapshotTargets = new LinkedHashSet<>();
         if (sceneId != null) {
             snapshotTargets.add(sceneId);
