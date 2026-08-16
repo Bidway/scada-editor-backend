@@ -308,4 +308,67 @@ class SceneMergerTreeTest {
                 .as("сопоставленная по алиасу идентичность обязана перенестись на объект")
                 .isEqualTo(2L);
     }
+
+    /**
+     * I-3 (найдено финальным ревью ветки): имена компонентов не уникальны — ни ограничения в
+     * базе, ни проверки на записи. Две мои новые строки с одним именем считали одинаковый
+     * {@code nameKey}, и обычный {@code Map.put} во втором проходе {@code byKey} тихо стирал
+     * первую второй: один из двух добавленных «Насосов» пропадал вместе со всем поддеревом, а
+     * клиент получал 200. Коллизионная защита, которая уже была на ветке с алиасом, обязана
+     * работать и на голом имени.
+     */
+    @Test
+    void twoOfMyNewComponentsWithTheSameName_bothSurvive() {
+        List<ComponentCreateDto> base = List.of();
+        List<ComponentCreateDto> mine = List.of(
+                withScripts(component(null, "Насос"), script(null, "Открыть", "первый();")),
+                withScripts(component(null, "Насос"), script(null, "Открыть", "второй();")));
+        List<ComponentCreateDto> theirs = List.of();
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).isTrue();
+        assertThat(result.merged())
+                .as("два одноимённых добавления — две строки, а не одна затёртая другой")
+                .hasSize(2);
+        assertThat(result.merged())
+                .flatExtracting(ComponentCreateDto::getScripts)
+                .extracting(ScriptCreateDto::getScript)
+                .containsExactlyInAnyOrder("первый();", "второй();");
+    }
+
+    /**
+     * I-3, вторая половина: {@code addAlias} складывал имена обычным {@code put}, и при двух
+     * одноимённых строках алиас указывал на ту, чей id попался последним. Здесь «они» завели
+     * второго «Насоса» рядом с существующим, а я правлю существующего, не переслав его id
+     * (законный сырой ввод — см. {@code nameAlias}). Алиас вёл на их новый компонент, и моя
+     * правка молча уезжала в него: чужое добавление затиралось моим содержимым, а старый
+     * компонент удалялся — всё это с ответом 200. Имя, за которое держатся два id, перестаёт
+     * быть адресом: алиас на него не выдаётся вовсе, и моя строка остаётся тем, чем выглядит, —
+     * новой.
+     */
+    @Test
+    void myIdLessEdit_doesNotLandOnTheirSameNamedAddition() {
+        List<ComponentCreateDto> base = List.of(
+                withScripts(component(5L, "Насос"), script(10L, "Открыть", "было();")));
+        List<ComponentCreateDto> mine = List.of(
+                withScripts(component(null, "Насос"), script(null, "Открыть", "МОЁ();")));
+        List<ComponentCreateDto> theirs = List.of(
+                withScripts(component(5L, "Насос"), script(10L, "Открыть", "было();")),
+                withScripts(component(6L, "Насос"), script(11L, "Открыть", "ИХ();")));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.merged())
+                .filteredOn(component -> Long.valueOf(6L).equals(component.getId()))
+                .as("их новый компонент обязан уцелеть — я о нём даже не знал")
+                .singleElement()
+                .satisfies(component -> assertThat(component.getScripts().get(0).getScript())
+                        .isEqualTo("ИХ();"));
+        assertThat(result.merged())
+                .flatExtracting(ComponentCreateDto::getScripts)
+                .extracting(ScriptCreateDto::getScript)
+                .as("моя правка обязана остаться моей, а не подмениться чужой строкой")
+                .contains("МОЁ();");
+    }
 }
