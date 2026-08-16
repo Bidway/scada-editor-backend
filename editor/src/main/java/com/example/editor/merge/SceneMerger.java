@@ -50,6 +50,14 @@ public class SceneMerger {
             "component", ComponentCreateDto::getId, ComponentCreateDto::getName,
             ComponentCreateDto::setId);
 
+    /**
+     * Маркер спорного имени в карте алиасов (см. {@link #addAlias}). Настоящий алиас — всегда
+     * {@code "id:<число>"}, поэтому маркер обязан быть тем, чем ключ быть не может: строка
+     * начинается с символа, которого в {@code Long.toString} не бывает, и совпасть с настоящим
+     * ключом не способна ни при каком id.
+     */
+    private static final String AMBIGUOUS = "id:?ambiguous";
+
     private final ObjectMapper mapper;
 
     public SceneMerger(ObjectMapper mapper) {
@@ -217,6 +225,15 @@ public class SceneMerger {
      * одну сущность вместо двух, приняв вторую за первую и удалив весь её поддерево. Тот же
      * приём, что {@code ComponentScriptBindingApplier.applyProperties} (:198-217) уже использует
      * на записи: явные id — раньше сопоставления по имени.
+     * <p>
+     * Та же защита обязана работать и на голом {@code nameKey}, а не только на алиасе (I-3):
+     * имена компонентов и биндингов не уникальны — ни ограничения в базе, ни проверки на записи
+     * ({@code ComponentScriptBindingApplier} держит биндинги в {@code Map<String, List<Binding>>}
+     * именно поэтому). Две мои id-less строки с одним именем, которого нет ни в базе, ни у «них»,
+     * считали одинаковый ключ, и {@code Map.put} тихо стирал первую второй: одно из двух
+     * добавлений пропадало вместе со всем поддеревом, а клиент получал 200. Столкнувшаяся строка
+     * получает поэтому собственный синтетический ключ — не совпадающий ни с чем на других
+     * сторонах, то есть остаётся тем, чем и выглядит: отдельным добавлением.
      */
     private <T> Map<String, T> byKey(List<T> rows, RowSpec<T> spec, Map<String, String> alias) {
         Map<String, T> byKey = new java.util.LinkedHashMap<>();
@@ -233,11 +250,24 @@ public class SceneMerger {
                 continue;
             }
             String nameKey = "name:" + nameKeyOf(row, spec);
-            String aliased = alias.get(nameKey);
-            String key = aliased != null && claimed.add(aliased) ? aliased : nameKey;
+            String aliased = aliasFor(alias, nameKey);
+            String key = aliased != null && claimed.add(aliased) ? aliased : freeKey(nameKey, claimed);
             byKey.put(key, row);
         }
         return byKey;
+    }
+
+    /** Первый незанятый ключ на основе имени: сама строка, а не её однофамилец. */
+    private String freeKey(String nameKey, Set<String> claimed) {
+        if (claimed.add(nameKey)) {
+            return nameKey;
+        }
+        for (int n = 2; ; n++) {
+            String candidate = nameKey + "#" + n;
+            if (claimed.add(candidate)) {
+                return candidate;
+            }
+        }
     }
 
     /**
@@ -262,7 +292,8 @@ public class SceneMerger {
             return "id:" + id;
         }
         String nameKey = "name:" + nameKeyOf(row, spec);
-        return alias.getOrDefault(nameKey, nameKey);
+        String aliased = aliasFor(alias, nameKey);
+        return aliased == null ? nameKey : aliased;
     }
 
     private <T> String nameKeyOf(T row, RowSpec<T> spec) {
@@ -292,13 +323,42 @@ public class SceneMerger {
         return alias;
     }
 
+    /**
+     * Имя, за которое держатся два разных id, адресом быть перестаёт: алиас на него не выдаётся
+     * вовсе (I-3).
+     * <p>
+     * Раньше это был обычный {@code put}, и при одноимённых строках алиас указывал на ту, чей id
+     * попался последним. Моя строка без id уезжала тогда в произвольную из них — например, в
+     * только что добавленного «ими» однофамильца, о котором я и не знал: чужое добавление
+     * затиралось моим содержимым, а старая строка удалялась как «не присланная», и всё это с
+     * ответом 200. Разрешить эту неоднозначность нечем — сопоставлять больше не по чему, — а
+     * угадывать здесь значит молча испортить не ту строку.
+     * <p>
+     * Без алиаса моя id-less строка остаётся тем, чем выглядит: новой. Это ровно то, что делает с
+     * ней сохранение вне слияния — {@code deleteMissing} собирает {@code keep} только из явных id,
+     * и строка без id всегда создаётся заново. Слияние обязано вести себя так же, а не
+     * сохранять произвольно выбранный id.
+     */
     private <T> void addAlias(Map<String, String> alias, List<T> rows, RowSpec<T> spec) {
         for (T row : nullToEmpty(rows)) {
             Long id = spec.idOf().apply(row);
-            if (id != null) {
-                alias.put("name:" + nameKeyOf(row, spec), "id:" + id);
+            if (id == null) {
+                continue;
             }
+            String nameKey = "name:" + nameKeyOf(row, spec);
+            String idKey = "id:" + id;
+            String known = alias.get(nameKey);
+            alias.put(nameKey, known == null || known.equals(idKey) ? idKey : AMBIGUOUS);
         }
+    }
+
+    /**
+     * Алиас имени либо {@code null}, если имени под алиасом нет или оно спорное (см.
+     * {@link #addAlias}). Читать карту напрямую нельзя: маркер спорности — не ключ.
+     */
+    private String aliasFor(Map<String, String> alias, String nameKey) {
+        String value = alias.get(nameKey);
+        return AMBIGUOUS.equals(value) ? null : value;
     }
 
     private <T> String label(String key, RowSpec<T> spec, T m, T t, T b) {
