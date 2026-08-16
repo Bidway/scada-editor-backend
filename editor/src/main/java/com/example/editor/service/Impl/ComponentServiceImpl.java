@@ -184,9 +184,16 @@ public class ComponentServiceImpl implements ComponentService {
                 mergedReport(outcome));
     }
 
-    /** Блок {@code merged} контракта; {@code null}, если слияния не было. */
+    /**
+     * Блок {@code merged} контракта; {@code null}, только если слияния не было вовсе.
+     * <p>
+     * Пустой {@code changes} блок не отменяет (I-5): так выглядит слияние, где обе стороны
+     * сделали одну и ту же правку — показывать в отчёте нечего, но клиенту всё равно важно
+     * узнать, что его база устарела и с какой версией он в итоге слился. Раньше он получал в
+     * этом случае обычный 200 и не узнавал ни того, ни другого.
+     */
     private Map<String, Object> mergedReport(SceneMergeService.MergeOutcome outcome) {
-        if (outcome == null || outcome.changes().isEmpty()) {
+        if (outcome == null) {
             return null;
         }
         Map<String, Object> merged = new LinkedHashMap<>();
