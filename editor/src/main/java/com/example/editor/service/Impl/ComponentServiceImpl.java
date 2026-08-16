@@ -229,14 +229,26 @@ public class ComponentServiceImpl implements ComponentService {
 
     /**
      * Всё присланное обязано принадлежать названной сцене — и то, что правится ({@code id}), и
-     * то, куда оно кладётся ({@code parent_id}).
+     * то, куда оно кладётся ({@code parent_id}), на любой глубине {@code children}:
+     * {@code populateComponent} рекурсивен и перепривязывает вложенный dto к охватывающему
+     * компоненту так же, как верхний — к сцене, так что дыра на любом уровне даёт тот же тройной
+     * вред, который закрывает этот гард (I-1, scada-01z).
      * <p>
-     * До плана 3b гард версии выводил набор сцен из тела ({@link #requireBaseForScenesOf}) и
-     * потому накрывал каждую задетую сцену. Теперь гардится ровно одна — та, что в {@code
-     * scene_id}, — а {@code updateComponent} по-прежнему берёт родителя из {@code parent_id}
-     * каждого dto и ничьей принадлежности не проверяет. Тело с {@code scene_id: A}, несущее
-     * компонент сцены B, правило бы B без проверки версии и без слияния, вычищало бы A целиком
-     * (детей A в теле нет) и записывало бы сцене B версию с {@code based_on_version} от A (I-1).
+     * До плана 3b гард версии выводил набор сцен из тела ({@link #requireBaseForScenesOf}), но и
+     * тот обходил только верхний уровень списка — тот же слепой обход вложенных {@code children},
+     * что был здесь до scada-01z, унаследован, а не внесён этой веткой. Теперь гардится ровно
+     * одна сцена — та, что в {@code scene_id}, — а {@code updateComponent} по-прежнему берёт
+     * родителя из {@code parent_id} каждого dto и ничьей принадлежности не проверяет. Тело с
+     * {@code scene_id: A}, несущее компонент сцены B (хоть верхним элементом, хоть внутри
+     * {@code children} компонента A), правило бы B без проверки версии и без слияния, вычищало бы
+     * A целиком (детей A в теле нет) и записывало бы сцене B версию с {@code based_on_version} от
+     * A.
+     * <p>
+     * Вложенный ребёнок проверяется только по {@code id}: у него, в отличие от верхнего уровня,
+     * {@code parent_id} {@code populateComponent} игнорирует целиком (родителя вложенному dto
+     * всегда назначает охватывающая сущность) — проверка его тут дала бы ложный отказ на телах,
+     * которые сегодня работают верно (устаревший или отсутствующий {@code parent_id} у вложенного
+     * ребёнка — нормальная форма, раз поле ни на что не влияет).
      * <p>
      * Обход вверх — тот же {@link #sceneRootIdOf}, что и у гарда версии: второй копии обхода
      * дерева здесь заводить нельзя, они разойдутся. Нерезолвимый id не наша забота: строки нет,
@@ -251,6 +263,21 @@ public class ComponentServiceImpl implements ComponentService {
         for (ComponentCreateDto dto : dtos) {
             requireInScene(dto.getId(), sceneId, "component");
             requireInScene(dto.getParent_id(), sceneId, "parent");
+            requireNestedSceneMembership(dto.getChildren(), sceneId);
+        }
+    }
+
+    /**
+     * Рекурсивный хвост {@link #requireSceneMembership} для {@code children} на любой глубине —
+     * см. его javadoc про то, почему {@code parent_id} здесь не проверяется.
+     */
+    private void requireNestedSceneMembership(List<ComponentCreateDto> children, Long sceneId) {
+        if (children == null) {
+            return;
+        }
+        for (ComponentCreateDto child : children) {
+            requireInScene(child.getId(), sceneId, "component");
+            requireNestedSceneMembership(child.getChildren(), sceneId);
         }
     }
 

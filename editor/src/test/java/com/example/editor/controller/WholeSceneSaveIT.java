@@ -195,6 +195,48 @@ class WholeSceneSaveIT extends EditorApiTestSupport {
     }
 
     /**
+     * Тот же I-1, но уровнем ниже (scada-01z, найдено перепроверкой финального ревью): чужой
+     * компонент едет не верхним элементом {@code components}, а внутри {@code children}
+     * элемента, который сам принадлежит названной сцене. Гард раньше обходил только верхний
+     * уровень списка, тогда как {@code populateComponent} рекурсивен и перепривязывает вложенный
+     * dto к охватывающему компоненту, не глядя на его собственный {@code parent_id} — вложенный
+     * узел угонялся из сцены B в сцену A тем же тройным вредом: без проверки версии B, без
+     * снимка B (он ищется по верхнему уровню тела) и с 200 клиенту.
+     */
+    @Test
+    void nestedComponentOfAnotherScene_isRejectedAndTouchesNeitherScene() throws Exception {
+        long projectId = createProject("proj-" + System.nanoTime());
+        long sceneA = createScene("A-" + System.nanoTime(), projectId);
+        long sceneB = createScene("B-" + System.nanoTime(), projectId);
+        long pumpId = saveComponents(twoComponents(sceneA)).get(0).get("id").asLong();
+        long alienId = saveComponents("[{\"name\":\"Чужой\",\"type\":\"valve\",\"parent_id\":"
+                + sceneB + "}]").get(0).get("id").asLong();
+        Integer baseA = currentVersion(sceneA, "scenes");
+        Integer baseB = currentVersion(sceneB, "scenes");
+
+        mockMvc.perform(put("/api/editor/components")
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":[{\"id\":" + pumpId
+                                + ",\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneA
+                                + ",\"children\":[{\"id\":" + alienId
+                                + ",\"name\":\"Переименован\",\"type\":\"valve\",\"parent_id\":"
+                                + pumpId + "}]}],\"scene_id\":" + sceneA
+                                + ",\"based_on_version\":" + baseA + ",\"save_kind\":\"MANUAL\"}"))
+                .andExpect(status().isBadRequest());
+
+        assertThat(getComponent(sceneA).get("children"))
+                .as("названную сцену нельзя вычищать по телу, которое ей не принадлежит")
+                .hasSize(2);
+        assertThat(getComponent(alienId).get("name").asText())
+                .as("чужая сцена правится только своим PUT — со своим гардом версии")
+                .isEqualTo("Чужой");
+        assertThat(currentVersion(sceneB, "scenes"))
+                .as("чужой сцене не место в истории с чужим же based_on_version")
+                .isEqualTo(baseB);
+    }
+
+    /**
      * Обратная сторона того же гарда: {@code parent_id}, уводящий новый компонент в другую
      * сцену. Тут перезаписывать нечего, но компонент молча уехал бы в сцену, версия которой не
      * проверялась и снимок которой сделан от чужого {@code based_on_version}.
