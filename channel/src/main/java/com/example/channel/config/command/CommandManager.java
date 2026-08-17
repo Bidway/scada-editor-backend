@@ -1,8 +1,8 @@
 package com.example.channel.config.command;
 
-import com.example.shared.command.Command;
-import com.example.shared.command.CommandResult;
-import com.example.shared.command.UndoHandler;
+import com.example.channel.command.Command;
+import com.example.channel.command.CommandResult;
+import com.example.channel.command.UndoHandler;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 

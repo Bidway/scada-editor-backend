@@ -3,7 +3,7 @@ package com.example.channel.service;
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandLogRepository;
 import com.example.channel.config.command.CommandManager;
-import com.example.shared.command.UndoHandler;
+import com.example.channel.command.UndoHandler;
 import com.example.channel.exception.NotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;

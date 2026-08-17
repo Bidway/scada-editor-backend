@@ -1,4 +1,4 @@
-package com.example.shared.command;
+package com.example.channel.command;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
