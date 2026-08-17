@@ -29,10 +29,16 @@ public class ComponentPropertyController {
         return service.update(id, property, userName);
     }
 
+    /**
+     * {@code based_on_version} едет query-параметром, а не конвертом в теле: id уже в пути, и
+     * тело несло бы ровно одно поле. Удаление компонентов (scada-ybr) взяло конверт по другой
+     * причине — там тело было нужно под список ids.
+     */
     @DeleteMapping("/{id}")
     public void delete(
             @PathVariable Long id,
+            @RequestParam(required = false) Integer based_on_version,
             @RequestHeader("X-Username") String userName) {
-        service.delete(id, userName);
+        service.delete(id, userName, based_on_version);
     }
 }

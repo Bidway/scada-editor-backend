@@ -11,6 +11,13 @@ public class PropertyCreateDto {
      * нему, и переименование остаётся переименованием, а не парой «удалили + создали».
      */
     private Long id;
+    /**
+     * Версия сцены, от которой отталкивался клиент. Обязательность определяет состояние
+     * документа, а не HTTP-метод: у сцены есть версии — номер обязателен, нет — принимается
+     * {@code null}. Правка свойства меняет сцену так же, как правка компонента, и обязана
+     * проверяться тем же гардом (см. {@code DocumentVersionService.requireBase}).
+     */
+    private Integer based_on_version;
     private Long component_id;
     @NotBlank
     private String name;
