@@ -3,6 +3,7 @@ package com.example.editor.service.Impl;
 import com.example.editor.command.component.*;          // остаётся до задачи 4
 import com.example.editor.service.component.ComponentHierarchyValidator;
 import com.example.editor.service.component.ComponentScriptBindingApplier;
+import com.example.editor.service.component.SceneRootResolver;
 import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
@@ -252,7 +253,7 @@ public class ComponentServiceImpl implements ComponentService {
      * которые сегодня работают верно (устаревший или отсутствующий {@code parent_id} у вложенного
      * ребёнка — нормальная форма, раз поле ни на что не влияет).
      * <p>
-     * Обход вверх — тот же {@link #sceneRootIdOf}, что и у гарда версии: второй копии обхода
+     * Обход вверх — тот же {@link SceneRootResolver#sceneRootIdOf}, что и у гарда версии: второй копии обхода
      * дерева здесь заводить нельзя, они разойдутся. Нерезолвимый id не наша забота: строки нет,
      * сцены у неё тоже нет, и ошибку про неё выдаст {@code updateComponent} — так же, как до
      * ветки.
@@ -291,7 +292,7 @@ public class ComponentServiceImpl implements ComponentService {
         if (existing == null) {
             return;
         }
-        Long root = sceneRootIdOf(existing);
+        Long root = SceneRootResolver.sceneRootIdOf(existing);
         if (!sceneId.equals(root)) {
             throw new IllegalArgumentException(
                     role + " " + componentId + " belongs to scene " + root + ", not to scene_id "
@@ -359,7 +360,7 @@ public class ComponentServiceImpl implements ComponentService {
                 // задача её чинит (scada-crk).
                 continue;
             }
-            Long sceneId = sceneRootIdOf(component);
+            Long sceneId = SceneRootResolver.sceneRootIdOf(component);
             if (sceneId == null) {
                 // Компонент есть, но не под сценой — сегодня единственный такой случай: сам
                 // проект (type=PROJECT, parent=null). У проекта нет версионируемого документа
@@ -403,7 +404,7 @@ public class ComponentServiceImpl implements ComponentService {
     private Set<Long> scenesOf(List<Component> saved) {
         Set<Long> sceneIds = new LinkedHashSet<>();
         for (Component component : saved) {
-            Long sceneId = sceneRootIdOf(component);
+            Long sceneId = SceneRootResolver.sceneRootIdOf(component);
             if (sceneId != null) {
                 sceneIds.add(sceneId);
             }
@@ -449,25 +450,13 @@ public class ComponentServiceImpl implements ComponentService {
                 continue;
             }
             repository.findById(anchor)
-                    .map(this::sceneRootIdOf)
+                    .map(SceneRootResolver::sceneRootIdOf)
                     .filter(Objects::nonNull)
                     .ifPresent(sceneIds::add);
         }
         for (Long sceneId : sceneIds) {
             versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
         }
-    }
-
-    /** Связь parent ленивая — подниматься можно только пока открыта сессия. */
-    private Long sceneRootIdOf(Component component) {
-        Component current = component;
-        while (current != null) {
-            if (ComponentTypes.SCENE.equals(current.getType())) {
-                return current.getId();
-            }
-            current = current.getParent();
-        }
-        return null;
     }
 
     @Override
