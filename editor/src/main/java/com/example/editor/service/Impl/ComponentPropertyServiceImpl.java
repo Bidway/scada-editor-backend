@@ -71,6 +71,7 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
         Component component = existing.getComponent();
         Long componentId = component == null ? null : component.getId();
         String oldName = existing.getName();
+        requireSameComponent(id, componentId, dto.getComponent_id());
 
         String newName = normalize(dto.getName());
         dto.setName(newName);
@@ -107,6 +108,32 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
 
         repository.deleteById(id);
         snapshot(sceneId, userName, basedOnVersion);
+    }
+
+    /**
+     * Свойство остаётся у своего компонента: {@code component_id} в теле {@code PUT} либо
+     * повторяет нынешний, либо не прислан вовсе ({@code null} маппер игнорирует, см.
+     * {@code NullValuePropertyMappingStrategy.IGNORE}).
+     * <p>
+     * Без этого перенос проходил мимо гарда и мимо истории: {@code updateEntity} маппит
+     * {@code component} из {@code component_id}, а {@code sceneId} взят строкой выше — по
+     * прежнему компоненту. Сцена-приёмник получала чужое свойство без проверки версии и без
+     * снимка, и с уходом {@code command_log} (план 3b) следа от такой правки не оставалось
+     * вовсе.
+     * <p>
+     * Из двух починок — гардить обе сцены или отвергнуть перенос — выбрана вторая, тем же
+     * приёмом, что и у компонентов ({@code ComponentServiceImpl.requireSceneMembership},
+     * коммит 4dee8f4): перенос свойства между компонентами через этот эндпоинт не заявлен, и
+     * молча поддерживать его под версиями хуже, чем отвергнуть.
+     */
+    private static void requireSameComponent(Long propertyId, Long currentComponentId, Long dtoComponentId) {
+        if (dtoComponentId != null && !dtoComponentId.equals(currentComponentId)) {
+            throw new IllegalArgumentException(
+                    "property " + propertyId + " belongs to component " + currentComponentId
+                            + ", not to component_id " + dtoComponentId
+                            + ": moving a property to another component is not supported —"
+                            + " the target scene would be written without a version guard");
+        }
     }
 
     /** Имя — ключ привязки значений набора, поэтому хранится без краевых пробелов. */
