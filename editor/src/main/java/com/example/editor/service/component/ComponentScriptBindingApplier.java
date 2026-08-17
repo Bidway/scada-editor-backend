@@ -1,4 +1,4 @@
-package com.example.editor.command.component;
+package com.example.editor.service.component;
 
 import com.example.editor.dto.component.BindingPayloadDto;
 import com.example.editor.dto.component.ComponentCreateDto;

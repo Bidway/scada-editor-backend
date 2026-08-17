@@ -1,6 +1,8 @@
 package com.example.editor.service.Impl;
 
-import com.example.editor.command.component.*;
+import com.example.editor.command.component.*;          // остаётся до задачи 4
+import com.example.editor.service.component.ComponentHierarchyValidator;
+import com.example.editor.service.component.ComponentScriptBindingApplier;
 import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;

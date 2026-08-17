@@ -1,10 +1,10 @@
 package com.example.editor.mapper;
 
-import com.example.editor.command.template.TemplateComponentDataApplier;
 import com.example.editor.dto.template.TemplateComponentCreateDto;
 import com.example.editor.dto.template.TemplateComponentResponseDto;
 import com.example.editor.model.template.TemplateComponent;
 import com.example.editor.model.template.TemplateFacePlate;
+import com.example.editor.service.template.TemplateComponentDataApplier;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 
