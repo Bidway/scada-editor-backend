@@ -43,7 +43,11 @@ CLAUDE.md
 # Локальный инструментарий и его данные: в репозитории не нужны, у каждого свои
 .dolt/
 *.db
-.beads/
+# База задач и журнал взаимодействий — локальные, в git не уходят; конфиг — уходит,
+# иначе на другой машине bd не знает ни префикса задач, ни remote (scada-ov3).
+.beads/*
+!.beads/.gitignore
+!.beads/config.yaml
 .beads-credential-key
 .claude/
 .superpowers/
