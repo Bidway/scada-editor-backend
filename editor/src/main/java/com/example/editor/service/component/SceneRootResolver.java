@@ -16,6 +16,9 @@ import lombok.experimental.UtilityClass;
  * ({@code type=PROJECT}, {@code parent=null}): у него нет версионируемого документа
  * ({@code DocumentType} знает только SCENE и TEMPLATE), поэтому вызывающие пропускают для
  * него и гард версии, и снимок (scada-69s).
+ * <p>
+ * Связь {@code parent} ленивая: подниматься по ней можно только пока открыта сессия. Вызывать
+ * резолвер вне транзакции — получить {@code LazyInitializationException} на первом же шаге вверх.
  */
 @UtilityClass
 public class SceneRootResolver {
