@@ -1,10 +1,5 @@
 package com.example.editor.service.Impl;
 
-import com.example.editor.command.component.*;          // остаётся до задачи 4
-import com.example.editor.service.component.ComponentHierarchyValidator;
-import com.example.editor.service.component.ComponentScriptBindingApplier;
-import com.example.editor.service.component.SceneRootResolver;
-import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.component.ComponentCreateDto;
 import com.example.editor.dto.component.ComponentResponseDto;
 import com.example.editor.dto.component.ComponentSaveResponseDto;
@@ -27,6 +22,9 @@ import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
+import com.example.editor.service.component.ComponentHierarchyValidator;
+import com.example.editor.service.component.ComponentScriptBindingApplier;
+import com.example.editor.service.component.SceneRootResolver;
 import com.example.editor.service.version.DocumentVersionService;
 import com.example.editor.service.version.SceneDocumentSource;
 import com.example.editor.service.version.SceneMergeService;
@@ -56,7 +54,6 @@ public class ComponentServiceImpl implements ComponentService {
     private final ComponentRepository repository;
     private final ComponentPropertyRepository propertyRepository;
     private final ObjectMapper mapper;
-    private final CommandManager commandManager;
     private final ComponentMapper componentMapper;
     private final DocumentVersionService versionService;
     private final SceneDocumentSource sceneDocumentSource;
@@ -77,15 +74,24 @@ public class ComponentServiceImpl implements ComponentService {
                                            VersionKind kind, Integer basedOnVersion) {
         requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
-        List<ComponentResponseDto> response = commandManager.execute(
-                new CreateComponentCommand(repository, prepared, componentMapper, mapper, userName));
+        List<ComponentResponseDto> response = componentMapper.toDtoList(repository.saveAll(prepared));
         Integer versionNo = snapshotScenesOf(prepared, userName, kind, basedOnVersion);
         return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
     }
 
     @Override
     public ProjectCreateResponseDto createProject(ProjectCreateDto dto, String userName) {
-        return commandManager.execute(new CreateProjectCommand(repository, dto, mapper, componentMapper, userName));
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            throw new IllegalStateException("Project name is required");
+        }
+        Component project = new Component();
+        project.setName(dto.getName());
+        project.setType(ComponentTypes.PROJECT);
+        project.setParent(null);
+        project.setStates(new ArrayList<>());
+        project.setChildren(new ArrayList<>());
+        project.setVersion(1L);
+        return componentMapper.toProjectCreateDto(repository.save(project));
     }
 
     @Override
@@ -96,7 +102,25 @@ public class ComponentServiceImpl implements ComponentService {
 
     @Override
     public SceneCreateResponseDto createScene(SceneCreateDto dto, String userName) {
-        return commandManager.execute(new CreateSceneCommand(repository, dto, mapper, componentMapper, userName));
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            throw new IllegalStateException("Scene name is required");
+        }
+        if (dto.getProject_id() == null) {
+            throw new IllegalStateException("Scene requires project_id");
+        }
+        Component project = repository.findById(dto.getProject_id())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Project not found: " + dto.getProject_id()));
+        ComponentHierarchyValidator.requireProjectParent(project);
+
+        Component scene = new Component();
+        scene.setName(dto.getName());
+        scene.setType(ComponentTypes.SCENE);
+        scene.setParent(project);
+        scene.setStates(new ArrayList<>());
+        scene.setChildren(new ArrayList<>());
+        scene.setVersion(1L);
+        return componentMapper.toSceneCreateDto(repository.save(scene));
     }
 
     @Override
@@ -173,8 +197,7 @@ public class ComponentServiceImpl implements ComponentService {
             deleteMissing(scene, tree);
         }
         List<Component> prepared = tree.stream().map(this::updateComponent).toList();
-        List<ComponentResponseDto> response = commandManager.execute(
-                new UpdateComponentCommand(repository, prepared, componentMapper, mapper, userName));
+        List<ComponentResponseDto> response = componentMapper.toDtoList(repository.saveAll(prepared));
         // Сцена из конверта попадает в снимок всегда, а не только если в неё что-то записалось:
         // см. javadoc метода про пустой PUT (C-1). Сцены записанного добавляются следом ради
         // восстановления версии — оно зовёт update без scene_id, и там их больше взять негде.
@@ -343,8 +366,8 @@ public class ComponentServiceImpl implements ComponentService {
      * видно, а версию обязано проверять точно так же, как {@link #update} (scada-ybr): без
      * этого DELETE был единственной дверью, через которую «последний победил» всё ещё
      * возвращался после того, как её закрыли в PUT. Сцены вычисляем ДО удаления: после него
-     * подниматься будет не от кого. Проверка версии — тоже до {@link CommandManager#execute}:
-     * иначе отказ придёт уже после того, как данные записаны.
+     * подниматься будет не от кого. Проверка версии — тоже до записи: иначе отказ придёт уже
+     * после того, как данные удалены.
      */
     @Override
     @Transactional
@@ -375,8 +398,8 @@ public class ComponentServiceImpl implements ComponentService {
         for (Long sceneId : sceneIds) {
             versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
         }
-        commandManager.execute(new DeleteComponentCommand(repository, ids, userName, mapper));
-        // Флаш обязателен здесь: DeleteComponentCommand удаляет через repository.deleteById,
+        ids.forEach(repository::deleteById);
+        // Флаш обязателен здесь: удаление идёт через repository.deleteById,
         // в обход графа сущностей (в отличие от deleteMissing/restore, которые чистят через
         // orphanRemoval у живого родителя). Пока удаление не сброшено в базу, ниже
         // sceneDocumentSource.contentOf(sceneId) лениво подгружает scene.children тем же
