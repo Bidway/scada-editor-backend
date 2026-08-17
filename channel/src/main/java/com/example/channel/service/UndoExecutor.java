@@ -3,7 +3,7 @@ package com.example.channel.service;
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandLogRepository;
 import com.example.channel.config.command.CommandManager;
-import com.example.shared.command.UndoHandler;
+import com.example.channel.command.UndoHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;

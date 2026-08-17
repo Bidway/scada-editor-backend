@@ -1,8 +1,8 @@
 package com.example.channel.command.undo;
 
 import com.example.channel.config.command.CommandLog;
-import com.example.shared.command.CommandResult;
-import com.example.shared.command.UndoHandler;
+import com.example.channel.command.CommandResult;
+import com.example.channel.command.UndoHandler;
 import com.example.channel.model.Node;
 import com.example.channel.repository.NodeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
