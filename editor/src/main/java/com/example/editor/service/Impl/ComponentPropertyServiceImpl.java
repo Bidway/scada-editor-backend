@@ -1,17 +1,18 @@
 package com.example.editor.service.Impl;
 
-import com.example.editor.config.command.CommandManager;
-import com.example.editor.command.property.CreatePropertyCommand;
-import com.example.editor.command.property.DeletePropertyCommand;
-import com.example.editor.command.property.UpdatePropertyCommand;
 import com.example.editor.dto.property.PropertyCreateDto;
 import com.example.editor.dto.property.PropertyResponseDto;
 import com.example.editor.mapper.ComponentPropertyMapper;
+import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentProperty;
+import com.example.editor.model.version.DocumentType;
+import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.recipe.RecipeValueRepository;
 import com.example.editor.service.ComponentPropertyService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.editor.service.component.SceneRootResolver;
+import com.example.editor.service.version.DocumentVersionService;
+import com.example.editor.service.version.SceneDocumentSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,24 +25,29 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
 
     private final ComponentPropertyRepository repository;
     private final RecipeValueRepository recipeValueRepository;
-    private final CommandManager commandManager;
     private final ComponentPropertyMapper mapper;
-    private final ObjectMapper objectMapper;
+    private final DocumentVersionService versionService;
+    private final SceneDocumentSource sceneDocumentSource;
 
     @Override
     @Transactional
     public PropertyResponseDto create(PropertyCreateDto dto, String userName) {
         dto.setName(normalize(dto.getName()));
         ComponentProperty entity = mapper.toEntity(dto);
-        Long componentId = entity.getComponent() == null ? null : entity.getComponent().getId();
+        Component component = entity.getComponent();
+        Long componentId = component == null ? null : component.getId();
         if (componentId != null && repository.existsByComponentIdAndName(componentId, entity.getName())) {
             throw new IllegalStateException(
                     "Property name '" + entity.getName() + "' already exists in component " + componentId
                             + "; names must be unique within a component");
         }
-        CreatePropertyCommand command =
-                new CreatePropertyCommand(repository, mapper, objectMapper, entity, userName);
-        return commandManager.execute(command);
+        Long sceneId = SceneRootResolver.sceneRootIdOf(component);
+        requireBase(sceneId, dto.getBased_on_version());
+
+        PropertyResponseDto response = mapper.toDto(repository.save(entity));
+
+        snapshot(sceneId, userName, dto.getBased_on_version());
+        return response;
     }
 
     /**
@@ -62,7 +68,8 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
     public PropertyResponseDto update(Long id, PropertyCreateDto dto, String userName) {
         ComponentProperty existing = repository.findById(id)
                 .orElseThrow(() -> new IllegalStateException("Property not found: " + id));
-        Long componentId = existing.getComponent() == null ? null : existing.getComponent().getId();
+        Component component = existing.getComponent();
+        Long componentId = component == null ? null : component.getId();
         String oldName = existing.getName();
 
         String newName = normalize(dto.getName());
@@ -73,10 +80,11 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
                     "Property name '" + newName + "' already exists in component " + componentId
                             + "; names must be unique within a component");
         }
+        Long sceneId = SceneRootResolver.sceneRootIdOf(component);
+        requireBase(sceneId, dto.getBased_on_version());
 
-        UpdatePropertyCommand command =
-                new UpdatePropertyCommand(repository, mapper, objectMapper, id, dto, userName);
-        PropertyResponseDto response = commandManager.execute(command);
+        mapper.updateEntity(dto, existing);
+        PropertyResponseDto response = mapper.toDto(repository.save(existing));
 
         if (newName != null && componentId != null && !newName.equals(oldName)) {
             int moved = recipeValueRepository.renameRow(componentId, oldName, newName);
@@ -85,13 +93,20 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
                         oldName, newName, componentId, moved);
             }
         }
+        snapshot(sceneId, userName, dto.getBased_on_version());
         return response;
     }
 
     @Override
-    public void delete(Long id, String userName) {
-        DeletePropertyCommand command = new DeletePropertyCommand(repository, id, userName, objectMapper);
-        commandManager.execute(command);
+    @Transactional
+    public void delete(Long id, String userName, Integer basedOnVersion) {
+        ComponentProperty existing = repository.findById(id)
+                .orElseThrow(() -> new IllegalStateException("Property not found: " + id));
+        Long sceneId = SceneRootResolver.sceneRootIdOf(existing.getComponent());
+        requireBase(sceneId, basedOnVersion);
+
+        repository.deleteById(id);
+        snapshot(sceneId, userName, basedOnVersion);
     }
 
     /** Имя — ключ привязки значений набора, поэтому хранится без краевых пробелов. */
@@ -101,5 +116,32 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
         }
         String trimmed = name.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * Гард версии. Свойство вне сцены (сегодня такого не бывает: свойства висят на компонентах,
+     * а те живут под сценой) версионируемого документа не имеет — проверять нечего.
+     */
+    private void requireBase(Long sceneId, Integer basedOnVersion) {
+        if (sceneId != null) {
+            versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
+        }
+    }
+
+    /**
+     * Снимок сцены после правки свойства. Всегда {@code MANUAL}: автосохранение этим путём не
+     * ходит, правка свойства — всегда действие человека.
+     * <p>
+     * {@code flush()} обязателен перед {@code contentOf}: тот лениво подгружает дерево сцены, и
+     * без явного сброса удаление свойства до него не доедет — снимок получится с уже удалённой
+     * строкой. Та же причина, по которой флашится удаление компонентов.
+     */
+    private void snapshot(Long sceneId, String userName, Integer basedOnVersion) {
+        if (sceneId == null) {
+            return;
+        }
+        repository.flush();
+        versionService.record(DocumentType.SCENE, sceneId, sceneDocumentSource.contentOf(sceneId),
+                userName, VersionKind.MANUAL, null, basedOnVersion);
     }
 }

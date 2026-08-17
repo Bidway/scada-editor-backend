@@ -9,5 +9,5 @@ public interface ComponentPropertyService {
 
     PropertyResponseDto update(Long id, PropertyCreateDto property, String userName);
 
-    void delete(Long id, String userName);
+    void delete(Long id, String userName, Integer basedOnVersion);
 }
