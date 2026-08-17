@@ -1,12 +1,9 @@
 package com.example.editor.service;
 
-import com.example.editor.command.template.CreateTemplateCommand;
-import com.example.editor.command.template.DeleteTemplateCommand;
-import com.example.editor.command.template.UpdateTemplateCommand;
-import com.example.editor.config.command.CommandManager;
 import com.example.editor.dto.template.TemplateCreateDto;
 import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
+import com.example.editor.model.template.TemplateComponent;
 import com.example.editor.model.template.TemplateFacePlate;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.VersionKind;
@@ -19,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +24,6 @@ public class TemplateService {
     private final TemplateFacePlateRepository templateRepository;
     private final TemplateComponentRepository componentRepository;
     private final TemplateComponentMapper componentMapper;
-    private final CommandManager commandManager;
     private final DocumentVersionService versionService;
     private final TemplateDocumentSource templateDocumentSource;
 
@@ -36,11 +31,19 @@ public class TemplateService {
     @Transactional
     public TemplateResponseDto createTemplate(TemplateCreateDto dto, String userName,
                                               VersionKind kind) {
-        CreateTemplateCommand command = new CreateTemplateCommand(
-                templateRepository, componentRepository, componentMapper, dto, userName
-        );
-        TemplateResponseDto response = commandManager.execute(command);
-        response.setVersion_no(snapshot(response.getId(), userName, kind));
+        TemplateFacePlate template = new TemplateFacePlate();
+        template.setName(dto.getName());
+        template.setType(dto.getType());
+        templateRepository.save(template);
+
+        TemplateComponent rootComponent = componentMapper.mapTree(dto.getRootComponent(), template);
+        componentRepository.save(rootComponent);
+
+        template.setRootComponent(rootComponent);
+        templateRepository.save(template);
+
+        TemplateResponseDto response = toResponse(template);
+        response.setVersion_no(snapshot(template.getId(), userName, kind));
         return response;
     }
 
@@ -63,10 +66,25 @@ public class TemplateService {
         if (kind != VersionKind.RESTORE) {
             versionService.requireBase(DocumentType.TEMPLATE, templateId, dto.getBased_on_version());
         }
-        UpdateTemplateCommand command = new UpdateTemplateCommand(
-                templateRepository, componentRepository, componentMapper, templateId, dto, userName
-        );
-        TemplateResponseDto response = commandManager.execute(command);
+        TemplateFacePlate template = templateRepository.findById(templateId)
+                .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId));
+
+        template.setName(dto.getName());
+        template.setType(dto.getType());
+        templateRepository.save(template);
+
+        // Присланное дерево сливается с существующим, а не строится заново: иначе каждое
+        // сохранение выдаёт новые id всему поддереву (scada-eap). Корень при этом остаётся тем
+        // же объектом, поэтому снимать прежний с учёта больше не нужно — выпавшие узлы уносит
+        // orphanRemoval на children.
+        TemplateComponent rootComponent = componentMapper.mergeTree(
+                template.getRootComponent(), dto.getRootComponent(), template, null);
+        componentRepository.save(rootComponent);
+
+        template.setRootComponent(rootComponent);
+        templateRepository.save(template);
+
+        TemplateResponseDto response = toResponse(template);
         response.setVersion_no(snapshot(templateId, userName, kind));
         return response;
     }
@@ -82,30 +100,23 @@ public class TemplateService {
     }
 
     public void deleteTemplate(Long templateId, String userName) {
-        DeleteTemplateCommand command = new DeleteTemplateCommand(templateRepository, templateId, userName);
-        commandManager.execute(command);
+        templateRepository.deleteById(templateId);
     }
 
     public List<TemplateResponseDto> getAllTemplates() {
-        List<TemplateFacePlate> templates = templateRepository.findAll();
-        return templates.stream()
-                .map(template -> {
-                    TemplateResponseDto dto = new TemplateResponseDto();
-                    dto.setId(template.getId());
-                    dto.setName(template.getName());
-                    dto.setType(template.getType());
-                    if (template.getRootComponent() != null) {
-                        dto.setRootComponent(componentMapper.toDtoTree(template.getRootComponent()));
-                    }
-                    return dto;
-                })
-                .collect(Collectors.toList());
+        return templateRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     public TemplateResponseDto getTemplateById(Long templateId) {
-        TemplateFacePlate template = templateRepository.findById(templateId)
-                .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId));
+        return toResponse(templateRepository.findById(templateId)
+                .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId)));
+    }
 
+    /**
+     * Сборка ответа из сущности. Раньше эти семь строк лежали в файле четырьмя копиями, и копии
+     * уже разошлись: чтение проверяло {@code rootComponent} на null, запись — нет.
+     */
+    private TemplateResponseDto toResponse(TemplateFacePlate template) {
         TemplateResponseDto dto = new TemplateResponseDto();
         dto.setId(template.getId());
         dto.setName(template.getName());
