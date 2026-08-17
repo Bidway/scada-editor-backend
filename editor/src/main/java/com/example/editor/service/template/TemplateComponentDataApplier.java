@@ -1,4 +1,4 @@
-package com.example.editor.command.template;
+package com.example.editor.service.template;
 
 import com.example.editor.dto.component.ComponentStateDto;
 import com.example.editor.dto.component.ScriptCreateDto;

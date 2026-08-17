@@ -8,6 +8,7 @@ import com.example.editor.mapper.ComponentMapper;
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentTypes;
 import com.example.editor.repository.component.ComponentRepository;
+import com.example.editor.service.component.ComponentHierarchyValidator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

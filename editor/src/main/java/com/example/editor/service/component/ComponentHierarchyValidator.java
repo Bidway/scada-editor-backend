@@ -1,4 +1,4 @@
-package com.example.editor.command.component;
+package com.example.editor.service.component;
 
 import com.example.editor.model.component.Component;
 import com.example.editor.model.component.ComponentTypes;
