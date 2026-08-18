@@ -49,7 +49,9 @@ CLAUDE.md
 !.beads/.gitignore
 !.beads/config.yaml
 .beads-credential-key
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/learn/
 .superpowers/
 .codex/
 .agents/
