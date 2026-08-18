@@ -11,10 +11,8 @@ description: Строит и обновляет карту кодовой баз
 
 ## Перед началом
 
-Прочитай `.claude/learn/METHOD.md`, раздел «Источник правды» — там правило,
-какие файлы считаются фактами о коде (исходники), а какие нет (`docs/`,
-`README.md`, `CLAUDE.md`), и как поступать с расхождением комментария и кода.
-Действуй по нему на протяжении всего скила.
+Прочитай `.claude/learn/METHOD.md`, раздел «Источник правды», и держись его на
+протяжении всего прохода.
 
 Проверь, существует ли `docs/learning/map/MAP.md`:
 
@@ -79,8 +77,8 @@ dirty:    <да, если git status --porcelain непуст, иначе нет
 Возьми `snapshot` из шапки `MAP.md` и собери список затронутых файлов:
 
 ```bash
-git diff <snapshot>..HEAD --name-only -- '*.java'
-git status --porcelain -- '*.java'
+git diff <snapshot>..HEAD --name-only -- gateway/src/main auth/src/main channel/src/main editor/src/main runtime/src/main
+git status --porcelain -- gateway/src/main auth/src/main channel/src/main editor/src/main runtime/src/main
 ```
 
 Если оба списка пусты — скажи, что карта актуальна, и остановись. Ничего не
