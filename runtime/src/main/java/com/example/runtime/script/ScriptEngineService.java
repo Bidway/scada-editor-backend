@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,6 +62,16 @@ public class ScriptEngineService {
             r -> new Thread(r, "script-watchdog"));
     private final ExecutorService executor;
     private final long timeoutMs;
+    /**
+     * Верхний предел общего числа живых Graal-контекстов (пул + временные), scada-3pz.
+     * {@code borrow()} вызывается на потоке КАЖДОГО вызывающего (полосы OnChangeDispatcher,
+     * запросы ACTION), а не на {@code executor} — тот ограничивает только параллелизм
+     * исполнения уже одолженного контекста, а не число одновременных попыток создать
+     * временный при исчерпании пула. Permit берётся при любом {@code newContext()} (тут же
+     * в {@code initPool}, в {@code borrow} на overflow, в {@code replace} на замену) и
+     * освобождается ровно при фактическом {@code ctx.close()} — не при возврате в пул.
+     */
+    private final Semaphore contextSlots;
 
     public ScriptEngineService(RuntimeProperties properties) {
         // Контекстов должно хватать на всех одновременных вызывающих, иначе поток ждёт
@@ -74,12 +85,15 @@ public class ScriptEngineService {
         this.timeoutMs = properties.getScript().getExecutionTimeoutMs();
         this.pool = new ArrayBlockingQueue<>(poolSize);
         this.executor = Executors.newFixedThreadPool(poolSize, r -> new Thread(r, "script-exec"));
+        int maxOverflow = Math.max(0, properties.getScript().getMaxOverflowContexts());
+        this.contextSlots = new Semaphore(poolSize + maxOverflow);
     }
 
     @PostConstruct
     void initPool() {
         int size = pool.remainingCapacity();
         for (int i = 0; i < size; i++) {
+            contextSlots.acquireUninterruptibly();
             Context ctx = newContext();
             warmUp(ctx);
             pool.add(ctx);
@@ -227,6 +241,13 @@ public class ScriptEngineService {
         try {
             Context ctx = pool.poll(timeoutMs, TimeUnit.MILLISECONDS);
             if (ctx == null) {
+                // Overflow-permit уже ждали timeoutMs на poll() выше — дальше не блокируемся,
+                // отказываем сразу: копить вызывающих в очереди за permit'ом ничем не лучше
+                // неограниченного роста контекстов, которого это и призвано не допустить.
+                if (!contextSlots.tryAcquire()) {
+                    throw new ScriptExecutionException(
+                            "Script engine overloaded: context pool and overflow both exhausted", null);
+                }
                 log.warn("Script context pool exhausted, creating a temporary context");
                 Context fresh = newContext();
                 warmUp(fresh);
@@ -242,6 +263,7 @@ public class ScriptEngineService {
     private void release(Context ctx) {
         if (!pool.offer(ctx)) {
             ctx.close();
+            contextSlots.release();
         }
     }
 
@@ -250,8 +272,10 @@ public class ScriptEngineService {
             ctx.close(true);
         } catch (Exception ignored) {
         }
+        contextSlots.release();
         // Обязательно прогреть: иначе холодный контекст в пуле → следующий eval снова
         // таймаутит и снова кладёт холодный, и так по кругу (самоподдерживающийся сбой, #3).
+        contextSlots.acquireUninterruptibly();
         Context fresh = newContext();
         warmUp(fresh);
         pool.offer(fresh);
