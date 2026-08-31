@@ -30,7 +30,12 @@ final class GraalValues {
             return value.asBoolean();
         }
         if (value.isNumber()) {
-            return value.fitsInLong() ? value.asLong() : value.asDouble();
+            // fitsInLong() в этой сборке GraalJS (interpreter-only, без Graal-компилятора —
+            // см. engine.WarnInterpreterOnly в ScriptEngineService.newContext) не возвращает
+            // true даже для целых литералов: подтверждено GraalPropsArrayTest. Числа со
+            // скриптов всегда идут как Double (scada-63q). Добавление Graal-компилятора для
+            // настоящего Long — отдельное архитектурное решение, не входит в эту правку.
+            return value.asDouble();
         }
         if (value.isString()) {
             return value.asString();
