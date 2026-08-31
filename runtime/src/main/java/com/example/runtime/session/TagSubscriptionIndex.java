@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class TagSubscriptionIndex {
 
-    private final Map<String, List<Long>> tagToRawPropertyIds = new HashMap<>();
     private final Map<String, List<OnChangeBinding>> tagToOnChangeBindings = new HashMap<>();
     private final Map<Long, ScriptEntry> scriptsById = new HashMap<>();
     private final Map<Long, String> propertyNames = new HashMap<>();
@@ -71,7 +70,6 @@ public class TagSubscriptionIndex {
                 if (tagId != null && !tagId.isBlank()) {
                     allTagIds.add(tagId);
                     propertyTagIds.put(propertyId, tagId);
-                    tagToRawPropertyIds.computeIfAbsent(tagId, id -> new ArrayList<>()).add(propertyId);
 
                     String onChangeScript = property.extractOnChangeScript();
                     if (onChangeScript != null) {
@@ -91,10 +89,6 @@ public class TagSubscriptionIndex {
 
     public Set<String> getAllTagIds() {
         return allTagIds;
-    }
-
-    public List<Long> rawPropertyIdsForTag(String tagId) {
-        return tagToRawPropertyIds.getOrDefault(tagId, List.of());
     }
 
     public List<OnChangeBinding> onChangeBindingsForTag(String tagId) {
