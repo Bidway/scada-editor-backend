@@ -48,6 +48,13 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+// -Xlint включён по scada-2li: ловит ошибки уровня компилятора (raw types, unchecked,
+// deprecation), а не стиль — линтеры стиля отвергнуты отдельно по scada-2p9. Значимость
+// вывода для ErrorProne/SpotBugs оценивается по факту первого прогона.
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:all")
+}
+
 // Отключаем «плоский» jar: сервис деплоится как исполняемый bootJar и как
 // библиотека никуда не подключается. Заодно в build/libs остаётся один jar,
 // поэтому COPY build/libs/*.jar в Dockerfile не ломается.
