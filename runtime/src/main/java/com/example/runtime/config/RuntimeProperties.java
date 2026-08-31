@@ -97,6 +97,15 @@ public class RuntimeProperties {
         private int maxOverflowContexts = 4;
 
         /**
+         * Маленький резерв контекстов, который видит только ACTION — не общий пул (scada-8cp).
+         * ACTION редки по сравнению с onChange, поэтому отдельный полноценный пул под них не
+         * оправдан (простаивал бы и жёг память); этого резерва достаточно, чтобы ACTION не
+         * голодал даже при полном захвате общего пула всплеском onChange. onChange в резерв
+         * не заглядывает вовсе — только общий пул и overflow, как раньше.
+         */
+        private int actionReservePoolSize = 2;
+
+        /**
          * Число полос исполнения onChange (см. {@code OnChangeDispatcher}). Сессия
          * закрепляется за полосой, поэтому это же — предел параллелизма по сессиям.
          */
@@ -127,6 +136,14 @@ public class RuntimeProperties {
 
         public void setMaxOverflowContexts(int maxOverflowContexts) {
             this.maxOverflowContexts = maxOverflowContexts;
+        }
+
+        public int getActionReservePoolSize() {
+            return actionReservePoolSize;
+        }
+
+        public void setActionReservePoolSize(int actionReservePoolSize) {
+            this.actionReservePoolSize = actionReservePoolSize;
         }
 
         public int getOnChangeThreads() {

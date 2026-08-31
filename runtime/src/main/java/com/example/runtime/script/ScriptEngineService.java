@@ -58,20 +58,32 @@ public class ScriptEngineService {
                 }
             });
     private final BlockingQueue<Context> pool;
+    /**
+     * Маленький резерв контекстов, который видит только ACTION (scada-8cp). ACTION редки
+     * относительно onChange — полноценный второй пул простаивал бы без нужды, поэтому общий
+     * {@code pool} остаётся единым и максимально утилизированным для обоих видов, а сюда ACTION
+     * заглядывает первым делом, чтобы не голодать при захвате общего пула всплеском onChange.
+     * onChange про этот резерв не знает вовсе.
+     */
+    private final BlockingQueue<Context> actionReserve;
     private final ScheduledExecutorService watchdog = Executors.newSingleThreadScheduledExecutor(
             r -> new Thread(r, "script-watchdog"));
     private final ExecutorService executor;
     private final long timeoutMs;
     /**
-     * Верхний предел общего числа живых Graal-контекстов (пул + временные), scada-3pz.
-     * {@code borrow()} вызывается на потоке КАЖДОГО вызывающего (полосы OnChangeDispatcher,
-     * запросы ACTION), а не на {@code executor} — тот ограничивает только параллелизм
-     * исполнения уже одолженного контекста, а не число одновременных попыток создать
-     * временный при исчерпании пула. Permit берётся при любом {@code newContext()} (тут же
-     * в {@code initPool}, в {@code borrow} на overflow, в {@code replace} на замену) и
-     * освобождается ровно при фактическом {@code ctx.close()} — не при возврате в пул.
+     * Верхний предел общего числа живых Graal-контекстов (общий пул + резерв ACTION +
+     * временные), scada-3pz. {@code borrow()} вызывается на потоке КАЖДОГО вызывающего (полосы
+     * OnChangeDispatcher, запросы ACTION), а не на {@code executor} — тот ограничивает только
+     * параллелизм исполнения уже одолженного контекста, а не число одновременных попыток
+     * создать временный при исчерпании пула. Permit берётся при любом {@code newContext()} (тут
+     * же в {@code initPool}, в {@code borrow} на overflow, в {@code replace} на замену) и
+     * освобождается ровно при фактическом {@code ctx.close()} — не при возврате в пул/резерв.
      */
     private final Semaphore contextSlots;
+
+    /** Одолженный контекст вместе с очередью, в которую его надо вернуть (scada-8cp). */
+    private record Borrowed(Context ctx, BlockingQueue<Context> home) {
+    }
 
     public ScriptEngineService(RuntimeProperties properties) {
         // Контекстов должно хватать на всех одновременных вызывающих, иначе поток ждёт
@@ -82,11 +94,15 @@ public class ScriptEngineService {
         int poolSize = Math.max(
                 Math.max(1, properties.getScript().getContextPoolSize()),
                 properties.getScript().getOnChangeThreads());
+        int reserveSize = Math.max(0, properties.getScript().getActionReservePoolSize());
         this.timeoutMs = properties.getScript().getExecutionTimeoutMs();
         this.pool = new ArrayBlockingQueue<>(poolSize);
+        this.actionReserve = new ArrayBlockingQueue<>(Math.max(1, reserveSize));
+        // Резерв тоже сидит на script-exec: он про то, у какого контекста приоритет, а не про
+        // отдельный параллелизм исполнения — потоки дешевле контекстов (см. contextSlots).
         this.executor = Executors.newFixedThreadPool(poolSize, r -> new Thread(r, "script-exec"));
         int maxOverflow = Math.max(0, properties.getScript().getMaxOverflowContexts());
-        this.contextSlots = new Semaphore(poolSize + maxOverflow);
+        this.contextSlots = new Semaphore(poolSize + reserveSize + maxOverflow);
     }
 
     @PostConstruct
@@ -98,7 +114,15 @@ public class ScriptEngineService {
             warmUp(ctx);
             pool.add(ctx);
         }
-        log.info("ScriptEngineService: GraalVM JS context pool initialized and warmed, size={}", size);
+        int reserveSize = actionReserve.remainingCapacity();
+        for (int i = 0; i < reserveSize; i++) {
+            contextSlots.acquireUninterruptibly();
+            Context ctx = newContext();
+            warmUp(ctx);
+            actionReserve.add(ctx);
+        }
+        log.info("ScriptEngineService: GraalVM JS context pool initialized and warmed, size={}, "
+                + "actionReserve={}", size, reserveSize);
     }
 
     /**
@@ -124,6 +148,7 @@ public class ScriptEngineService {
         watchdog.shutdownNow();
         executor.shutdownNow();
         pool.forEach(Context::close);
+        actionReserve.forEach(Context::close);
     }
 
     private Context newContext() {
@@ -140,16 +165,16 @@ public class ScriptEngineService {
      */
     public Map<String, Object> runOnChange(String scriptSource, Object tagValue, Map<String, Object> props,
                                            TagWriteSink writeSink) {
-        return execute(scriptSource, tagValue, props, writeSink);
+        return execute(scriptSource, tagValue, props, writeSink, false);
     }
 
     /** Выполняет компонентный Script по действию с фронта (нажатие кнопки и т.п.). */
     public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, TagWriteSink writeSink) {
-        return execute(scriptSource, null, props, writeSink);
+        return execute(scriptSource, null, props, writeSink, true);
     }
 
     private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
-                                        TagWriteSink writeSink) {
+                                        TagWriteSink writeSink, boolean forAction) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return props;
         }
@@ -157,7 +182,8 @@ public class ScriptEngineService {
                 s -> Source.create("js", s));
 
         TagWriteSink sink = writeSink != null ? writeSink : TagWriteSink.NOOP;
-        Context ctx = borrow();
+        Borrowed borrowed = borrow(forAction);
+        Context ctx = borrowed.ctx();
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Future<?> future = executor.submit(() -> {
             try {
@@ -187,7 +213,7 @@ public class ScriptEngineService {
             log.warn("Script execution failed/timed out: {}", e.getMessage());
             // Прекращаем зависший script-exec поток: контекст уже закрывается из-под него.
             future.cancel(true);
-            replace(ctx);
+            replace(borrowed);
             throw new ScriptExecutionException("Script execution failed or timed out", e);
         } finally {
             cancelTask.cancel(false);
@@ -197,14 +223,14 @@ public class ScriptEngineService {
         if (t != null) {
             boolean cancelled = t instanceof PolyglotException pe && pe.isCancelled();
             if (cancelled) {
-                replace(ctx);
+                replace(borrowed);
             } else {
-                release(ctx);
+                release(borrowed);
             }
             throw new ScriptExecutionException("Script execution error: " + t.getMessage(), t);
         }
 
-        release(ctx);
+        release(borrowed);
         return props;
     }
 
@@ -237,8 +263,16 @@ public class ScriptEngineService {
         return GraalValues.toJava(value);
     }
 
-    private Context borrow() {
+    private Borrowed borrow(boolean forAction) {
         try {
+            if (forAction) {
+                // Резерв — не блокируясь: если там пусто, ACTION не ждёт его отдельно, а сразу
+                // идёт в общий пул наравне с onChange (ниже).
+                Context reserved = actionReserve.poll();
+                if (reserved != null) {
+                    return new Borrowed(reserved, actionReserve);
+                }
+            }
             Context ctx = pool.poll(timeoutMs, TimeUnit.MILLISECONDS);
             if (ctx == null) {
                 // Overflow-permit уже ждали timeoutMs на poll() выше — дальше не блокируемся,
@@ -251,33 +285,35 @@ public class ScriptEngineService {
                 log.warn("Script context pool exhausted, creating a temporary context");
                 Context fresh = newContext();
                 warmUp(fresh);
-                return fresh;
+                return new Borrowed(fresh, pool);
             }
-            return ctx;
+            return new Borrowed(ctx, pool);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ScriptExecutionException("Interrupted while waiting for a script context", e);
         }
     }
 
-    private void release(Context ctx) {
-        if (!pool.offer(ctx)) {
-            ctx.close();
+    private void release(Borrowed borrowed) {
+        if (!borrowed.home().offer(borrowed.ctx())) {
+            borrowed.ctx().close();
             contextSlots.release();
         }
     }
 
-    private void replace(Context ctx) {
+    private void replace(Borrowed borrowed) {
         try {
-            ctx.close(true);
+            borrowed.ctx().close(true);
         } catch (Exception ignored) {
         }
         contextSlots.release();
-        // Обязательно прогреть: иначе холодный контекст в пуле → следующий eval снова
+        // Обязательно прогреть: иначе холодный контекст в пуле/резерве → следующий eval снова
         // таймаутит и снова кладёт холодный, и так по кругу (самоподдерживающийся сбой, #3).
+        // Возвращаем в ТУ ЖЕ очередь, откуда одолжили, — иначе резерв ACTION со временем
+        // вытечет в общий пул при каждой отмене по watchdog.
         contextSlots.acquireUninterruptibly();
         Context fresh = newContext();
         warmUp(fresh);
-        pool.offer(fresh);
+        borrowed.home().offer(fresh);
     }
 }
