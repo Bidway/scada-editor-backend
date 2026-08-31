@@ -90,6 +90,13 @@ public class RuntimeProperties {
         private long executionTimeoutMs = 200L;
 
         /**
+         * Сколько temporary-контекстов сверх пула допускается одновременно живыми при
+         * устойчивой перегрузке (scada-3pz). Свыше этого — отказ вместо неограниченного
+         * роста числа Graal-контекстов (каждый — сотни МБ на прогретый JS-движок).
+         */
+        private int maxOverflowContexts = 4;
+
+        /**
          * Число полос исполнения onChange (см. {@code OnChangeDispatcher}). Сессия
          * закрепляется за полосой, поэтому это же — предел параллелизма по сессиям.
          */
@@ -112,6 +119,14 @@ public class RuntimeProperties {
 
         public void setExecutionTimeoutMs(long executionTimeoutMs) {
             this.executionTimeoutMs = executionTimeoutMs;
+        }
+
+        public int getMaxOverflowContexts() {
+            return maxOverflowContexts;
+        }
+
+        public void setMaxOverflowContexts(int maxOverflowContexts) {
+            this.maxOverflowContexts = maxOverflowContexts;
         }
 
         public int getOnChangeThreads() {
