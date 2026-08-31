@@ -4,6 +4,7 @@ import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.dto.TagSnapshot;
 import com.example.runtime.kafka.TagValueRouter;
+import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.stream.PropertyUpdate;
 import lombok.extern.slf4j.Slf4j;
@@ -25,17 +26,20 @@ public class RuntimeSessionService {
     private final TagValueRouter tagValueRouter;
     private final ScriptEngineService scriptEngineService;
     private final TagCommandService tagCommandService;
+    private final ActionDedupGuard actionDedupGuard;
 
     public RuntimeSessionService(EditorClient editorClient,
                                   RuntimeSessionStore sessionStore,
                                   TagValueRouter tagValueRouter,
                                   ScriptEngineService scriptEngineService,
-                                  TagCommandService tagCommandService) {
+                                  TagCommandService tagCommandService,
+                                  ActionDedupGuard actionDedupGuard) {
         this.editorClient = editorClient;
         this.sessionStore = sessionStore;
         this.tagValueRouter = tagValueRouter;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
+        this.actionDedupGuard = actionDedupGuard;
     }
 
     /**
@@ -89,6 +93,10 @@ public class RuntimeSessionService {
         ScriptEntry script = session.getIndex().getScript(scriptId);
         if (script == null) {
             log.warn("ACTION references unknown script {} in session {}", scriptId, sessionId);
+            return List.of();
+        }
+        if (!actionDedupGuard.allow(sessionId + ":" + scriptId)) {
+            log.warn("ACTION {} for session {} dropped as a duplicate (dedup window)", scriptId, sessionId);
             return List.of();
         }
 

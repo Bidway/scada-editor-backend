@@ -106,6 +106,13 @@ public class RuntimeProperties {
         private int actionReservePoolSize = 2;
 
         /**
+         * Минимальный интервал между двумя ACTION с одним и тем же (sessionId, scriptId),
+         * см. {@code ActionDedupGuard} (scada-au4). Гасит дребезг клика и повторную отправку
+         * с фронта — повтор раньше этого интервала молча отбрасывается, не доходя до скрипта.
+         */
+        private long actionMinIntervalMs = 300L;
+
+        /**
          * Число полос исполнения onChange (см. {@code OnChangeDispatcher}). Сессия
          * закрепляется за полосой, поэтому это же — предел параллелизма по сессиям.
          */
@@ -144,6 +151,14 @@ public class RuntimeProperties {
 
         public void setActionReservePoolSize(int actionReservePoolSize) {
             this.actionReservePoolSize = actionReservePoolSize;
+        }
+
+        public long getActionMinIntervalMs() {
+            return actionMinIntervalMs;
+        }
+
+        public void setActionMinIntervalMs(long actionMinIntervalMs) {
+            this.actionMinIntervalMs = actionMinIntervalMs;
         }
 
         public int getOnChangeThreads() {
