@@ -260,6 +260,10 @@ public class ComponentScriptBindingApplier {
         freeContestedKeys(incoming, originalNames, ComponentProperty::getId,
                 cp -> matchKey(cp.getName()), ComponentProperty::setName, temporaryNames(), flush);
 
+        // Ветка else (existing.getId() == null) — страховка, срабатывать не должна: в этот
+        // момент entity.getProperties() либо пуст (новый компонент), либо загружен из БД, а у
+        // загруженной сущности id — сгенерированный PK, он не бывает null. Новые no-id строки
+        // добавляются в коллекцию только ниже, после этого removeIf (scada-ej6).
         entity.getProperties().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
                 : !seenNames.contains(matchKey(existing.getName())));
@@ -366,6 +370,7 @@ public class ComponentScriptBindingApplier {
         freeContestedKeys(incoming, originalNames, Script::getId,
                 s -> matchKey(s.getName()), Script::setName, temporaryNames(), flush);
 
+        // Ветка else — та же страховка, что в applyProperties (scada-ej6): не срабатывает.
         entity.getScripts().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
                 : !seenNames.contains(matchKey(existing.getName())));
@@ -615,6 +620,7 @@ public class ComponentScriptBindingApplier {
                 ComponentEvent::getEventType, ComponentEvent::setEventType,
                 spareEventTypes(entity, originalTypes.values(), seenTypes), flush);
 
+        // Ветка else — та же страховка, что в applyProperties (scada-ej6): не срабатывает.
         entity.getEvents().removeIf(existing -> existing.getId() != null
                 ? !keptIds.contains(existing.getId())
                 : !seenTypes.contains(existing.getEventType()));
