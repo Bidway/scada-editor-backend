@@ -1,5 +1,6 @@
 package com.example.editor.exception;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,7 +43,13 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleUnreadableBody(HttpMessageNotReadableException ex) {
-        return buildResponse(HttpStatus.BAD_REQUEST, "Malformed request body");
+        Throwable cause = ex.getMostSpecificCause();
+        // getOriginalMessage() — только суть ошибки, без "at [Source: ...]" (путь/оффсет
+        // разбора и часто фрагмент самого тела запроса) и без стектрейса.
+        String reason = cause instanceof JsonProcessingException jsonEx
+                ? jsonEx.getOriginalMessage()
+                : cause.getMessage();
+        return buildResponse(HttpStatus.BAD_REQUEST, "Malformed request body: " + reason);
     }
 
     /**
