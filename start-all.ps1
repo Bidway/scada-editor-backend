@@ -17,13 +17,11 @@
     Источник телеметрии (оба режима):
       по умолчанию — реальный scada-gateway: опрашивает PLC-симулятор по OPC UA и
       Modbus и публикует все 2471 канал BN1_MCA1 в scada.tags;
-      -Sim   — лёгкий tools\kafka-sim (3 тега сцены, без Docker и OPC UA);
       -NoSim — без источника вовсе.
 
     Примеры:
       .\start-all.ps1                     # host-режим, реальный шлюз, фронт
       .\start-all.ps1 -Mode docker        # весь стенд в контейнерах
-      .\start-all.ps1 -Sim                # лёгкий симулятор вместо шлюза
       .\start-all.ps1 -ServicesOnly       # только сервисы, инфраструктуру не трогать
       .\start-all.ps1 -NoFrontend         # без фронта
       .\start-all.ps1 -Status             # что сейчас поднято
@@ -43,7 +41,6 @@ param(
     [ValidateSet('host', 'docker')]
     [string]$Mode        = 'host',
     [switch]$ServicesOnly,
-    [switch]$Sim,
     [switch]$NoSim,
     [switch]$NoFrontend,
     [switch]$Status,
@@ -290,7 +287,7 @@ if ($Mode -eq 'docker') {
     Ok 'jar-ы собраны'
 
     $composeArgs = @('-f', 'docker-compose.yml')
-    if (-not $NoSim -and -not $Sim) {
+    if (-not $NoSim) {
         $env:SCADA_GATEWAY_PATH = $GatewayDir -replace '\\', '/'
         # Задаём явно, а не полагаемся на дефолт compose: в этой же сессии PowerShell
         # переменная могла остаться от прогона в host-режиме (там анонс — localhost),
@@ -322,7 +319,7 @@ if ($Mode -eq 'docker') {
     Info 'Поднимаю инфраструктуру ...'
     & docker compose @composeArgs up -d --build postgres redis kafka
 
-    if (-not $NoSim -and -not $Sim) {
+    if (-not $NoSim) {
         Info 'Поднимаю БД шлюза и PLC-симулятор ...'
         & docker compose @composeArgs up -d scada-postgres scada-simulator
         Repair-GatewayDb
@@ -409,26 +406,11 @@ if ($Mode -eq 'host') {
         if (-not (Test-Port 9092)) {
             Warn 'Kafka (9092) не слушает — источник телеметрии пропущен'
         }
-        elseif ($Sim) {
-            $simDir = Join-Path $ProjectRoot 'tools\kafka-sim'
-            if (-not (Test-Path (Join-Path $simDir 'sim.mjs'))) {
-                Warn "Симулятор не найден в $simDir — пропускаю"
-            } else {
-                if (-not (Test-Path (Join-Path $simDir 'node_modules'))) {
-                    Info 'Первый запуск симулятора — ставлю зависимости ...'
-                    Push-Location $simDir
-                    & npm install --no-audit --no-fund | Out-Null
-                    Pop-Location
-                }
-                Info 'Запускаю лёгкий Kafka-симулятор ...'
-                Start-InWindow 'kafka-sim' $simDir 'node sim.mjs'
-            }
-        }
         elseif (-not (Test-Path (Join-Path $GatewayDir 'SCADA-gateway\pom.xml'))) {
-            Warn "scada-gateway не найден в $GatewayDir — укажи -GatewayDir или запусти с -Sim"
+            Warn "scada-gateway не найден в $GatewayDir — укажи -GatewayDir или запусти с -NoSim"
         }
         elseif (-not (Test-Docker)) {
-            Err 'Docker не запущен — БД шлюза и PLC-симулятор не поднять. Запусти Docker Desktop или используй -Sim.'
+            Err 'Docker не запущен — БД шлюза и PLC-симулятор не поднять. Запусти Docker Desktop или используй -NoSim.'
         }
         else {
             # Где окажется шлюз, решает не режим запуска, а факт: контейнер scada-gateway
