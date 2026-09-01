@@ -22,6 +22,8 @@ public class TemplateComponentMapper {
     private final StateMapper stateMapper;
     private final TemplateComponentPropertyMapper propertyMapper;
     private final TemplateScriptMapper scriptMapper;
+    private final TemplateComponentBindingMapper bindingMapper;
+    private final TemplateComponentEventMapper eventMapper;
 
     /** Построение дерева ответа после сохранения. */
     public TemplateComponentResponseDto toDtoTree(TemplateComponent root) {
@@ -36,6 +38,8 @@ public class TemplateComponentMapper {
         dto.setStates(stateMapper.toDtoList(root.getStates()));
         dto.setProperties(propertyMapper.toDtoList(root.getProperties()));
         dto.setScripts(scriptMapper.toDtoList(root.getScripts()));
+        dto.setBindings(bindingMapper.toDtoList(root.getBindings()));
+        dto.setEvents(eventMapper.toDtoList(root.getEvents()));
         dto.setParent_id(root.getParent() != null ? root.getParent().getId() : null);
 
         List<TemplateComponentResponseDto> childrenDto = root.getChildren()

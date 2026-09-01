@@ -41,6 +41,12 @@ public class TemplateComponent {
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TemplateComponentProperty> properties = new ArrayList<>();
 
+    @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TemplateComponentBinding> bindings = new ArrayList<>();
+
+    @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TemplateComponentEvent> events = new ArrayList<>();
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id", nullable = false)
     private TemplateFacePlate template;

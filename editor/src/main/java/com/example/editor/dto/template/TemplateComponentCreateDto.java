@@ -1,5 +1,7 @@
 package com.example.editor.dto.template;
 
+import com.example.editor.dto.component.BindingPayloadDto;
+import com.example.editor.dto.component.EventPayloadDto;
 import com.example.editor.dto.component.ScriptCreateDto;
 import com.example.editor.dto.component.ComponentStateDto;
 import com.example.editor.dto.property.PropertyCreateDto;
@@ -18,4 +20,6 @@ public class TemplateComponentCreateDto {
     private List<ComponentStateDto> states;
     private List<PropertyCreateDto> properties;
     private List<ScriptCreateDto> scripts;
+    private List<BindingPayloadDto> bindings;
+    private List<EventPayloadDto> events;
 }

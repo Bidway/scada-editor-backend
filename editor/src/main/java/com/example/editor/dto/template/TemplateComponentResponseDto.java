@@ -1,6 +1,8 @@
 package com.example.editor.dto.template;
 
+import com.example.editor.dto.component.BindingResponseDto;
 import com.example.editor.dto.component.ComponentStateResponseDto;
+import com.example.editor.dto.component.EventResponseDto;
 import com.example.editor.dto.component.ScriptResponseDto;
 import com.example.editor.dto.property.PropertyResponseDto;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -19,4 +21,6 @@ public class TemplateComponentResponseDto {
     private List<ComponentStateResponseDto> states;
     private List<PropertyResponseDto> properties;
     private List<ScriptResponseDto> scripts;
+    private List<BindingResponseDto> bindings;
+    private List<EventResponseDto> events;
 }

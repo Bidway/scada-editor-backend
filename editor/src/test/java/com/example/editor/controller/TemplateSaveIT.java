@@ -171,4 +171,52 @@ class TemplateSaveIT extends EditorApiTestSupport {
                 .filter(c -> templateId == c.getTemplateId())
                 .toList();
     }
+
+    private static String treeWithBindingAndEvent(String bindingScript, String eventScript) {
+        return "{\"name\":\"Клапан\",\"type\":\"faceplate\",\"rootComponent\":{"
+                + "\"name\":\"Корень\",\"type\":\"group\","
+                + "\"properties\":[{\"name\":\"ST\",\"value_type\":\"integer\","
+                + "\"property_type\":\"Тег\"}],"
+                + "\"bindings\":[{\"name\":\"Отрисовка\",\"component_property_name\":\"ST\","
+                + "\"script\":\"" + bindingScript + "\"}],"
+                + "\"events\":[{\"event_type\":\"onClick\",\"script\":\"" + eventScript + "\"}],"
+                + "\"states\":[{\"name\":\"Открыт\",\"isDefault\":true}]}}";
+    }
+
+    /**
+     * Свойства/скрипты/состояния шаблон уже переживал пересохранение (см. тесты выше) —
+     * привязки и события были заведены следом за ними, тем же способом, и должны вести себя
+     * так же: не терять id и донести правку значения.
+     */
+    @Test
+    void resave_keepsIdsOfBindingAndEvent() throws Exception {
+        JsonNode created = createTemplate(treeWithBindingAndEvent(
+                "if (ST.V === 1) setState('Открыт');", "runScript('Открыть клапан');"));
+        long templateId = created.get("id").asLong();
+
+        JsonNode createdRoot = created.get("rootComponent");
+        JsonNode createdBinding = createdRoot.get("bindings").get(0);
+        assertThat(createdBinding.get("component_property_name").asText()).isEqualTo("ST");
+        assertThat(createdBinding.get("script").asText())
+                .isEqualTo("if (ST.V === 1) setState('Открыт');");
+        long bindingId = createdBinding.get("id").asLong();
+
+        JsonNode createdEvent = createdRoot.get("events").get(0);
+        assertThat(createdEvent.get("event_type").asText()).isEqualTo("onClick");
+        long eventId = createdEvent.get("id").asLong();
+
+        updateTemplate(templateId, treeWithBindingAndEvent(
+                "if (ST.V === 1) setState('Открыт2');", "runScript('Открыть клапан v2');"));
+
+        JsonNode afterRoot = getTemplate(templateId).get("rootComponent");
+        JsonNode afterBinding = afterRoot.get("bindings").get(0);
+        assertThat(afterBinding.get("id").asLong()).isEqualTo(bindingId);
+        assertThat(afterBinding.get("script").asText())
+                .as("правка скрипта биндинга должна доехать, а не потеряться вместе с пересозданием")
+                .isEqualTo("if (ST.V === 1) setState('Открыт2');");
+
+        JsonNode afterEvent = afterRoot.get("events").get(0);
+        assertThat(afterEvent.get("id").asLong()).isEqualTo(eventId);
+        assertThat(afterEvent.get("script").asText()).isEqualTo("runScript('Открыть клапан v2');");
+    }
 }
