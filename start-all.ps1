@@ -5,8 +5,9 @@
 
       -Mode host   (по умолчанию) — быстрый цикл разработки.
                    Инфраструктура на хосте (PostgreSQL/Redis/Kafka), БД шлюза и
-                   PLC-симулятор в Docker, всё остальное — своим окном на хосте
-                   через gradlew bootRun. Пересборка модуля = перезапуск окна.
+                   PLC-симулятор — тоже без Docker (см. -DockerGateway ниже),
+                   всё остальное — своим окном на хосте через gradlew bootRun.
+                   Пересборка модуля = перезапуск окна.
 
       -Mode docker — всё в контейнерах, ближе к бою. Перед сборкой образов
                    ОБЯЗАТЕЛЬНО собирает jar'ы: наши Dockerfile'ы копируют готовый
@@ -15,13 +16,30 @@
                    прошлую сборку.
 
     Источник телеметрии (оба режима):
-      по умолчанию — реальный scada-gateway: опрашивает PLC-симулятор по OPC UA и
-      Modbus и публикует все 2471 канал BN1_MCA1 в scada.tags;
-      -NoSim — без источника вовсе.
+      по умолчанию (режим host) — реальный scada-gateway БЕЗ Docker: БД шлюза —
+                   в уже поднятом хостовом PostgreSQL (scada_db на 5432), сам
+                   шлюз и PLC-симулятор — процессами на хосте, симулятор по
+                   127.0.0.1. Опрашивает симулятор по OPC UA и Modbus и
+                   публикует все 2471 канал BN1_MCA1 в scada.tags. Заведено
+                   25.08.2026 (scada-rmu): у Docker Desktop на этой машине
+                   систематически рвётся проброс порта 4840 (vpnkit/gvisor) —
+                   соединение принимается и тут же обрывается, порт 5020 рядом
+                   при этом жив. Не чинится ни docker restart, ни
+                   force-recreate контейнера, ни полным перезапуском Docker
+                   Desktop. Требует один раз: venv в plc-simulator\.venv312
+                   (Python 3.12/3.13 — pip install -r requirements.txt) — на
+                   3.14 у asyncua 1.1.8 известный баг;
+      -NoSim         — без источника вовсе;
+      -DockerGateway — прежнее поведение: БД шлюза и PLC-симулятор в Docker
+                   (только режим host; в -Mode docker и так всё в контейнерах).
+                   Если контейнер scada-gateway уже поднят с прошлого прогона
+                   (restart: unless-stopped переживает перезагрузку), он
+                   используется автоматически и без этого флага.
 
     Примеры:
-      .\start-all.ps1                     # host-режим, реальный шлюз, фронт
+      .\start-all.ps1                     # host-режим, реальный шлюз без Docker, фронт
       .\start-all.ps1 -Mode docker        # весь стенд в контейнерах
+      .\start-all.ps1 -DockerGateway      # БД шлюза и PLC-симулятор в Docker
       .\start-all.ps1 -ServicesOnly       # только сервисы, инфраструктуру не трогать
       .\start-all.ps1 -NoFrontend         # без фронта
       .\start-all.ps1 -Status             # что сейчас поднято
@@ -42,6 +60,18 @@ param(
     [string]$Mode        = 'host',
     [switch]$ServicesOnly,
     [switch]$NoSim,
+    # Прежнее поведение (до 26.08.2026): БД шлюза (scada_db) и PLC-симулятор в
+    # Docker. Отключено по умолчанию — докеровский NAT-проброс порта 4840 у
+    # Docker Desktop на этой машине систематически рвёт соединение сразу после
+    # handshake (порт 5020 рядом при этом жив), не чинится ни docker restart,
+    # ни force-recreate контейнера, ни полным перезапуском Docker Desktop
+    # (scada-rmu). По умолчанию БД — в уже поднятом хостовом PostgreSQL (5432),
+    # симулятор — питоновский процесс в своём окне на 127.0.0.1, шлюз ходит к
+    # нему напрямую, без прослойки vpnkit/gvisor. Требует заранее: venv в
+    # plc-simulator\.venv312 (Python 3.12/3.13 — на 3.11 у asyncua 1.1.8 нет
+    # известного бага, на 3.14 есть; см. plc-simulator/Dockerfile) и роль/базу
+    # scada_user/scada_db в хостовом PostgreSQL.
+    [switch]$DockerGateway,
     [switch]$NoFrontend,
     [switch]$Status,
     [switch]$Stop
@@ -49,6 +79,12 @@ param(
 
 if (-not $ProjectRoot) { $ProjectRoot = 'Z:\Claude\Projects\scada-editor-backend' }
 $ErrorActionPreference = 'Continue'
+
+# true, только если этот прогон сам поднимал Kafka с нуля (порт не слушал на
+# входе) — сигнал для Start-GatewayNative, что уже запущенный шлюз мог зависнуть
+# на мёртвом соединении и его надо перезапустить, а не считать рабочим по факту
+# открытого порта 8888.
+$KafkaJustStarted = $false
 
 $Services = @(
     @{ Name = 'auth';    Port = 8081 },
@@ -119,6 +155,38 @@ function Clear-KafkaLogDir([string]$LogDir) {
     if ($unlocked -or $stale.Count) {
         Info "Санация хранилища Kafka: снят ReadOnly с $unlocked файл(ов), удалено незавершённых $($stale.Count)"
     }
+}
+
+<#
+    Вторую половину той же грабли (KAFKA-1194) Clear-KafkaLogDir не лечит — она
+    убирает уже накопившийся мусор, но LogCleaner тут же попробует создать новый:
+    компактит __consumer_offsets через .cleaned -> .swap, переименовать файл с
+    активным mmap Windows не даёт, каталог логов помечается failed, брокер гасит
+    сам себя через несколько минут после старта. Выключаем компакцию совсем —
+    плата за это только рост __consumer_offsets, для dev-стенда не критично.
+    Конфиг лежит вне репозитория (в git его нет), поэтому патчим его сами при
+    каждом запуске — иначе правка теряется при переустановке Kafka или на новой
+    машине.
+#>
+function Disable-KafkaLogCleaner([string]$ConfigPath) {
+    if (-not (Test-Path $ConfigPath)) { return }
+    $content = Get-Content $ConfigPath -Raw
+    if ($content -match '(?m)^\s*log\.cleaner\.enable\s*=\s*false\s*$') { return }
+    if ($content -match '(?m)^\s*log\.cleaner\.enable\s*=') {
+        $patched = $content -replace '(?m)^\s*log\.cleaner\.enable\s*=.*$', 'log.cleaner.enable=false'
+    } else {
+        $block = "`r`n############################# Log Cleaner #############################`r`n`r`n" +
+                 "# Выключено намеренно: LogCleaner компактит __consumer_offsets через" +
+                 "`r`n# .cleaned -> .swap -> рабочий файл, а переименовать файл с активным mmap" +
+                 "`r`n# Windows не даёт (KAFKA-1194, открыт с 2014, не исправлен) — брокер валит" +
+                 "`r`n# все log dirs и гасится через несколько минут после старта. На Linux это" +
+                 "`r`n# не проблема, но брокер здесь нативный на Windows. Плата — __consumer_offsets" +
+                 "`r`n# растёт, а не сжимается; для dev-стенда это не критично.`r`n" +
+                 "log.cleaner.enable=false`r`n"
+        $patched = $content.TrimEnd() + "`r`n" + $block
+    }
+    Set-Content -Path $ConfigPath -Value $patched -NoNewline
+    Info 'Kafka: log.cleaner.enable=false в server.properties (KAFKA-1194 — компакция валит брокер на Windows)'
 }
 
 function Test-Docker {
@@ -193,12 +261,97 @@ function Resolve-Jdk21 {
     цикл перезапуска. Бэкфилл идемпотентен и историю телеметрии не трогает.
     Дефект шлюза; повторится на любой новой колонке примитивного типа.
 #>
+function Start-GatewayNative([string]$DbUrl, [switch]$ForceRestart) {
+    if (Test-Port 8888) {
+        if (-not $ForceRestart) {
+            Ok 'scada-gateway уже работает на хосте (8888)'
+            return
+        }
+        # Порт слушает, но Kafka мы только что подняли заново — у уже живого шлюза
+        # соединение с брокером умерло вместе с ним, а сеть при этом переустановилась
+        # молча: TCP до Kafka/OPC UA/БД выглядит живым, но публикация в scada.tags
+        # не возобновляется сама (проверено вживую 31.08.2026). Единственное лечение —
+        # перезапустить процесс целиком.
+        Warn 'scada-gateway работает, но Kafka только что перезапускалась — публикация могла зависнуть, перезапускаю шлюз'
+        Get-CimInstance Win32_Process -Filter "Name='java.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match 'SCADA-gateway' } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Seconds 2
+    }
+    $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
+               -ErrorAction SilentlyContinue |
+           Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+    $jdk = $null
+    if (-not $jar) {
+        $jdk = Resolve-Jdk21
+        if (-not $jdk) {
+            Err 'Не нашёл JDK 21 — шлюз требует именно её (наши модули под 17). Поставь JDK 21 или задай JAVA_HOME.'
+            return
+        }
+        Info "Jar шлюза не найден — собираю (JDK 21: $jdk), это займёт минуту ..."
+        $saved = $env:JAVA_HOME
+        $env:JAVA_HOME = $jdk
+        Push-Location (Join-Path $GatewayDir 'SCADA-gateway')
+        & .\mvnw.cmd -q -DskipTests package
+        Pop-Location
+        $env:JAVA_HOME = $saved
+        $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
+                   -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+    }
+    if (-not $jar) {
+        Err 'Сборка шлюза не дала jar — смотри вывод maven выше'
+        return
+    }
+    if (-not $jdk) { $jdk = Resolve-Jdk21 }
+    if (-not $jdk) {
+        Err 'Не нашёл JDK 21 — шлюз требует именно её для запуска. Поставь JDK 21 или задай JAVA_HOME.'
+        return
+    }
+    # Переопределяем только то, что в application.yaml прибито к их стенду: адрес БД
+    # и топик телеметрии (наш scada.tags). SIM_HOST/modbus.host уже дефолтятся в
+    # 127.0.0.1 — это и есть хост. send-bad-frames включаем: у нас недостоверное
+    # значение до скриптов не доходит, фронт рисует по quality (см. gwArgs выше по коду).
+    $gwArgs = @(
+        '-jar', "`"$($jar.FullName)`"",
+        "--spring.datasource.url=$DbUrl",
+        '--spring.kafka.bootstrap-servers=localhost:9092',
+        '--kafka.topics.telemetry=scada.tags',
+        '--gateway.send-bad-frames=true'
+    ) -join ' '
+    Info "Запускаю scada-gateway (BN1_MCA1 -> scada.tags, порт 8888, JDK 21: $jdk) ..."
+    $gwJava = Join-Path $jdk 'bin\java.exe'
+    Start-InWindow 'scada-gateway' (Join-Path $GatewayDir 'SCADA-gateway') "`"$gwJava`" $gwArgs"
+}
+
 function Repair-GatewayDb {
     $sql = 'UPDATE tags SET record_device = false WHERE record_device IS NULL'
     $out = docker exec scada-postgres psql -U scada_user -d scada_db -tAc $sql 2>$null
     if ($LASTEXITCODE -eq 0 -and "$out" -match 'UPDATE\s+([1-9]\d*)') {
         Ok "БД шлюза: заполнено record_device у $($Matches[1]) строк (иначе шлюз не стартует)"
     }
+}
+
+<#
+    То же самое, но для нативного PostgreSQL (запуск шлюза без Docker) — без docker exec.
+    Заодно один раз заводит роль/базу scada_user/scada_db, если их ещё нет
+    (первый прогон на новой машине).
+#>
+function Repair-GatewayDb-Native {
+    $env:PGPASSWORD = 'postgres'
+    $hasRole = psql -h localhost -p 5432 -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='scada_user'" 2>$null
+    if ("$hasRole".Trim() -ne '1') {
+        Info 'Нативный PostgreSQL: завожу роль/базу scada_user/scada_db (первый запуск без Docker) ...'
+        psql -h localhost -p 5432 -U postgres -c "CREATE ROLE scada_user LOGIN PASSWORD 'scada_password';" 2>$null | Out-Null
+        psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE scada_db OWNER scada_user;" 2>$null | Out-Null
+    }
+    $env:PGPASSWORD = 'scada_password'
+    $sql = 'UPDATE tags SET record_device = false WHERE record_device IS NULL'
+    $out = psql -h localhost -p 5432 -U scada_user -d scada_db -tAc $sql 2>$null
+    if ($LASTEXITCODE -eq 0 -and "$out" -match 'UPDATE\s+([1-9]\d*)') {
+        Ok "БД шлюза (нативная): заполнено record_device у $($Matches[1]) строк"
+    }
+    Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
 }
 
 # ============================== -Status / -Stop ==============================
@@ -389,9 +542,15 @@ if ($Mode -eq 'host') {
                     Info "Cluster ID = $id"
                     & $fmtBat format --standalone -t $id -c $cfg
                 }
+                Disable-KafkaLogCleaner $cfg
                 Clear-KafkaLogDir $logDir
                 Info 'Запускаю Kafka ...'
                 Start-InWindow 'kafka' $KafkaHome '.\bin\windows\kafka-server-start.bat .\config\server.properties'
+                # Сами подняли брокер — значит, любой уже запущенный консьюмер/продюсер
+                # (в первую очередь scada-gateway) мог остаться со сдохшим соединением
+                # и не восстановиться сам. Дальше по скрипту это флаг «перезапускай его
+                # принудительно», см. Start-GatewayNative -ForceRestart.
+                $KafkaJustStarted = $true
             }
         }
 
@@ -409,89 +568,83 @@ if ($Mode -eq 'host') {
         elseif (-not (Test-Path (Join-Path $GatewayDir 'SCADA-gateway\pom.xml'))) {
             Warn "scada-gateway не найден в $GatewayDir — укажи -GatewayDir или запусти с -NoSim"
         }
-        elseif (-not (Test-Docker)) {
-            Err 'Docker не запущен — БД шлюза и PLC-симулятор не поднять. Запусти Docker Desktop или используй -NoSim.'
-        }
-        else {
-            # Где окажется шлюз, решает не режим запуска, а факт: контейнер scada-gateway
-            # объявлен с restart: unless-stopped, поэтому однажды поднятый в docker-режиме
-            # он переживает перезагрузку и держит порт 8888 на host-стенде тоже. Раньше
-            # host-ветка безусловно анонсировала симулятору localhost, считая шлюз хостовым,
-            # и при живом контейнере весь OPC UA молча отваливался (см. Resolve-SimEndpoint).
-            $gatewayInContainer = Test-ContainerRunning 'scada-gateway'
-            $env:SCADA_SIM_ENDPOINT = Resolve-SimEndpoint $gatewayInContainer
-            $env:SCADA_GATEWAY_PATH = $GatewayDir -replace '\\', '/'
-
-            if ($gatewayInContainer) {
-                Warn 'Шлюз работает в контейнере (scada-gateway), хотя режим host.'
-                Warn "Подстраиваю анонс симулятора под него: $env:SCADA_SIM_ENDPOINT"
-                Warn 'Нужен нативный шлюз — сначала: docker rm -f scada-gateway'
-            }
-
-            Info 'Поднимаю БД шлюза и PLC-симулятор (docker compose) ...'
-            Push-Location $ProjectRoot
-            & docker compose -f docker-compose.gateway.yml up -d scada-postgres scada-simulator
-            Pop-Location
-
-            # Порт 8888 держат оба варианта шлюза, поэтому одной проверки порта мало:
-            # контейнер отличаем по имени. Заодно это экономит минуту на сборке jar,
-            # который при живом контейнере всё равно не понадобится.
-            if ($gatewayInContainer) {
-                Ok 'scada-gateway работает в контейнере (8888) — нативный не запускаю'
-                Info 'Если симулятор пересоздавался, OPC UA у шлюза переподключится сам (до ~1 минуты)'
-            }
-            elseif (Test-Port 8888) {
-                Ok 'scada-gateway уже работает на хосте (8888)'
+        elseif ($DockerGateway) {
+            if (-not (Test-Docker)) {
+                Err 'Docker не запущен — нужен для -DockerGateway. Запусти Docker Desktop или убери флаг (по умолчанию — без Docker).'
             }
             else {
-                $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
-                           -ErrorAction SilentlyContinue |
-                       Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
-                if (-not $jar) {
-                    $jdk = Resolve-Jdk21
-                    if (-not $jdk) {
-                        Err 'Не нашёл JDK 21 — шлюз требует именно её (наши модули под 17). Поставь JDK 21 или задай JAVA_HOME.'
-                    } else {
-                        Info "Jar шлюза не найден — собираю (JDK 21: $jdk), это займёт минуту ..."
-                        $saved = $env:JAVA_HOME
-                        $env:JAVA_HOME = $jdk
-                        Push-Location (Join-Path $GatewayDir 'SCADA-gateway')
-                        & .\mvnw.cmd -q -DskipTests package
-                        Pop-Location
-                        $env:JAVA_HOME = $saved
-                        $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
-                                   -ErrorAction SilentlyContinue |
-                               Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
-                    }
+                # Где окажется шлюз, решает не режим запуска, а факт: контейнер scada-gateway
+                # объявлен с restart: unless-stopped, поэтому однажды поднятый в docker-режиме
+                # он переживает перезагрузку и держит порт 8888 на host-стенде тоже. Раньше
+                # host-ветка безусловно анонсировала симулятору localhost, считая шлюз хостовым,
+                # и при живом контейнере весь OPC UA молча отваливался (см. Resolve-SimEndpoint).
+                $gatewayInContainer = Test-ContainerRunning 'scada-gateway'
+                $env:SCADA_SIM_ENDPOINT = Resolve-SimEndpoint $gatewayInContainer
+                $env:SCADA_GATEWAY_PATH = $GatewayDir -replace '\\', '/'
+
+                if ($gatewayInContainer) {
+                    Warn 'Шлюз работает в контейнере (scada-gateway), хотя режим host.'
+                    Warn "Подстраиваю анонс симулятора под него: $env:SCADA_SIM_ENDPOINT"
+                    Warn 'Нужен нативный шлюз — сначала: docker rm -f scada-gateway'
                 }
 
-                if (-not $jar) {
-                    Err 'Сборка шлюза не дала jar — смотри вывод maven выше'
-                } else {
+                Info 'Поднимаю БД шлюза и PLC-симулятор (docker compose) ...'
+                Push-Location $ProjectRoot
+                & docker compose -f docker-compose.gateway.yml up -d scada-postgres scada-simulator
+                Pop-Location
+
+                # Порт 8888 держат оба варианта шлюза, поэтому одной проверки порта мало:
+                # контейнер отличаем по имени. Заодно это экономит минуту на сборке jar,
+                # который при живом контейнере всё равно не понадобится.
+                if ($gatewayInContainer) {
+                    Ok 'scada-gateway работает в контейнере (8888) — нативный не запускаю'
+                    Info 'Если симулятор пересоздавался, OPC UA у шлюза переподключится сам (до ~1 минуты)'
+                }
+                else {
                     Info 'Жду БД шлюза (5433) и OPC UA симулятора (4840) ...'
                     Wait-Port 5433 'scada-postgres' 60 | Out-Null
                     Wait-Port 4840 'scada-simulator (OPC UA)' 90 | Out-Null
                     Repair-GatewayDb
-
-                    # Переопределяем только то, что в application.yaml прибито к их стенду:
-                    # адрес БД (у нас 5433 на хосте) и топик телеметрии (наш scada.tags).
-                    # SIM_HOST/modbus.host уже дефолтятся в 127.0.0.1 — это и есть хост.
-                    #
-                    # send-bad-frames у шлюза выключен по умолчанию: кадр с value=null опасен
-                    # для потребителя, который передаёт значение прямо в скрипт (null в JS —
-                    # falsy, и клапан нарисовался бы ЗАКРЫТЫМ вместо «нет данных»). У нас
-                    # недостоверное значение до скриптов не доходит, а фронт рисует по
-                    # quality, поэтому включаем: иначе тег на обрыве замирает на последнем
-                    # значении и выглядит живым.
-                    $gwArgs = @(
-                        '-jar', "`"$($jar.FullName)`"",
-                        '--spring.datasource.url=jdbc:postgresql://localhost:5433/scada_db',
-                        '--spring.kafka.bootstrap-servers=localhost:9092',
-                        '--kafka.topics.telemetry=scada.tags',
-                        '--gateway.send-bad-frames=true'
-                    ) -join ' '
-                    Info 'Запускаю scada-gateway (BN1_MCA1 -> scada.tags, порт 8888) ...'
-                    Start-InWindow 'scada-gateway' (Join-Path $GatewayDir 'SCADA-gateway') "java $gwArgs"
+                    Start-GatewayNative 'jdbc:postgresql://localhost:5433/scada_db' -ForceRestart:$KafkaJustStarted
+                }
+            }
+        }
+        else {
+            # По умолчанию — без Docker вообще (scada-rmu, см. шапку файла). Но если
+            # контейнер scada-gateway уже жив с прошлого прогона в -DockerGateway
+            # (restart: unless-stopped переживает перезагрузку), используем его, а не
+            # поднимаем второй нативный шлюз поверх занятого порта 8888.
+            $gatewayInContainer = (Test-Docker) -and (Test-ContainerRunning 'scada-gateway')
+            if ($gatewayInContainer) {
+                Warn 'Шлюз уже работает в контейнере (scada-gateway) — использую его вместо нативного.'
+                $env:SCADA_SIM_ENDPOINT = Resolve-SimEndpoint $true
+                $env:SCADA_GATEWAY_PATH = $GatewayDir -replace '\\', '/'
+                Info 'Поднимаю БД шлюза и PLC-симулятор (docker compose) — их требует контейнерный шлюз ...'
+                Push-Location $ProjectRoot
+                & docker compose -f docker-compose.gateway.yml up -d scada-postgres scada-simulator
+                Pop-Location
+                Ok 'scada-gateway работает в контейнере (8888) — нативный не запускаю'
+                Info 'Если симулятор пересоздавался, OPC UA у шлюза переподключится сам (до ~1 минуты)'
+            }
+            else {
+                $venvPy = Join-Path $GatewayDir 'plc-simulator\.venv312\Scripts\python.exe'
+                if (-not (Test-Path $venvPy)) {
+                    Err "Нет venv симулятора: $venvPy — один раз выполни в plc-simulator: py -3.12 -m venv .venv312; .venv312\Scripts\pip install -r requirements.txt"
+                } else {
+                    # Шлюз здесь всегда хостовый, поэтому анонс симулятора — всегда localhost.
+                    if (Test-Port 4840) {
+                        Ok 'plc-simulator (native) уже слушает 4840 — не запускаю второй'
+                    } else {
+                        Info 'Запускаю PLC-симулятор нативно (без Docker) ...'
+                        $simInner = "`$host.ui.RawUI.WindowTitle='plc-simulator (native)'; " +
+                            "Set-Location '$(Join-Path $GatewayDir 'plc-simulator')'; " +
+                            "`$env:OPCUA_ENDPOINT='opc.tcp://localhost:4840'; " +
+                            "& '$venvPy' simulator.py config\replay_config.yaml"
+                        Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoExit', '-Command', $simInner -WindowStyle Normal | Out-Null
+                    }
+                    Wait-Port 4840 'plc-simulator (native, OPC UA)' 30 | Out-Null
+                    Repair-GatewayDb-Native
+                    Start-GatewayNative 'jdbc:postgresql://localhost:5432/scada_db' -ForceRestart:$KafkaJustStarted
                 }
             }
         }
