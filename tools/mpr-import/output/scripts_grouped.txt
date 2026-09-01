@@ -1,0 +1,4746 @@
+=== тип параметра: Параметры станции ===
+  встречается 12 раз(а):
+    | if (self.allocate='C')
+    |   local tstr;
+    |   tstr := '';
+    |   if (PMain.P01=1.2)
+    |     tstr := '1.2%';
+    |   end;
+    |   if (PMain.P01=1.5)
+    |     tstr := '1.5%';
+    |   end;
+    |   if (PMain.P01=2)
+    |     tstr := '2%';
+    |   end;
+    |   PMain.P01_Str := tstr;
+    | end;
+  встречается 5 раз(а):
+    | if (self.allocate='C')
+    |   local tstr;
+    |   tstr := '';
+    |   if (PMain.P04=0.8)
+    |     tstr := '0.8%';
+    |   end;
+    |   if (PMain.P04=1.5)
+    |     tstr := '1.5%';
+    |   end;
+    |   if (PMain.P04=2)
+    |     tstr := '2%';
+    |   end;
+    |   PMain.P04_Str := tstr;
+    | end;
+  встречается 4 раз(а):
+    | if (self.allocate='C')
+    |   local tstr;
+    |   tstr := 'Не выбран';
+    |   if (PMain.P33=12)
+    |     tstr := 'Кауст.сода';
+    |   end;
+    |   if (PMain.P33=34)
+    |     tstr := 'Calgonit' + chr(13) + chr(10)+ 'CN353';
+    |   end;
+    |   if (PMain.P33=37)
+    |     tstr := 'СервоЛайн' + chr(13) + chr(10)+ 'Дез-900';
+    |   end;
+    |   if (PMain.P33=26)
+    |     tstr := 'P3 Ancept';
+    |   end;
+    |   if (PMain.P33=52)
+    |     tstr := 'Cleara CIP';
+    |   end;
+    |   PMain.P33_Str := tstr;
+    | end;
+
+=== тип параметра: Управляющие каналы линии 1 ===
+  встречается 4 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+  встречается 2 раз(а):
+    | if (self.allocate <> 'C')
+    |   if (self.pcmd<>0)
+    |     self.pcmd:=0;
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: Параметры линии 1 ===
+  встречается 20 раз(а):
+    | if (self.allocate='C')
+    |   if (self.P69=1)
+    |     self.Btn1_Auto:=0;
+    |     self.Btn1_Hand:=1;
+    |   else
+    |     self.Btn1_Auto:=1;
+    |     self.Btn1_Hand:=0;
+    |   end;
+    | end;
+  встречается 16 раз(а):
+    | if (self.allocate='C')
+    |   prj.OnNRet(self);
+    | end;
+  встречается 14 раз(а):
+    | if (self.allocate = 'S')
+    |   if (((self.P06-self.P06_1)>1) xor (self.P06Stop=1))
+    |     self.P06_1 := self.P06;
+    |   end;
+    |   if (self.P06>2)
+    |     self.P06Stop := 0;
+    |   end;
+    | end;
+  встречается 9 раз(а):
+    | if (self.allocate='C')
+    |   if (self.P80=1)
+    |     self.Btn2_Auto:=0;
+    |     self.Btn2_Hand:=1;
+    |   else
+    |     self.Btn2_Auto:=1;
+    |     self.Btn2_Hand:=0;
+    |   end;
+    | end;
+  встречается 6 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 4 раз(а):
+    | {local b;
+    | b:=prj.KodArr1;
+    | if (self.allocate='S')
+    |   self.Kod_wc := b[self.P10];
+    | end;}
+  встречается 3 раз(а):
+    | if (self.allocate = 'S')
+    |   if (((self.P08-self.P08_1)>1) xor (self.P08Stop=1))
+    |     self.P08_1 := self.P08;
+    |   end;
+    |   if (self.P08>2)
+    |     self.P08Stop := 0;
+    |   end;
+    | end;
+
+=== тип параметра: Редактируемый рецепт линии 1 ===
+  встречается 7 раз(а):
+    | if (self.allocate = 'S')
+    |   if (self.start_time <> 0)
+    |     prj.SetWashStart(self,now);
+    |     self.start_time:=0;
+    |   end;
+    | end;
+
+=== тип параметра: Статистика линии 1 ===
+  встречается 9 раз(а):
+    | if (self.allocate='C')
+    |   local tstr;
+    |   tstr := 'Не выбран';
+    |   if (PMain.P33=12)
+    |     tstr := 'Кауст.сода';
+    |   end;
+    |   if (PMain.P33=34)
+    |     tstr := 'Calgonit' + chr(13) + chr(10)+ 'CN353';
+    |   end;
+    |   if (PMain.P33=37)
+    |     tstr := 'СервоЛайн' + chr(13) + chr(10)+ 'Дез-900';
+    |   end;
+    |   if (PMain.P33=26)
+    |     tstr := 'P3 Ancept';
+    |   end;
+    |   if (PMain.P33=52)
+    |     tstr := 'Cleara CIP';
+    |   end;
+    |   PMain.P33_Str := tstr;
+    | end;
+  встречается 7 раз(а):
+    | if (self.allocate = 'S')
+    |   if (self.start_time <> 0)
+    |     prj.SetWashStart(self,now);
+    |     self.start_time:=0;
+    |   end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   local tstr;
+    |   tstr := 'Не выбран';
+    |   if (PMain.P34=11)
+    |     tstr := 'Азотн.к-та';
+    |   end;
+    |   if (PMain.P34=5)
+    |     tstr := 'P3 Horolith' + chr(13) + chr(10)+ 'CD';
+    |   end;
+    |   if (PMain.P34=35)
+    |     tstr := 'Jalu Sauer' + chr(13) + chr(10)+ 'Plus';
+    |   end;
+    |   PMain.P34_Str := tstr;
+    | end;
+
+=== тип параметра: Параметры самоочистки станции ===
+  встречается 3 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v300=1)   //вкл
+    |     hand.start_v300:=NOW;
+    |   end;
+    |   
+    |   if ((self.v300=0) and (hand.start_v300<>0))  //выкл
+    |     hand.stop_v300:=NOW;
+    |     hand.res_v300:=hand.res_v300 + ((NOW-hand.start_v300) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v100=1)   //вкл
+    |     hand.start_v100:=NOW;
+    |   end;
+    |   
+    |   if ((self.v100=0) and (hand.start_v100<>0))  //выкл
+    |     hand.stop_v100:=NOW;
+    |     hand.res_v100:=hand.res_v100 + ((NOW-hand.start_v100) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v200=1)   //вкл
+    |     hand.start_v200:=NOW;
+    |   end;
+    |   
+    |   if ((self.v200=0) and (hand.start_v200<>0))  //выкл
+    |     hand.stop_v200:=NOW;
+    |     hand.res_v200:=hand.res_v200 + ((NOW-hand.start_v200) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v400=1)   //вкл
+    |     hand.start_v400:=NOW;
+    |   end;
+    |   
+    |   if ((self.v400=0) and (hand.start_v400<>0))  //выкл
+    |     hand.stop_v400:=NOW;
+    |     hand.res_v400:=hand.res_v400 + ((NOW-hand.start_v400) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v500=1)   //вкл
+    |     hand.start_v500:=NOW;
+    |   end;
+    |   
+    |   if ((self.v500=0) and (hand.start_v500<>0))  //выкл
+    |     hand.stop_v500:=NOW;
+    |     hand.res_v500:=hand.res_v500 + ((NOW-hand.start_v500) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v600=1)   //вкл
+    |     hand.start_v600:=NOW;
+    |   end;
+    |   
+    |   if ((self.v600=0) and (hand.start_v600<>0))  //выкл
+    |     hand.stop_v600:=NOW;
+    |     hand.res_v600:=hand.res_v600 + ((NOW-hand.start_v600) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+
+=== тип параметра: SYSTEM ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   if (self.light=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.light=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: Управляющие каналы линии 2 ===
+  встречается 5 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate <> 'C')
+    |   if (self.pcmd<>0)
+    |     self.pcmd:=0;
+    |   end;
+    | end;
+
+=== тип параметра: Управляющие каналы линии 3 ===
+  встречается 5 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate <> 'C')
+    |   if (self.pcmd<>0)
+    |     self.pcmd:=0;
+    |   end;
+    | end;
+
+=== тип параметра: Параметры линии 2 ===
+  встречается 20 раз(а):
+    | if (self.allocate='C')
+    |   if (self.P69=1)
+    |     self.Btn1_Auto:=0;
+    |     self.Btn1_Hand:=1;
+    |   else
+    |     self.Btn1_Auto:=1;
+    |     self.Btn1_Hand:=0;
+    |   end;
+    | end;
+  встречается 16 раз(а):
+    | if (self.allocate='C')
+    |   prj.OnNRet(self);
+    | end;
+  встречается 14 раз(а):
+    | if (self.allocate = 'S')
+    |   if (((self.P06-self.P06_1)>1) xor (self.P06Stop=1))
+    |     self.P06_1 := self.P06;
+    |   end;
+    |   if (self.P06>2)
+    |     self.P06Stop := 0;
+    |   end;
+    | end;
+  встречается 9 раз(а):
+    | if (self.allocate='C')
+    |   if (self.P80=1)
+    |     self.Btn2_Auto:=0;
+    |     self.Btn2_Hand:=1;
+    |   else
+    |     self.Btn2_Auto:=1;
+    |     self.Btn2_Hand:=0;
+    |   end;
+    | end;
+  встречается 4 раз(а):
+    | if (self.allocate = 'S')
+    |   self.P02_DL:=self.P02-self.P21;
+    | end;
+  встречается 4 раз(а):
+    | {local b;
+    | b:=prj.KodArr1;
+    | if (self.allocate='S')
+    |   self.Kod_wc := b[self.P10];
+    | end;}
+  встречается 3 раз(а):
+    | if (self.allocate = 'S')
+    |   if (((self.P08-self.P08_1)>1) xor (self.P08Stop=1))
+    |     self.P08_1 := self.P08;
+    |   end;
+    |   if (self.P08>2)
+    |     self.P08Stop := 0;
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: Параметры линии 3 ===
+  встречается 20 раз(а):
+    | if (self.allocate='C')
+    |   if (self.P69=1)
+    |     self.Btn1_Auto:=0;
+    |     self.Btn1_Hand:=1;
+    |   else
+    |     self.Btn1_Auto:=1;
+    |     self.Btn1_Hand:=0;
+    |   end;
+    | end;
+  встречается 16 раз(а):
+    | if (self.allocate='C')
+    |   prj.OnNRet(self);
+    | end;
+  встречается 14 раз(а):
+    | if (self.allocate = 'S')
+    |   if (((self.P06-self.P06_1)>1) xor (self.P06Stop=1))
+    |     self.P06_1 := self.P06;
+    |   end;
+    |   if (self.P06>2)
+    |     self.P06Stop := 0;
+    |   end;
+    | end;
+  встречается 9 раз(а):
+    | if (self.allocate='C')
+    |   if (self.P80=1)
+    |     self.Btn2_Auto:=0;
+    |     self.Btn2_Hand:=1;
+    |   else
+    |     self.Btn2_Auto:=1;
+    |     self.Btn2_Hand:=0;
+    |   end;
+    | end;
+  встречается 4 раз(а):
+    | if (self.allocate = 'S')
+    |   self.P02_DL:=self.P02-self.P21;
+    | end;
+  встречается 4 раз(а):
+    | {local b;
+    | b:=prj.KodArr1;
+    | if (self.allocate='S')
+    |   self.Kod_wc := b[self.P10];
+    | end;}
+  встречается 3 раз(а):
+    | if (self.allocate = 'S')
+    |   if (((self.P08-self.P08_1)>1) xor (self.P08Stop=1))
+    |     self.P08_1 := self.P08;
+    |   end;
+    |   if (self.P08>2)
+    |     self.P08Stop := 0;
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: Параметры линии 4 ===
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: Параметры линии 5 ===
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: Параметры линии 6 ===
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: Статистика линии 2 ===
+  встречается 16 раз(а):
+    | if (self.allocate = 'S')
+    |   if (self.start_time <> 0)
+    |     prj.SetWashStart(self,now);
+    |     self.start_time:=0;
+    |   end;
+    | end;
+
+=== тип параметра: Статистика линии 3 ===
+  встречается 16 раз(а):
+    | if (self.allocate = 'S')
+    |   if (self.start_time <> 0)
+    |     prj.SetWashStart(self,now);
+    |     self.start_time:=0;
+    |   end;
+    | end;
+
+=== тип параметра: V_ST ===
+  встречается 66 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+  встречается 4 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;                  
+    |   
+    | end;
+
+=== тип параметра: V_M ===
+  встречается 62 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+  встречается 4 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;                  
+    |   
+    | end;
+  встречается 3 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.M = 1)
+    |       self.setframes(2,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.light=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.light=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: VC_ST ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
+=== тип параметра: VC_M ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: VC_BLINK ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
+=== тип параметра: VC_NAMUR_ST ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
+=== тип параметра: VC_OPENED ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
+=== тип параметра: VC_CLOSED ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
+=== тип параметра: M_M ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.Manual = 1)
+    |       self.setframes(7,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+
+=== тип параметра: M_ST ===
+  встречается 4 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: M_R ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: M_FRQ ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: M_RPM ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: M_EST ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: M_P_ON_TIME ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.Manual = 1)
+    |       self.setframes(7,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+
+=== тип параметра: LS_ST ===
+  встречается 13 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: LS_M ===
+  встречается 12 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: LS_V ===
+  встречается 15 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: LS_P_DT ===
+  встречается 12 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: LS_P_ERR ===
+  встречается 12 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: TE_M ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 3 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.M = 1)
+    |       self.setframes(2,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+
+=== тип параметра: TE_P_CZ ===
+  встречается 5 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.M = 1)
+    |       self.setframes(2,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: TE_ST ===
+  встречается 5 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.M = 1)
+    |       self.setframes(2,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: FS_ST ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: FS_M ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: FS_P_DT ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: FQT_ST ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_M ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_V ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_ABS_V ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_T ===
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_P_ERR_MIN_FLOW ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_DAY_T1 ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_PREV_DAY_T1 ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_DAY_T2 ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_PREV_DAY_T2 ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_P_MIN_FLOW ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_P_MAX_FLOW ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_P_CZ ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | efl325
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: FQT_P_DT ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | local s;
+    | local snl, ref;
+    | 
+    | if (self.allocate='C')
+    | 
+    |   if (self.state = -1000)
+    |     self.Repair := 1;
+    |   else
+    |     self.Repair := 0;
+    |   end; 
+    |   
+    |   self.State_str := prj.GetStateStr(self.State);
+    |   ref:= self.R('S1');
+    |   if (self.priority>1)
+    |     
+    |     if (self.State<-1)
+    |       s:=alltrim(str(-1*self.State));
+    |       snl := alltrim(str(self.line));
+    |       ref.PlayOnce('l'+snl, '_'+s);
+    |     else
+    |       if (self.State=-1)
+    |         ref.PlayOnce('stop');
+    |       else
+    |         if (self.State=0)
+    |           ref.PlayOnce('finish');
+    |         end;
+    |       end;
+    |     end;
+    |     
+    |     
+    |   end;
+    |   
+    | end;
+    | 
+    | if (self.allocate='S')
+    |   local cmd, PStat;
+    |   
+    |   cmd := 'PStat' + STR( self.Line, 1 );
+    |   PStat := &&cmd;  
+    |   
+    |   if (self.state < -1)
+    |     SIRENA.Light:=1;
+    |     PStat.str_errors := PStat.str_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' ); 
+    |     PStat.step_errors := PStat.step_errors + ALLTRIM( STR( ABS( self.state ), 3 ) + ',' );
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: LT_M ===
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v100=1)   //вкл
+    |     hand.start_v100:=NOW;
+    |   end;
+    |   
+    |   if ((self.v100=0) and (hand.start_v100<>0))  //выкл
+    |     hand.stop_v100:=NOW;
+    |     hand.res_v100:=hand.res_v100 + ((NOW-hand.start_v100) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+
+=== тип параметра: LT_P_CZ ===
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v100=1)   //вкл
+    |     hand.start_v100:=NOW;
+    |   end;
+    |   
+    |   if ((self.v100=0) and (hand.start_v100<>0))  //выкл
+    |     hand.stop_v100:=NOW;
+    |     hand.res_v100:=hand.res_v100 + ((NOW-hand.start_v100) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+
+=== тип параметра: LT_P_H_CONE ===
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v100=1)   //вкл
+    |     hand.start_v100:=NOW;
+    |   end;
+    |   
+    |   if ((self.v100=0) and (hand.start_v100<>0))  //выкл
+    |     hand.stop_v100:=NOW;
+    |     hand.res_v100:=hand.res_v100 + ((NOW-hand.start_v100) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+
+=== тип параметра: LT_P_MAX_P ===
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='S')
+    |   local cmd, hand;
+    |   
+    |   cmd := 'hand_on';
+    |   hand := &&cmd;
+    |   
+    |   if (self.v100=1)   //вкл
+    |     hand.start_v100:=NOW;
+    |   end;
+    |   
+    |   if ((self.v100=0) and (hand.start_v100<>0))  //выкл
+    |     hand.stop_v100:=NOW;
+    |     hand.res_v100:=hand.res_v100 + ((NOW-hand.start_v100) *86400);
+    |     //hand.flag_v100:=1;
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+
+=== тип параметра: LT_P_R ===
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+
+=== тип параметра: LT_P_ERR ===
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+
+=== тип параметра: QT_ST ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: QT_M ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: QT_P_CZ ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: QT_T ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: QT_P_ERR ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: SB_ST ===
+  встречается 2 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: SB_M ===
+  встречается 2 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: DI_ST ===
+  встречается 64 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 10 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(2);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: DI_M ===
+  встречается 61 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 11 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.m = 1)
+    |       self.setframes(3,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate<>'C')
+    |   Self.CLEVEL := Self.K*Self.BULK;;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.ST=-1)
+    |  Self.Animate:=True;
+    | else
+    |  Self.Animate:=False;
+    | end;
+    | 
+    | 
+    | if (self.ST=0)
+    |  self.selframe(1);
+    | end;
+    | 
+    | if (self.ST=1)   
+    |   self.selframe(2);
+    | end;
+    | 
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: DI_P_DT ===
+  встречается 1 раз(а):
+    | if (self.allocate = 'C')
+    |    if (self.m = 1)
+    |       self.setframes(3,0);
+    |    else
+    |       self.setframes(0);
+    |    end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: DO_ST ===
+  встречается 85 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: DO_M ===
+  встречается 82 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.St=1)
+    |     self.selframe(2);
+    |   end;
+    |   
+    | end;
+  встречается 4 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: AI_ST ===
+  встречается 2 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: PT_M ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: PT_P_MIN_V ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: PT_P_MAX_V ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: PT_P_ERR ===
+  встречается 3 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: HLA_ST ===
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: HLA_M ===
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: HLA_L_SIREN ===
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.light=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.light=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: HLA_L_RED ===
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C') 
+    | 
+    | if (self.State=-2)   
+    |   self.selframe(6);
+    | end;
+    | 
+    | if (self.State=-1)   
+    |   self.selframe(5);
+    | end;
+    | 
+    | if (self.State=1)
+    |    self.selframe(2);
+    |  {self.animate:=true;
+    | else
+    |  self.animate:=false;} 
+    | end;
+    | 
+    | if (self.State=0)   
+    |   self.selframe(1);
+    | end;
+    | 
+    | end;
+
+=== тип параметра: G_M ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: G_V ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: G_ST ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end; 
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: G_ERR ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end; 
+    |   
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+
+=== тип параметра: G_ST_CH ===
+  встречается 15 раз(а):
+    | function StatePar(self);
+    |   if (self.Allocate = 'C')
+    |     if ((self.ST=0) and (self.ERR=0) )
+    |       self.selframe(1);
+    |     end;
+    |     if ((self.ST=1) and (self.ERR=0) )
+    |       self.selframe(2);
+    |     end;
+    |     if ((self.ERR>0) )
+    |       self.selframe(3);
+    |     end;
+    |   end;
+    | endf;
+  встречается 8 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: G_NOMINAL_CURRENT_CH ===
+  встречается 11 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 5 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: G_LOAD_CURRENT_CH ===
+  встречается 8 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 8 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: G_SUM_CURRENTS ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: G_VOLTAGE ===
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+
+=== тип параметра: G_OUT_POWER_90 ===
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end; 
+    |   
+    | end;
+  встречается 2 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    | end;
+  встречается 1 раз(а):
+    | if (self.allocate='C')
+    |   if (self.ST=0)
+    |     Self.SelFrame(1);
+    |   end;
+    |   if (self.ST=1)
+    |     Self.SelFrame(2);
+    |   end;
+    |   if (self.ST=2)
+    |     Self.animate:=true;
+    |   end;
+    |   if (self.ST=3)
+    |     Self.SelFrame(3);
+    |   end;
+    | end;
+
+=== тип параметра: WATCHDOG_ST ===
+  встречается 8 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+
+=== тип параметра: WATCHDOG_M ===
+  встречается 5 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
+=== тип параметра: WATCHDOG_P_T_GEN ===
+  встречается 5 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
+=== тип параметра: WATCHDOG_P_T_ERR ===
+  встречается 5 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.St=0)
+    |     self.selframe(4);
+    |   end; 
+    |   
+    |     if (self.St=1)
+    |     self.selframe(1);
+    |   end;
+    |   if (self.St=-1)
+    |     self.selframe(3);
+    |   end;
+    |   
+    | end;
+  встречается 3 раз(а):
+    | if (self.allocate='C')
+    |   
+    |   if (self.State=1)
+    |     self.setframes(0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=0)
+    |     self.setframes(0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   if (self.State=-1)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;
+    |   
+    |   if (self.State=10)
+    |     self.setframes(0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=11)
+    |     self.setframes(0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-2)
+    |     self.setframes(0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-3)
+    |     self.setframes(0);
+    |     self.selframe(3);
+    |   end;             
+    | 
+    |   if (self.State=21)
+    |     self.setframes(4,0);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=20)
+    |     self.setframes(4,0);
+    |     self.selframe(1);
+    |   end;
+    |   
+    |   {if (self.State=-11)
+    |     self.setframes(4,0);
+    |     self.selframe(3); 
+    |   end;                }
+    |   
+    |   if (self.State=30)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(1);
+    |   end;
+    | 
+    |   if (self.State=31)
+    |     self.setframes(4, 0, 6);
+    |     self.selframe(2);
+    |   end;
+    |   
+    |   if (self.State=-12)
+    |     self.setframes(4, 0, 7);
+    |     self.selframe(8);
+    |   end;
+    | 
+    |   if (self.State=-13)
+    |     self.setframes(4, 0);
+    |     self.selframe(3);
+    |   end;             
+    |   
+    | end;
+
