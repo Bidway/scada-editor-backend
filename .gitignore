@@ -56,3 +56,5 @@ CLAUDE.md
 .codex/
 .agents/
 .cursor/
+/.beads/
+/.playwright-mcp/
