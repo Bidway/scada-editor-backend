@@ -39,8 +39,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * Скрипту доступны переменные {@code tag} (новое значение тега, только для onChange)
  * и {@code props} — мутируемый объект текущих значений свойств компонента по имени;
  * изменения {@code props.xxx = ...} после выполнения превращаются в PROPERTY_UPDATE.
- * Плюс функция {@code writeTag(propertyName, value)} — запись тега в ПЛК
- * (см. {@link TagWriteSink}); сама отправка происходит уже вне движка.
+ * Плюс три функции записи тега в ПЛК (см. {@link ScriptWriteSinks}; сама отправка происходит
+ * уже вне движка):
+ * <ul>
+ *   <li>{@code writeTag(propertyName, value)} — по имени свойства текущего компонента;</li>
+ *   <li>{@code writeTagPath(fullTagPath, value)} — по абсолютному пути тега, любого проекта;</li>
+ *   <li>{@code writeProjectTag(shortTagPath, value)} — по короткому пути в рамках текущего
+ *       проекта (общий префикс проекта подставляется автоматически).</li>
+ * </ul>
  */
 @Service
 @Slf4j
@@ -136,8 +142,11 @@ public class ScriptEngineService {
             ctx.getBindings("js").putMember("tag", 0);
             ctx.getBindings("js").putMember("props", new MapProxyObject(new HashMap<>()));
             ctx.getBindings("js").putMember("writeTag", writeTagFunction(TagWriteSink.NOOP));
+            ctx.getBindings("js").putMember("writeTagPath", writeTagFunction(TagWriteSink.NOOP));
+            ctx.getBindings("js").putMember("writeProjectTag", writeTagFunction(TagWriteSink.NOOP));
             ctx.eval(Source.create("js",
-                    "typeof tag; typeof props; props.__warm = tag; writeTag('__warm', tag);"));
+                    "typeof tag; typeof props; props.__warm = tag; writeTag('__warm', tag); "
+                            + "writeTagPath('__warm', tag); writeProjectTag('__warm', tag);"));
         } catch (Exception e) {
             log.warn("Script context warm-up failed (continuing): {}", e.getMessage());
         }
@@ -164,24 +173,24 @@ public class ScriptEngineService {
      * Возвращает мутированную копию {@code props} — вызывающий сам вычисляет diff.
      */
     public Map<String, Object> runOnChange(String scriptSource, Object tagValue, Map<String, Object> props,
-                                           TagWriteSink writeSink) {
-        return execute(scriptSource, tagValue, props, writeSink, false);
+                                            ScriptWriteSinks writeSinks) {
+        return execute(scriptSource, tagValue, props, writeSinks, false);
     }
 
     /** Выполняет компонентный Script по действию с фронта (нажатие кнопки и т.п.). */
-    public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, TagWriteSink writeSink) {
-        return execute(scriptSource, null, props, writeSink, true);
+    public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks) {
+        return execute(scriptSource, null, props, writeSinks, true);
     }
 
     private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
-                                        TagWriteSink writeSink, boolean forAction) {
+                                        ScriptWriteSinks writeSinks, boolean forAction) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return props;
         }
         Source source = sourceCache.computeIfAbsent(scriptSource,
                 s -> Source.create("js", s));
 
-        TagWriteSink sink = writeSink != null ? writeSink : TagWriteSink.NOOP;
+        ScriptWriteSinks sinks = writeSinks != null ? writeSinks : ScriptWriteSinks.NOOP;
         Borrowed borrowed = borrow(forAction);
         Context ctx = borrowed.ctx();
         AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -189,7 +198,9 @@ public class ScriptEngineService {
             try {
                 ctx.getBindings("js").putMember("tag", tagValue);
                 ctx.getBindings("js").putMember("props", new MapProxyObject(props));
-                ctx.getBindings("js").putMember("writeTag", writeTagFunction(sink));
+                ctx.getBindings("js").putMember("writeTag", writeTagFunction(sinks.byProperty()));
+                ctx.getBindings("js").putMember("writeTagPath", writeTagFunction(sinks.byPath()));
+                ctx.getBindings("js").putMember("writeProjectTag", writeTagFunction(sinks.byProjectTag()));
                 ctx.eval(source);
             } catch (Throwable t) {
                 failure.set(t);

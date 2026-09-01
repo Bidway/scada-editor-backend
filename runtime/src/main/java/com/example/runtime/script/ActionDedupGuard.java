@@ -1,6 +1,7 @@
 package com.example.runtime.script;
 
 import com.example.runtime.config.RuntimeProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -32,6 +33,7 @@ public class ActionDedupGuard {
                 }
             });
 
+    @Autowired
     public ActionDedupGuard(RuntimeProperties properties) {
         this(properties.getScript().getActionMinIntervalMs(), Clock.systemUTC());
     }

@@ -47,7 +47,7 @@ class GraalPropsMutationTest {
         Map<String, Object> props = new LinkedHashMap<>();
         props.put("arr", new ArrayList<>(List.of(1, 2, 3)));
 
-        engine.runAction("props.arr[0] = 99;", props, TagWriteSink.NOOP);
+        engine.runAction("props.arr[0] = 99;", props, ScriptWriteSinks.NOOP);
 
         List<?> arr = (List<?>) props.get("arr");
         assertThat(((Number) arr.get(0)).intValue()).isEqualTo(99);
@@ -62,7 +62,7 @@ class GraalPropsMutationTest {
         nested.put("x", 5);
         props.put("obj", nested);
 
-        engine.runAction("props.obj.y = 'hi';", props, TagWriteSink.NOOP);
+        engine.runAction("props.obj.y = 'hi';", props, ScriptWriteSinks.NOOP);
 
         assertThat(nested).containsEntry("y", "hi");
         assertThat(props.get("obj"))
@@ -80,7 +80,7 @@ class GraalPropsMutationTest {
         rows.add(inner);
         props.put("rows", rows);
 
-        engine.runAction("props.rows[0].value = 42;", props, TagWriteSink.NOOP);
+        engine.runAction("props.rows[0].value = 42;", props, ScriptWriteSinks.NOOP);
 
         assertThat(((Number) inner.get("value")).intValue()).isEqualTo(42);
     }
@@ -95,7 +95,7 @@ class GraalPropsMutationTest {
         Map<String, Object> props = new LinkedHashMap<>();
         props.put("arr", new ArrayList<>(List.of(1, 2, 3)));
 
-        engine.runAction("props.same = (props.arr === props.arr);", props, TagWriteSink.NOOP);
+        engine.runAction("props.same = (props.arr === props.arr);", props, ScriptWriteSinks.NOOP);
 
         assertThat(props.get("same")).isEqualTo(true);
     }
@@ -108,7 +108,7 @@ class GraalPropsMutationTest {
         List<Object> original = new ArrayList<>(List.of(1, 2, 3));
         props.put("arr", original);
 
-        engine.runAction("props.arr = [7, 8]; props.arr[0] = 99;", props, TagWriteSink.NOOP);
+        engine.runAction("props.arr = [7, 8]; props.arr[0] = 99;", props, ScriptWriteSinks.NOOP);
 
         List<?> arr = (List<?>) props.get("arr");
         assertThat(arr).hasSize(2);
