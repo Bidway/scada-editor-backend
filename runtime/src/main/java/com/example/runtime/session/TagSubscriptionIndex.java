@@ -31,6 +31,12 @@ public class TagSubscriptionIndex {
     private final Map<Long, Object> initialPropertyValues = new ConcurrentHashMap<>();
     private final Set<String> allTagIds = new HashSet<>();
 
+    /**
+     * Общий префикс путей всех тегов проекта (для {@code writeProjectTag} из скрипта),
+     * посчитан один раз при построении — см. {@link #computeProjectTagPrefix}.
+     */
+    private String projectTagPrefix = "";
+
     public static TagSubscriptionIndex build(EditorComponentDto root) {
         TagSubscriptionIndex index = new TagSubscriptionIndex();
         Deque<EditorComponentDto> queue = new ArrayDeque<>();
@@ -45,6 +51,7 @@ public class TagSubscriptionIndex {
                 queue.addAll(component.getChildren());
             }
         }
+        index.projectTagPrefix = computeProjectTagPrefix(index.allTagIds);
         return index;
     }
 
@@ -149,5 +156,61 @@ public class TagSubscriptionIndex {
 
     public Map<Long, Object> getInitialPropertyValues() {
         return initialPropertyValues;
+    }
+
+    /**
+     * Достраивает короткий путь тега (без общего префикса проекта, например
+     * {@code FQT_ST.LINE1FQT1.ST}) до полного ({@code Барановичи-1.BN1_MCA1.FQT_ST.LINE1FQT1.ST})
+     * для {@code writeProjectTag} из скрипта. Полный путь, уже начинающийся с этого префикса,
+     * возвращается как есть — без двойного дописывания. Если у проекта ещё нет ни одного
+     * известного тега (свежий проект без теговых свойств), префикс пуст и путь возвращается
+     * без изменений — тогда единственный рабочий вариант это {@code writeTagPath} с полным путём.
+     */
+    public String resolveTagPath(String path) {
+        if (path == null) {
+            return null;
+        }
+        String trimmed = path.trim();
+        if (projectTagPrefix.isEmpty() || trimmed.startsWith(projectTagPrefix + ".")) {
+            return trimmed;
+        }
+        return projectTagPrefix + "." + trimmed;
+    }
+
+    /**
+     * Общий префикс проекта — наибольший общий по сегментам (через точку) префикс среди
+     * всех известных {@code tag_id}. Все теги одного проекта на практике идут с одного узла
+     * ПЛК (сайт+узел), поэтому это работает без похода в {@code channel} — вопреки соблазну,
+     * туда обращаться нельзя (см. CLAUDE.md).
+     * <p>
+     * Префикс намеренно никогда не занимает больше, чем (минимум сегментов среди тегов − 1):
+     * без этой защиты бедное разнообразие тегов в проекте (один-единственный тег, или
+     * несколько свойств, привязанных к одному и тому же тегу) дало бы префикс, совпадающий
+     * с целым тегом, — и обратная операция ({@code writeProjectTag} с пустым остатком или с
+     * последним сегментом) молча ломалась бы задвоением всего пути.
+     */
+    private static String computeProjectTagPrefix(Set<String> tagIds) {
+        if (tagIds.isEmpty()) {
+            return "";
+        }
+        String[] common = null;
+        int minSegments = Integer.MAX_VALUE;
+        for (String tagId : tagIds) {
+            String[] segments = tagId.split("\\.");
+            minSegments = Math.min(minSegments, segments.length);
+            common = common == null ? segments : commonLeadingSegments(common, segments);
+        }
+        int cap = Math.max(0, minSegments - 1);
+        int length = Math.min(common.length, cap);
+        return length == 0 ? "" : String.join(".", java.util.Arrays.copyOf(common, length));
+    }
+
+    private static String[] commonLeadingSegments(String[] a, String[] b) {
+        int n = Math.min(a.length, b.length);
+        int i = 0;
+        while (i < n && a[i].equals(b[i])) {
+            i++;
+        }
+        return java.util.Arrays.copyOf(a, i);
     }
 }

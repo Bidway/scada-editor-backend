@@ -116,7 +116,7 @@ public class RuntimeSessionService {
         Map<String, Object> after;
         try {
             after = scriptEngineService.runAction(
-                    script.source(), props, tagCommandService.sinkFor(session, script.componentId()));
+                    script.source(), props, tagCommandService.sinksFor(session, script.componentId()));
         } catch (Exception e) {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
             return List.of();

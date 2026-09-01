@@ -42,10 +42,10 @@ class GraalPropsArrayTest {
     void arrayPropertySurvivesBetweenRuns() {
         Map<String, Object> props = new LinkedHashMap<>();
 
-        engine.runAction("props.arr = [1, 2, 3];", props, TagWriteSink.NOOP);
+        engine.runAction("props.arr = [1, 2, 3];", props, ScriptWriteSinks.NOOP);
         assertThat(props.get("arr")).isInstanceOf(java.util.List.class);
 
-        engine.runAction("props.readBack = props.arr[0];", props, TagWriteSink.NOOP);
+        engine.runAction("props.readBack = props.arr[0];", props, ScriptWriteSinks.NOOP);
 
         // Сравниваем по числовому значению, а не по классу: GraalValues.toJava в этой
         // сборке GraalJS отдаёт числа как Double независимо от того, целые они или нет
@@ -60,10 +60,10 @@ class GraalPropsArrayTest {
     void objectPropertySurvivesBetweenRuns() {
         Map<String, Object> props = new LinkedHashMap<>();
 
-        engine.runAction("props.obj = { x: 5, y: 'hi' };", props, TagWriteSink.NOOP);
+        engine.runAction("props.obj = { x: 5, y: 'hi' };", props, ScriptWriteSinks.NOOP);
         assertThat(props.get("obj")).isInstanceOf(Map.class);
 
-        engine.runAction("props.readBack = props.obj.x;", props, TagWriteSink.NOOP);
+        engine.runAction("props.readBack = props.obj.x;", props, ScriptWriteSinks.NOOP);
 
         assertThat(props.get("readBack")).isInstanceOf(Number.class);
         assertThat(((Number) props.get("readBack")).doubleValue()).isEqualTo(5.0);
