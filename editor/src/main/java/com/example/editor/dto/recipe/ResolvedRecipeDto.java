@@ -17,7 +17,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ResolvedRecipeDto {
-    private Long recipe_id;
+    private String recipe_id;
     private Long component_id;
     private List<ResolvedRecipeValueDto> values;
     private List<String> unmatched_rows;

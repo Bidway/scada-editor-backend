@@ -13,8 +13,9 @@ import java.util.List;
 /**
  * CRUD именованных наборов значений для таблиц-компонентов — рецептов, параметров станции и
  * т.п. (различаются полем {@code type}). Наборы задаются заранее (design-time); рантайм
- * применяет их через {@code GET /{id}/resolved} — запись в теги, а для строк без тега — в
- * состояние сессии (см. runtime).
+ * применяет их через {@code GET /{id}/resolved} — запись в теги, а для значений без тега — в
+ * состояние сессии (см. runtime). Хранилище — файлы ({@code RecipeFileStore}), контракт REST
+ * не меняется.
  */
 @RestController
 @RequestMapping("/api/editor/recipes")
@@ -24,23 +25,18 @@ public class RecipeController {
     private final RecipeService service;
 
     @PostMapping
-    public RecipeResponseDto create(
-            @Valid @RequestBody RecipeCreateDto dto,
-            @RequestHeader("X-Username") String userName) {
-        return service.create(dto, userName);
+    public RecipeResponseDto create(@Valid @RequestBody RecipeCreateDto dto) {
+        return service.create(dto);
     }
 
     @PutMapping("/{id}")
-    public RecipeResponseDto update(
-            @PathVariable Long id,
-            @Valid @RequestBody RecipeCreateDto dto,
-            @RequestHeader("X-Username") String userName) {
-        return service.update(id, dto, userName);
+    public RecipeResponseDto update(@PathVariable String id, @Valid @RequestBody RecipeCreateDto dto) {
+        return service.update(id, dto);
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id, @RequestHeader("X-Username") String userName) {
-        service.delete(id, userName);
+    public void delete(@PathVariable String id) {
+        service.delete(id);
     }
 
     @GetMapping
@@ -49,12 +45,12 @@ public class RecipeController {
     }
 
     @GetMapping("/{id}")
-    public RecipeResponseDto get(@PathVariable Long id) {
+    public RecipeResponseDto get(@PathVariable String id) {
         return service.get(id);
     }
 
     @GetMapping("/{id}/resolved")
-    public ResolvedRecipeDto resolved(@PathVariable Long id) {
+    public ResolvedRecipeDto resolved(@PathVariable String id) {
         return service.resolve(id);
     }
 }

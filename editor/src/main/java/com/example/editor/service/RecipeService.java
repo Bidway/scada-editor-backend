@@ -8,20 +8,20 @@ import java.util.List;
 
 public interface RecipeService {
 
-    RecipeResponseDto create(RecipeCreateDto dto, String userName);
+    RecipeResponseDto create(RecipeCreateDto dto);
 
-    RecipeResponseDto update(Long id, RecipeCreateDto dto, String userName);
+    RecipeResponseDto update(String id, RecipeCreateDto dto);
 
-    void delete(Long id, String userName);
+    void delete(String id);
 
     List<RecipeResponseDto> listByComponent(Long componentId);
 
-    RecipeResponseDto get(Long id);
+    RecipeResponseDto get(String id);
 
     /**
-     * Значения набора, дополненные тегом и типом строки (сопоставление по имени строки), —
-     * для применения рантаймом. Строки набора, которых в таблице больше нет, возвращаются
-     * отдельным списком, а не отбрасываются.
+     * Значения набора, дополненные тегом и типом (сопоставление по имени свойства), — для
+     * применения рантаймом. Значения набора, которым в таблице больше нет соответствующего
+     * свойства, возвращаются отдельным списком, а не отбрасываются.
      */
-    ResolvedRecipeDto resolve(Long id);
+    ResolvedRecipeDto resolve(String id);
 }
