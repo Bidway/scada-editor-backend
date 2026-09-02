@@ -46,7 +46,7 @@ public class RecipeApplyService {
     private final CommandProducer commandProducer;
     private final RuntimeSessionService sessionService;
 
-    public ApplyRecipeResult apply(Long recipeId, String sessionId) {
+    public ApplyRecipeResult apply(String recipeId, String sessionId) {
         ResolvedRecipe resolved = editorClient.getResolvedRecipe(recipeId);
         if (resolved == null) {
             log.warn("Recipe {} resolved to nothing", recipeId);
@@ -65,23 +65,23 @@ public class RecipeApplyService {
             } catch (IllegalArgumentException e) {
                 // Негодное значение — это дефект строки набора, а не всего рецепта:
                 // остальные уставки применяем, эту помечаем как неудавшуюся.
-                log.warn("Recipe {} row '{}': {}", recipeId, value.rowName(), e.getMessage());
-                failures.add(new FailedRow(value.rowName(), FailedRow.INVALID_VALUE, e.getMessage()));
+                log.warn("Recipe {} row '{}': {}", recipeId, value.propertyName(), e.getMessage());
+                failures.add(new FailedRow(value.propertyName(), FailedRow.INVALID_VALUE, e.getMessage()));
                 continue;
             }
             if (value.isLocal()) {
                 boolean applied = hasSession(sessionId)
                         && sessionService.applyLocalProperty(
-                                sessionId, resolved.componentId(), value.rowName(), coerced);
+                                sessionId, resolved.componentId(), value.propertyName(), coerced);
                 if (applied) {
                     localApplied++;
                 } else if (!hasSession(sessionId)) {
                     log.warn("Recipe {} has local row '{}' but request carries no sessionId",
-                            recipeId, value.rowName());
-                    failures.add(new FailedRow(value.rowName(), FailedRow.NO_SESSION,
+                            recipeId, value.propertyName());
+                    failures.add(new FailedRow(value.propertyName(), FailedRow.NO_SESSION,
                             "Локальная строка требует открытой сессии мониторинга"));
                 } else {
-                    failures.add(new FailedRow(value.rowName(), FailedRow.NO_SESSION,
+                    failures.add(new FailedRow(value.propertyName(), FailedRow.NO_SESSION,
                             "Свойство не найдено в сессии"));
                 }
             } else {
@@ -89,7 +89,7 @@ public class RecipeApplyService {
                 // дождёмся подтверждений, — иначе отчёт оператору был бы выдан раньше,
                 // чем команда покинула процесс.
                 pending.add(new PendingCommand(
-                        value.rowName(), commandProducer.send(value.tagId(), coerced)));
+                        value.propertyName(), commandProducer.send(value.tagId(), coerced)));
             }
         }
 
@@ -141,7 +141,7 @@ public class RecipeApplyService {
      * ожидания разрешатся сами, и все команды выглядели бы неподтверждёнными. Исключения
      * не пробрасываем — исход каждой команды разбирается по её future.
      */
-    private static void awaitAcknowledgements(List<PendingCommand> pending, Long recipeId) {
+    private static void awaitAcknowledgements(List<PendingCommand> pending, String recipeId) {
         if (pending.isEmpty()) {
             return;
         }

@@ -20,7 +20,7 @@ import java.util.List;
  *                      расшифровкой; поле добавлено рядом со старым, чтобы не ломать
  *                      уже работающий экран применения набора
  */
-public record ApplyRecipeResult(Long recipeId,
+public record ApplyRecipeResult(String recipeId,
                                 int total,
                                 int sent,
                                 int localApplied,

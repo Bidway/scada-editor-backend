@@ -1,14 +1,14 @@
 package com.example.runtime.dto;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /** Запрос на применение набора. Значения не передаются — рантайм берёт их из editor по recipeId. */
 @Data
 public class ApplyRecipeRequest {
 
-    @NotNull
-    private Long recipeId;
+    @NotBlank
+    private String recipeId;
 
     /**
      * Сессия мониторинга, в которой применяется набор. Нужна только для строк без тега:

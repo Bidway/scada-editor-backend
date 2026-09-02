@@ -33,7 +33,7 @@ public class EditorClient {
     }
 
     /** Резолв значений набора для применения. Вызывается по действию оператора. */
-    public ResolvedRecipe getResolvedRecipe(Long recipeId) {
+    public ResolvedRecipe getResolvedRecipe(String recipeId) {
         log.debug("Fetching resolved recipe {} from editor", recipeId);
         return restClient.get()
                 .uri("/api/editor/recipes/{id}/resolved", recipeId)
