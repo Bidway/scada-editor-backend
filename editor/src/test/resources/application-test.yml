@@ -16,3 +16,5 @@ editor:
     autosave-retention-days: 30
     # 29 февраля — задача не должна срабатывать сама посреди прогона, в тесте её зовут руками.
     retention-cron: "0 0 0 29 2 ?"
+  recipes:
+    storage-path: ./build/test-data/recipes
