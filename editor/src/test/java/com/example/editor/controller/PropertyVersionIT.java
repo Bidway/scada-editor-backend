@@ -1,22 +1,18 @@
 package com.example.editor.controller;
 
-import com.example.editor.model.recipe.RecipeValue;
-import com.example.editor.repository.recipe.RecipeValueRepository;
 import com.example.editor.support.EditorApiTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -31,9 +27,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PropertyVersionIT extends EditorApiTestSupport {
-
-    @Autowired
-    private RecipeValueRepository recipeValueRepository;
 
     @Test
     @DisplayName("Создание свойства пишет новую версию сцены")
@@ -99,19 +92,19 @@ class PropertyVersionIT extends EditorApiTestSupport {
     }
 
     /**
-     * Точечная правка — единственное место, где переименование строки набора отличимо от пары
+     * Точечная правка — единственное место, где переименование значения набора отличимо от пары
      * «удалили строку, добавили другую», и потому единственное, откуда зовётся
-     * {@code RecipeValueRepository.renameRow}. Без набора с этим именем ветка {@code moved > 0}
+     * {@code RecipeFileStore.renameProperty}. Без набора с этим именем ветка {@code moved > 0}
      * не исполняется вовсе: тест, проверяющий только номер версии, зелен и на коде, где переноса
      * нет.
      */
     @Test
-    @DisplayName("Переименование свойства переносит значения наборов на новое имя строки")
+    @DisplayName("Переименование свойства переносит значения наборов на новое имя")
     void update_renamingProperty_movesRecipeValues() throws Exception {
         long sceneId = newScene();
         long componentId = componentInScene(sceneId);
         long propertyId = createProperty(componentId, "speed", currentVersion(sceneId, "scenes"));
-        long recipeId = createRecipe(componentId, "speed", "10");
+        String recipeId = createRecipe(componentId, "speed", "10");
         int before = currentVersion(sceneId, "scenes");
 
         mockMvc.perform(put("/api/editor/properties/" + propertyId)
@@ -120,13 +113,12 @@ class PropertyVersionIT extends EditorApiTestSupport {
                         .content(propertyJson(componentId, "velocity", before)))
                 .andExpect(status().isOk());
 
-        assertThat(valuesOf(recipeId))
-                .as("значение набора обязано переехать на новое имя строки, а не осиротеть")
-                .singleElement()
-                .satisfies(value -> {
-                    assertEquals("velocity", value.getRowName());
-                    assertEquals("10", value.getValue());
-                });
+        JsonNode values = valuesOf(recipeId);
+        assertThat(values)
+                .as("значение набора обязано переехать на новое имя свойства, а не осиротеть")
+                .hasSize(1);
+        assertEquals("velocity", values.get(0).get("property_name").asText());
+        assertEquals("10", values.get(0).get("value").asText());
         assertEquals(before + 1, currentVersion(sceneId, "scenes"));
     }
 
@@ -219,24 +211,24 @@ class PropertyVersionIT extends EditorApiTestSupport {
         return objectMapper.readTree(body).get("id").asLong();
     }
 
-    /** Набор с одной строкой, привязанной к свойству по имени: {@code row_name} — это и есть имя. */
-    private long createRecipe(long componentId, String rowName, String value) throws Exception {
+    /** Набор с одним значением, привязанным к свойству по имени. */
+    private String createRecipe(long componentId, String propertyName, String value) throws Exception {
         String body = mockMvc.perform(post("/api/editor/recipes")
-                        .header("X-Username", USER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name": "Партия A", "component_id": %d,
-                                 "values": [{"row_name": "%s", "value": "%s"}]}
-                                """.formatted(componentId, rowName, value)))
+                                 "values": [{"property_name": "%s", "value": "%s"}]}
+                                """.formatted(componentId, propertyName, value)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("id").asLong();
+        return objectMapper.readTree(body).get("id").asText();
     }
 
-    private List<RecipeValue> valuesOf(long recipeId) {
-        return recipeValueRepository.findAll().stream()
-                .filter(v -> v.getRecipe() != null && recipeId == v.getRecipe().getId())
-                .toList();
+    private JsonNode valuesOf(String recipeId) throws Exception {
+        String body = mockMvc.perform(get("/api/editor/recipes/" + recipeId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).get("values");
     }
 
     /**
