@@ -10,7 +10,7 @@ import java.util.List;
  * (их значения применять не к чему, но и терять молча нельзя — они попадают в отчёт).
  */
 public record ResolvedRecipe(
-        @JsonProperty("recipe_id") Long recipeId,
+        @JsonProperty("recipe_id") String recipeId,
         @JsonProperty("component_id") Long componentId,
         @JsonProperty("values") List<ResolvedRecipeValue> values,
         @JsonProperty("unmatched_rows") List<String> unmatchedRows) {

@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * а кладётся в состояние свойства в сессии — строка адресуется по {@code rowName}.
  */
 public record ResolvedRecipeValue(
-        @JsonProperty("row_name") String rowName,
+        @JsonProperty("property_name") String propertyName,
         @JsonProperty("value") String value,
         @JsonProperty("value_type") String valueType,
         @JsonProperty("tag_id") String tagId) {
