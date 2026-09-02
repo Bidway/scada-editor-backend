@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ResolvedRecipeValueDto {
-    private String row_name;
+    private String property_name;
     private String value;
     private String value_type;
     private String tag_id;
