@@ -115,6 +115,11 @@ public class TemplateService {
     /**
      * Сборка ответа из сущности. Раньше эти семь строк лежали в файле четырьмя копиями, и копии
      * уже разошлись: чтение проверяло {@code rootComponent} на null, запись — нет.
+     * <p>
+     * {@code version_no} читается тем же {@link DocumentVersionService}, которым он и пишется —
+     * не хранить же его дублем на сущности. Без этого поля GET отдавал {@code null}, фронт терял
+     * {@code based_on_version} после первой же перезагрузки палитры, и следующее сохранение
+     * навсегда упиралось в «based_on_version is required».
      */
     private TemplateResponseDto toResponse(TemplateFacePlate template) {
         TemplateResponseDto dto = new TemplateResponseDto();
@@ -124,6 +129,7 @@ public class TemplateService {
         if (template.getRootComponent() != null) {
             dto.setRootComponent(componentMapper.toDtoTree(template.getRootComponent()));
         }
+        dto.setVersion_no(versionService.currentVersionNo(DocumentType.TEMPLATE, template.getId()));
         return dto;
     }
 }
