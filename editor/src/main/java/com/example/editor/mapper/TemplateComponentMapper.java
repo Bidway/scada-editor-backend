@@ -77,7 +77,7 @@ public class TemplateComponentMapper {
                                        TemplateFacePlate template,
                                        TemplateComponent parent) {
         TemplateComponent entity = existing != null ? existing : new TemplateComponent();
-        entity.setName(requireName(dto.getName()));
+        entity.setName(resolveName(dto.getName()));
         entity.setType(dto.getType());
         entity.setTemplate(template);
         entity.setParent(parent);
@@ -96,7 +96,7 @@ public class TemplateComponentMapper {
         Set<TemplateComponent> matched = new HashSet<>();
         Map<String, Integer> incomingSeen = new HashMap<>();
         for (TemplateComponentCreateDto childDto : childDtos) {
-            String name = requireName(childDto.getName());
+            String name = resolveName(childDto.getName());
             TemplateComponent existingChild = existingByKey.get(siblingKey(name, incomingSeen));
             if (existingChild != null) {
                 matched.add(existingChild);
@@ -120,10 +120,18 @@ public class TemplateComponentMapper {
         return name + "#" + occurrence;
     }
 
-    /** Имя здесь и ключ сопоставления, и обязательная колонка — пустое не пропускаем. */
-    private String requireName(String name) {
+    /**
+     * Имя — это и ключ сопоставления, и обязательная колонка, но у фронта нет поля для
+     * названия отдельных примитивов внутри компонента (оно есть только у корня) — рисуешь
+     * многоугольник/линию, и {@code buildPaletteComponentTree} шлёт для него пустую строку
+     * (`element.label ?? ""`). Раньше это падало в 500 на самом первом сохранении шаблона
+     * с более чем одним примитивом. Заглушка — то же имя, что уже лежит в базе у старых
+     * шаблонов, созданных до этой проверки (там оба примитива клапана буквально
+     * называются {@code Element}), так что siblingKey по-прежнему разводит их occurrence'ом.
+     */
+    private String resolveName(String name) {
         if (name == null || name.isBlank()) {
-            throw new IllegalStateException("Template component name is required");
+            return "Element";
         }
         return name.trim();
     }
