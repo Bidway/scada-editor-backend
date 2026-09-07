@@ -13,4 +13,5 @@ public class ScriptCreateDto {
     private Long id;
     private String name;
     private String script;
+    private Boolean displayed;
 }

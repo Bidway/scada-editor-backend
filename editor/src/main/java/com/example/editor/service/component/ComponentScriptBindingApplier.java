@@ -361,6 +361,7 @@ public class ComponentScriptBindingApplier {
             }
             target.setName(name);
             target.setScript(s.getScript());
+            target.setDisplayed(Boolean.TRUE.equals(s.getDisplayed()));
             if (target.getId() != null) {
                 keptIds.add(target.getId());
             }

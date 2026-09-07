@@ -33,4 +33,7 @@ public class Script {
 
     @Column(columnDefinition = "text")
     private String script;
+
+    @Column(nullable = false)
+    private Boolean displayed = false;
 }
