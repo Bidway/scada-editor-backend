@@ -71,6 +71,7 @@ public class TemplateComponentDataApplier {
             }
             target.setName(name);
             target.setScript(s.getScript());
+            target.setDisplayed(Boolean.TRUE.equals(s.getDisplayed()));
             incoming.add(target);
         }
         replace(entity.getScripts(), incoming, seenNames, TemplateScript::getName, TemplateScript::getId);

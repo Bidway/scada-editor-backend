@@ -7,4 +7,5 @@ public class ScriptResponseDto {
     private Long id;
     private String name;
     private String script;
+    private Boolean displayed;
 }
