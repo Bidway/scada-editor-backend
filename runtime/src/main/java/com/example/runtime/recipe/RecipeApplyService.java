@@ -7,6 +7,7 @@ import com.example.runtime.dto.ApplyRecipeResult;
 import com.example.runtime.dto.FailedRow;
 import com.example.runtime.kafka.CommandOutcome;
 import com.example.runtime.kafka.CommandProducer;
+import com.example.runtime.kafka.ValueCoercion;
 import com.example.runtime.session.RuntimeSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +62,7 @@ public class RecipeApplyService {
         for (ResolvedRecipeValue value : values) {
             Object coerced;
             try {
-                coerced = coerce(value.value(), value.valueType());
+                coerced = ValueCoercion.coerce(value.value(), value.valueType());
             } catch (IllegalArgumentException e) {
                 // Негодное значение — это дефект строки набора, а не всего рецепта:
                 // остальные уставки применяем, эту помечаем как неудавшуюся.
@@ -161,71 +162,4 @@ public class RecipeApplyService {
         }
     }
 
-    /**
-     * Строку набора приводим к Java-типу по объявленному {@code value_type} строки: в JSON
-     * команды значение уедет числом, булевым или строкой, а тип узла подставит шлюз из своей
-     * конфигурации тега (см. {@link CommandProducer}). Непарсящееся под тип значение отдаём
-     * строкой — решит драйвер.
-     * <p>
-     * Исключение — boolean: здесь молча отдать строку нельзя. Дискретный тег — это клапан или
-     * пуск/стоп механизма, и {@code Boolean.valueOf} на нераспознанном значении вернул бы
-     * {@code false}, то есть <b>противоположную</b> уставку, без единого признака ошибки.
-     * Поэтому набор допустимых написаний задан явно, а всё остальное — ошибка строки.
-     */
-    private Object coerce(String value, String valueType) {
-        if (value == null) {
-            return null;
-        }
-        if (valueType == null) {
-            return value;
-        }
-        String raw = value.trim();
-        try {
-            switch (valueType.trim().toLowerCase()) {
-                case "number":
-                case "double":
-                case "float":
-                case "real":
-                    return Double.parseDouble(raw);
-                case "int":
-                case "integer":
-                case "long":
-                    return Long.parseLong(raw);
-                case "bool":
-                case "boolean":
-                    return parseBoolean(raw);
-                default:
-                    return value;
-            }
-        } catch (NumberFormatException e) {
-            return value;
-        }
-    }
-
-    /**
-     * Разбор булевой уставки по явному списку написаний. В отличие от {@link Boolean#valueOf},
-     * не превращает всё неизвестное в {@code false}, а сигнализирует об ошибке.
-     *
-     * @throws IllegalArgumentException если значение не опознано — строка уйдёт в failed,
-     *                                  и в ПЛК не будет записано ничего
-     */
-    private static boolean parseBoolean(String raw) {
-        switch (raw.toLowerCase()) {
-            case "true":
-            case "1":
-            case "on":
-            case "yes":
-            case "да":
-                return true;
-            case "false":
-            case "0":
-            case "off":
-            case "no":
-            case "нет":
-                return false;
-            default:
-                throw new IllegalArgumentException(
-                        "Значение '" + raw + "' не является булевым: ожидается true/false, 1/0, on/off, yes/no, да/нет");
-        }
-    }
 }
