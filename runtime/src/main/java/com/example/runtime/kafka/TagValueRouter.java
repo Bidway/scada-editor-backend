@@ -11,6 +11,7 @@ import com.example.runtime.stream.TagUpdate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +42,7 @@ public class TagValueRouter {
     private final TagCommandService tagCommandService;
     private final OnChangeDispatcher onChangeDispatcher;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последняя сессия. */
     private final Map<String, TagRuntimeState> tagStates = new ConcurrentHashMap<>();
@@ -49,12 +51,14 @@ public class TagValueRouter {
                           ScriptEngineService scriptEngineService,
                           TagCommandService tagCommandService,
                           OnChangeDispatcher onChangeDispatcher,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          ApplicationEventPublisher eventPublisher) {
         this.sessionStore = sessionStore;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
         this.onChangeDispatcher = onChangeDispatcher;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -158,6 +162,7 @@ public class TagValueRouter {
         // очередь, доли микросекунды, и оно должно происходить как можно ближе к моменту
         // приёма, чтобы значение на экране было свежим.
         session.getOutboundBuffer().offerTag(toUpdate(tagId, snapshot));
+        eventPublisher.publishEvent(new SessionTagChangedEvent(sessionId));
 
         // Недостоверное значение до скриптов не доходит вообще. Значение тега не
         // «изменилось» — оно стало неизвестным, а это не событие процесса, на которое
