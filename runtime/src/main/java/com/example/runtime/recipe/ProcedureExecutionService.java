@@ -64,29 +64,45 @@ public class ProcedureExecutionService {
         onTagChangeExecutor.shutdownNow();
     }
 
+    // Лок берётся на сам объект исполнения (не на сервис): одно и то же ProcedureExecution
+    // одновременно двигают несколько источников — планировщик (tick), до двух тредов
+    // onTagChangeExecutor и HTTP-треды (start/confirm/jump/status). Поля ProcedureExecution
+    // ничем не защищены, и без лока это гонка: один поток посчитал условие шага i истинным и
+    // собирается продвинуться на i+1, а второй уже продвинул то же исполнение — в итоге
+    // процедура проскакивает мимо непроверенного условия либо дважды применяет action
+    // (повторная запись в ПЛК). Лок именно на экземпляр, чтобы разные процедуры и сессии
+    // оставались независимыми и не блокировали друг друга.
     public ProcedureStatusDto start(String sessionId, String recipeId) {
         RuntimeSession session = requireSession(sessionId);
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
         ProcedureExecution execution = new ProcedureExecution(recipeId);
-        executions.put(new ExecutionKey(sessionId, recipeId), execution);
-        enterStep(session, recipe, execution, 0);
-        advanceWhileConditionMet(session, recipe, execution);
-        return toStatus(recipe, execution);
+        // Лок берётся до публикации в executions: иначе в окне между put и началом обработки
+        // другой поток мог бы подхватить наполовину инициализированное исполнение.
+        synchronized (execution) {
+            executions.put(new ExecutionKey(sessionId, recipeId), execution);
+            enterStep(session, recipe, execution, 0);
+            advanceWhileConditionMet(session, recipe, execution);
+            return toStatus(recipe, execution);
+        }
     }
 
     public ProcedureStatusDto status(String sessionId, String recipeId) {
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
         ProcedureExecution execution = requireExecution(sessionId, recipeId);
-        return toStatus(recipe, execution);
+        synchronized (execution) {
+            return toStatus(recipe, execution);
+        }
     }
 
     public ProcedureStatusDto confirm(String sessionId, String recipeId) {
         RuntimeSession session = requireSession(sessionId);
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
         ProcedureExecution execution = requireExecution(sessionId, recipeId);
-        execution.confirm();
-        advanceWhileConditionMet(session, recipe, execution);
-        return toStatus(recipe, execution);
+        synchronized (execution) {
+            execution.confirm();
+            advanceWhileConditionMet(session, recipe, execution);
+            return toStatus(recipe, execution);
+        }
     }
 
     // Отклонение от буквального текста брифа: там jump() после enterStep(...) сразу же
@@ -107,8 +123,10 @@ public class ProcedureExecutionService {
         }
         ProcedureExecution execution = executions.computeIfAbsent(
                 new ExecutionKey(sessionId, recipeId), k -> new ProcedureExecution(recipeId));
-        enterStep(session, recipe, execution, stepIndex);
-        return toStatus(recipe, execution);
+        synchronized (execution) {
+            enterStep(session, recipe, execution, stepIndex);
+            return toStatus(recipe, execution);
+        }
     }
 
     public void abort(String sessionId, String recipeId) {
@@ -152,7 +170,9 @@ public class ProcedureExecutionService {
                     continue;
                 }
                 EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
-                advanceWhileConditionMet(session, recipe, entry.getValue());
+                synchronized (entry.getValue()) {
+                    advanceWhileConditionMet(session, recipe, entry.getValue());
+                }
             }
         } catch (Exception e) {
             // Runnable в ExecutorService.submit(...) — Future никто не читает, без этого
@@ -164,18 +184,34 @@ public class ProcedureExecutionService {
     /** Ловит условия на чистой задержке (не зависят от изменения тега) и зависшие шаги. */
     @Scheduled(fixedRateString = "${runtime.procedure.tick-interval-ms:1000}")
     void tick() {
-        for (Map.Entry<ExecutionKey, ProcedureExecution> entry : executions.entrySet()) {
-            ProcedureExecution execution = entry.getValue();
-            if (execution.completed()) {
-                continue;
+        // Тело тика уводится на onTagChangeExecutor по той же причине, что и обработка события
+        // изменения тега: spring.task.scheduling.pool.size не задан, значит у всех @Scheduled
+        // runtime один общий тред, и на нём же сидит OutboundFlusher.flush() (WS-кадры всех
+        // сессий каждые 40 мс). Блокирующий editorClient.getRecipe(...) и прогон GraalVM на
+        // этом треде задерживали бы доставку WS всем сессиям, а не только тем, где есть процедуры.
+        onTagChangeExecutor.submit(this::runTick);
+    }
+
+    /** Тело тика. Выполняется на {@link #onTagChangeExecutor}. */
+    private void runTick() {
+        try {
+            for (Map.Entry<ExecutionKey, ProcedureExecution> entry : executions.entrySet()) {
+                ProcedureExecution execution = entry.getValue();
+                if (execution.completed()) {
+                    continue;
+                }
+                RuntimeSession session = sessionStore.get(entry.getKey().sessionId());
+                if (session == null) {
+                    continue;
+                }
+                EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
+                synchronized (execution) {
+                    advanceWhileConditionMet(session, recipe, execution);
+                    checkStalled(session, recipe, entry.getKey().recipeId(), execution);
+                }
             }
-            RuntimeSession session = sessionStore.get(entry.getKey().sessionId());
-            if (session == null) {
-                continue;
-            }
-            EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
-            advanceWhileConditionMet(session, recipe, execution);
-            checkStalled(session, recipe, entry.getKey().recipeId(), execution);
+        } catch (Exception e) {
+            log.warn("Procedure tick failed: {}", e.getMessage());
         }
     }
 
