@@ -8,7 +8,6 @@ import java.util.List;
 public class RecipeResponseDto {
     private String id;
     private String name;
-    private String type;
-    private Long component_id;
-    private List<RecipeValueDto> values;
+    private List<RecipeTagDto> tags;
+    private List<RecipeStepDto> steps;
 }
