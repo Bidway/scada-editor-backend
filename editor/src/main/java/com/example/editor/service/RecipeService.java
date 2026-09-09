@@ -3,6 +3,8 @@ package com.example.editor.service;
 import com.example.editor.dto.recipe.RecipeCreateDto;
 import com.example.editor.dto.recipe.RecipeResponseDto;
 
+import java.util.List;
+
 public interface RecipeService {
 
     RecipeResponseDto create(RecipeCreateDto dto);
@@ -10,6 +12,8 @@ public interface RecipeService {
     RecipeResponseDto update(String id, RecipeCreateDto dto);
 
     void delete(String id);
+
+    List<RecipeResponseDto> list();
 
     RecipeResponseDto get(String id);
 }
