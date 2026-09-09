@@ -1,23 +1,23 @@
 package com.example.editor.dto.recipe;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 
 import java.util.List;
 
-/** Создание/обновление набора: имя, вид, id таблицы-компонента и значения по строкам. */
+/** Создание/обновление процедурного рецепта: имя, манифест тегов, упорядоченные шаги. */
 @Data
 public class RecipeCreateDto {
 
     @NotBlank
     private String name;
 
-    /** Вид набора (recipe / station_params / ...); не прислан — recipe. См. RecipeTypes. */
-    private String type;
+    @Valid
+    private List<RecipeTagDto> tags;
 
-    @NotNull
-    private Long component_id;
-
-    private List<RecipeValueDto> values;
+    @NotEmpty
+    @Valid
+    private List<RecipeStepDto> steps;
 }
