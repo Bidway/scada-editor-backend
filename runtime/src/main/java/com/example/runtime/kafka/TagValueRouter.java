@@ -180,7 +180,7 @@ public class TagValueRouter {
         // Смешав их, мы протащили бы дрейф часов ПЛК в properties[], про который фронту
         // не сказано ни слова.
         long ts = System.currentTimeMillis();
-        Object coercedValue = coerce(snapshot.value());
+        Object coercedValue = coerceTagValue(snapshot.value());
         // Тяжёлая часть уходит в пул: GraalVM с таймаутом до 200 мс на треде consumer'а
         // останавливал бы приём телеметрии для всех сессий разом.
         onChangeDispatcher.submit(sessionId, () -> {
@@ -356,7 +356,12 @@ public class TagValueRouter {
                 snapshot.good() ? TagUpdate.GOOD : TagUpdate.BAD);
     }
 
-    private Object coerce(String value) {
+    /**
+     * Строка тега → примитив JS (Boolean/Double/String) по её виду. Публичный — им же
+     * пользуется {@code ProcedureExecutionService} при чтении тега условием шага
+     * процедуры ({@code readProjectTag}), не только диспетчинг телеметрии здесь.
+     */
+    public static Object coerceTagValue(String value) {
         if (value == null) {
             return null;
         }
