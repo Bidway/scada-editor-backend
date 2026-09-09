@@ -401,6 +401,13 @@ public class ComponentServiceImpl implements ComponentService {
         // которого предостерегает комментарий в SceneDocumentSource.restore, только здесь на
         // входе, а не на выходе). Явный flush() ставит DELETE в базу до этого чтения.
         repository.flush();
+        // Сцена, удалённая этим же вызовом (id пришёл прямо в ids, а не только её ребёнок),
+        // сама себе корень по SceneRootResolver — и попадает в sceneIds. Но документа, который
+        // снимок читает через sceneDocumentSource.contentOf, после удаления уже нет: снимать
+        // нечего, ровно как у проекта выше. Без этой строки снимок такой сцены падал
+        // NotFoundException("Scene not found: " + id) уже ПОСЛЕ удаления, транзакция
+        // откатывалась, и клиент получал 404 на существовавшую (до запроса) сцену (scada-c7v).
+        sceneIds.removeAll(ids);
         snapshotScenes(sceneIds, userName, kind, basedOnVersion);
     }
 

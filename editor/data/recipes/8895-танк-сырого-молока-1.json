@@ -1,0 +1,310 @@
+{
+  "id" : "8895-танк-сырого-молока-1",
+  "name" : "Танк сырого молока №1",
+  "type" : "recipe",
+  "component_id" : 8895,
+  "values" : [ {
+    "property_name" : "PV1",
+    "value" : "0.0"
+  }, {
+    "property_name" : "PV2",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_OBJ_TYPE",
+    "value" : "300.0"
+  }, {
+    "property_name" : "P_FLOW",
+    "value" : "1137.0"
+  }, {
+    "property_name" : "P_PODP_CIRC",
+    "value" : "1.0"
+  }, {
+    "property_name" : "P_DELTA_TR",
+    "value" : "28.0"
+  }, {
+    "property_name" : "P_T_WP",
+    "value" : "41351.0"
+  }, {
+    "property_name" : "P_T_WSP",
+    "value" : "10.0"
+  }, {
+    "property_name" : "P_T_WKP",
+    "value" : "30.0"
+  }, {
+    "property_name" : "P_T_WOP",
+    "value" : "30.0"
+  }, {
+    "property_name" : "P_T_S",
+    "value" : "30.0"
+  }, {
+    "property_name" : "P_T_K",
+    "value" : "5.0"
+  }, {
+    "property_name" : "P_T_D",
+    "value" : "55.0"
+  }, {
+    "property_name" : "P_T_SANITIZER",
+    "value" : "60.0"
+  }, {
+    "property_name" : "P_DOP_V_PR_OP",
+    "value" : "95.0"
+  }, {
+    "property_name" : "P_DOP_V_AFTER_S",
+    "value" : "10.0"
+  }, {
+    "property_name" : "P_DOP_V_AFTER_K",
+    "value" : "500.0"
+  }, {
+    "property_name" : "P_DOP_V_OK_OP",
+    "value" : "650.0"
+  }, {
+    "property_name" : "P_RET_STOP",
+    "value" : "500.0"
+  }, {
+    "property_name" : "P_V_RAB_ML",
+    "value" : "700.0"
+  }, {
+    "property_name" : "PV_RET_DEL",
+    "value" : "40.0"
+  }, {
+    "property_name" : "PTM_OP",
+    "value" : "80.0"
+  }, {
+    "property_name" : "PTM_S",
+    "value" : "150.0"
+  }, {
+    "property_name" : "PTM_K",
+    "value" : "300.0"
+  }, {
+    "property_name" : "PTM_S_SK",
+    "value" : "600.0"
+  }, {
+    "property_name" : "PTM_K_SK",
+    "value" : "600.0"
+  }, {
+    "property_name" : "PTM_D",
+    "value" : "600.0"
+  }, {
+    "property_name" : "PTM_SANITIZER",
+    "value" : "600.0"
+  }, {
+    "property_name" : "PTM_SANITIZER_INJECT",
+    "value" : "1200.0"
+  }, {
+    "property_name" : "P_N_RET",
+    "value" : "600.0"
+  }, {
+    "property_name" : "P_N_UPR",
+    "value" : "120.0"
+  }, {
+    "property_name" : "P_OS",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_OBJ_EMPTY",
+    "value" : "1102.0"
+  }, {
+    "property_name" : "P_PROGRAM_MASK",
+    "value" : "1101.0"
+  }, {
+    "property_name" : "P_T_CLEAN_RINSING",
+    "value" : "1118.0"
+  }, {
+    "property_name" : "P_V_CLEAN_RINSING",
+    "value" : "4905.0"
+  }, {
+    "property_name" : "P_T_SANITIZER_RINSING",
+    "value" : "5.0"
+  }, {
+    "property_name" : "P_V_SANITIZER_RINSING",
+    "value" : "1500.0"
+  }, {
+    "property_name" : "P_TM_MAX_TIME_OPORBACHOK",
+    "value" : "20.0"
+  }, {
+    "property_name" : "P_TM_RET_IS_EMPTY",
+    "value" : "500.0"
+  }, {
+    "property_name" : "P_V_LL_BOT",
+    "value" : "15.0"
+  }, {
+    "property_name" : "P_R_NO_FLOW",
+    "value" : "12.0"
+  }, {
+    "property_name" : "P_TM_R_NO_FLOW",
+    "value" : "35.0"
+  }, {
+    "property_name" : "P_TM_NO_FLOW_R",
+    "value" : "3.0"
+  }, {
+    "property_name" : "P_TM_NO_CONC",
+    "value" : "20.0"
+  }, {
+    "property_name" : "P61_RESERV",
+    "value" : "25.0"
+  }, {
+    "property_name" : "PIDP_k",
+    "value" : "30.0"
+  }, {
+    "property_name" : "PIDP_Ti",
+    "value" : "95.0"
+  }, {
+    "property_name" : "PIDP_Td",
+    "value" : "2.0"
+  }, {
+    "property_name" : "PIDP_dt",
+    "value" : "30.0"
+  }, {
+    "property_name" : "PIDP_dmax",
+    "value" : "2.0"
+  }, {
+    "property_name" : "PIDP_dmin",
+    "value" : "500.0"
+  }, {
+    "property_name" : "PIDP_AccelTime",
+    "value" : "130.0"
+  }, {
+    "property_name" : "PIDP_IsManualMode",
+    "value" : "0.0"
+  }, {
+    "property_name" : "PIDP_UManual",
+    "value" : "30.0"
+  }, {
+    "property_name" : "PIDP_Uk",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P72_RESERV",
+    "value" : "30.0"
+  }, {
+    "property_name" : "PIDF_k",
+    "value" : "0.0"
+  }, {
+    "property_name" : "PIDF_Ti",
+    "value" : "15.0"
+  }, {
+    "property_name" : "PIDF_Td",
+    "value" : "0.5"
+  }, {
+    "property_name" : "PIDF_dt",
+    "value" : "26.0"
+  }, {
+    "property_name" : "PIDF_dmax",
+    "value" : "0.01"
+  }, {
+    "property_name" : "PIDF_dmin",
+    "value" : "1000.0"
+  }, {
+    "property_name" : "PIDF_AccelTime",
+    "value" : "40.0"
+  }, {
+    "property_name" : "PIDF_IsManualMode",
+    "value" : "0.0"
+  }, {
+    "property_name" : "PIDF_UManual",
+    "value" : "2.0"
+  }, {
+    "property_name" : "PIDF_Uk",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_TM_MAX_TIME_OPORCIP",
+    "value" : "15.0"
+  }, {
+    "property_name" : "P_SIGNAL_MEDIUM_CHANGE",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_CAUSTIC",
+    "value" : "300.0"
+  }, {
+    "property_name" : "P_SIGNAL_ACID",
+    "value" : "1104.0"
+  }, {
+    "property_name" : "P_SIGNAL_CIP_IN_PROGRESS",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_CIPEND",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_CIP_READY",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_OBJECT_READY",
+    "value" : "1103.0"
+  }, {
+    "property_name" : "P_SIGNAL_SANITIZER_PUMP",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_RESUME_CIP_ON_SIGNAL",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_PUMP_CONTROL",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_DESINSECTION",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_OBJECT_PAUSE",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_CIRCULATION",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_PUMP_CAN_RUN",
+    "value" : "1119.0"
+  }, {
+    "property_name" : "P_SIGNAL_PUMP_CONTROL_FEEDBACK",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_RET_PUMP_SENSOR",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_RET_PUMP_SENSOR_DELAY",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_IN_CIP_READY",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_CIPEND2",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_CAN_CONTINUE",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_WATER",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_PRERINSE",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_INTERMEDIATE_RINSE",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_POSTRINSE",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_PUMP_STOPPED",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_FLOW_TASK",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_TEMP_TASK",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_SIGNAL_WASH_ABORTED",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_PRESSURE_CONTROL",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_DONT_USE_WATER_TANK",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_PIDP_MAX_OUT",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_PIDF_MAX_OUT",
+    "value" : "0.0"
+  }, {
+    "property_name" : "P_RESERV_START",
+    "value" : "0.0"
+  } ]
+}
