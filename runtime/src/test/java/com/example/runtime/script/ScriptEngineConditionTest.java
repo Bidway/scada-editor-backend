@@ -61,4 +61,11 @@ class ScriptEngineConditionTest {
     void nonBooleanReturn_isTreatedAsFalse() {
         assertThat(engine.runCondition("return 42;", 0, false, path -> null)).isFalse();
     }
+
+    @Test
+    void writeTagCalledFromCondition_isSafeNoOp() {
+        String script = "writeTag('x', true); return elapsedMs >= 0;";
+
+        assertThat(engine.runCondition(script, 0, false, path -> null)).isTrue();
+    }
 }
