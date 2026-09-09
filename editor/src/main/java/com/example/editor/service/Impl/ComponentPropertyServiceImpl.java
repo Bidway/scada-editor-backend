@@ -13,13 +13,11 @@ import com.example.editor.service.component.SceneRootResolver;
 import com.example.editor.service.version.DocumentVersionService;
 import com.example.editor.service.version.SceneDocumentSource;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ComponentPropertyServiceImpl implements ComponentPropertyService {
 
     private final ComponentPropertyRepository repository;
@@ -62,7 +60,6 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
                 .orElseThrow(() -> new IllegalStateException("Property not found: " + id));
         Component component = existing.getComponent();
         Long componentId = component == null ? null : component.getId();
-        String oldName = existing.getName();
         requireSameComponent(id, componentId, dto.getComponent_id());
 
         String newName = normalize(dto.getName());
