@@ -58,3 +58,4 @@ CLAUDE.md
 .cursor/
 /.beads/
 /.playwright-mcp/
+/tools/

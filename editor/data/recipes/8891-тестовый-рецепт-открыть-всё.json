@@ -1,0 +1,64 @@
+{
+  "id" : "8891-тестовый-рецепт-открыть-всё",
+  "name" : "Тестовый рецепт — открыть всё",
+  "type" : "recipe",
+  "component_id" : 8891,
+  "values" : [ {
+    "property_name" : "V0",
+    "value" : "true"
+  }, {
+    "property_name" : "V1",
+    "value" : "true"
+  }, {
+    "property_name" : "V2",
+    "value" : "true"
+  }, {
+    "property_name" : "V3",
+    "value" : "true"
+  }, {
+    "property_name" : "V4",
+    "value" : "true"
+  }, {
+    "property_name" : "V5",
+    "value" : "true"
+  }, {
+    "property_name" : "V6",
+    "value" : "true"
+  }, {
+    "property_name" : "V7",
+    "value" : "true"
+  }, {
+    "property_name" : "V8",
+    "value" : "true"
+  }, {
+    "property_name" : "V9",
+    "value" : "true"
+  }, {
+    "property_name" : "V10",
+    "value" : "true"
+  }, {
+    "property_name" : "V11",
+    "value" : "true"
+  }, {
+    "property_name" : "V12",
+    "value" : "true"
+  }, {
+    "property_name" : "V13",
+    "value" : "true"
+  }, {
+    "property_name" : "V15",
+    "value" : "true"
+  }, {
+    "property_name" : "M_LINE1M1",
+    "value" : "true"
+  }, {
+    "property_name" : "M_V101",
+    "value" : "true"
+  }, {
+    "property_name" : "M_V102",
+    "value" : "true"
+  }, {
+    "property_name" : "M_M3",
+    "value" : "true"
+  } ]
+}

@@ -222,7 +222,7 @@ public class TagValueRouter {
             Object newValue = after.get(name);
             if (!java.util.Objects.equals(before.get(name), newValue)) {
                 storePropertyValue(session, propertyId, newValue);
-                session.getOutboundBuffer().offerProperty(new PropertyUpdate(propertyId, name, newValue, ts));
+                        session.getOutboundBuffer().offerProperty(new PropertyUpdate(propertyId, name, newValue, ts));
             }
         }
     }
