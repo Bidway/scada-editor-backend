@@ -6,10 +6,7 @@ import com.example.editor.exception.NotFoundException;
 import com.example.editor.repository.recipe.RecipeFileStore;
 import com.example.editor.service.RecipeService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 /**
  * Процедурные рецепты хранятся файлами через {@link RecipeFileStore} — один файл на
@@ -18,7 +15,6 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class RecipeServiceImpl implements RecipeService {
 
     private final RecipeFileStore fileStore;
