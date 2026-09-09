@@ -194,19 +194,34 @@ public class ScriptEngineService {
         if (scriptSource == null || scriptSource.isBlank()) {
             return true;
         }
-        String wrapped = "(function(){ " + scriptSource + " })()";
+        String wrapped = "(function(){ " + scriptSource + "\n})()";
         Source source = sourceCache.computeIfAbsent(wrapped, s -> Source.create("js", s));
 
         Borrowed borrowed = borrow(false);
         Context ctx = borrowed.ctx();
         AtomicReference<Throwable> failure = new AtomicReference<>();
-        AtomicReference<Value> resultRef = new AtomicReference<>();
+        // Boolean, а не Value: приводим результат к отсоединённому Java-объекту ещё на потоке
+        // executor, до release()/replace() ниже — иначе после release() контекст может тут же
+        // забрать другой поток и начать на нём eval() конкурентно с чтением Value здесь.
+        AtomicReference<Boolean> resultRef = new AtomicReference<>();
         Future<?> future = executor.submit(() -> {
             try {
+                // Контекст общий с execute() (оба borrow(false)): putMember не стирает старые
+                // члены, поэтому переиспользованный после чужого execute() ctx мог бы всё ещё
+                // хранить писательные writeTag/writeTagPath/writeProjectTag, замкнутые на sink
+                // прошлого вызова, и старые tag/props. Условие read-only — перетираем на
+                // безопасный NOOP/null, чтобы опечатка в condition_script не записала тег
+                // через чужой sink.
+                ctx.getBindings("js").putMember("writeTag", writeTagFunction(TagWriteSink.NOOP));
+                ctx.getBindings("js").putMember("writeTagPath", writeTagFunction(TagWriteSink.NOOP));
+                ctx.getBindings("js").putMember("writeProjectTag", writeTagFunction(TagWriteSink.NOOP));
+                ctx.getBindings("js").putMember("tag", null);
+                ctx.getBindings("js").putMember("props", null);
                 ctx.getBindings("js").putMember("elapsedMs", elapsedMs);
                 ctx.getBindings("js").putMember("confirmed", confirmed);
                 ctx.getBindings("js").putMember("readProjectTag", readProjectTagFunction(tagReader));
-                resultRef.set(ctx.eval(source));
+                Value result = ctx.eval(source);
+                resultRef.set(result != null && result.isBoolean() ? result.asBoolean() : null);
             } catch (Throwable t) {
                 failure.set(t);
             }
@@ -245,13 +260,12 @@ public class ScriptEngineService {
         }
 
         release(borrowed);
-        Value result = resultRef.get();
-        if (result == null || !result.isBoolean()) {
-            log.warn("Condition script did not return a boolean (got {}), treating as false",
-                    result == null ? "null" : result);
+        Boolean result = resultRef.get();
+        if (result == null) {
+            log.warn("Condition script did not return a boolean, treating as false");
             return false;
         }
-        return result.asBoolean();
+        return result;
     }
 
     private ProxyExecutable readProjectTagFunction(TagReader reader) {
