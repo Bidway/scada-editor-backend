@@ -60,7 +60,8 @@ class TagValueRouterTest {
         when(sessionStore.get(SESSION)).thenReturn(session);
 
         router = new TagValueRouter(sessionStore, mock(ScriptEngineService.class),
-                mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper());
+                mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper(),
+                mock(org.springframework.context.ApplicationEventPublisher.class));
         router.registerSession(session);
     }
 
