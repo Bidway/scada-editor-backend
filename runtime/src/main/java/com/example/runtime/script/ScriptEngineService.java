@@ -182,6 +182,88 @@ public class ScriptEngineService {
         return execute(scriptSource, null, props, writeSinks, true);
     }
 
+    /**
+     * Выполняет {@code condition_script} шага процедуры и возвращает его boolean-результат.
+     * Скрипт пишется в расчёте на функцию верхнего уровня ({@code return ...;}), поэтому
+     * оборачивается в IIFE перед разбором — top-level {@code return} иначе SyntaxError.
+     * В отличие от onChange/action условие ничего не пишет — только читает
+     * {@code readProjectTag} и решает, пора ли шагу завершиться. Пустой/{@code null}
+     * скрипт — сразу {@code true} (нецепочечный шаг проскакивает мгновенно).
+     */
+    public boolean runCondition(String scriptSource, long elapsedMs, boolean confirmed, TagReader tagReader) {
+        if (scriptSource == null || scriptSource.isBlank()) {
+            return true;
+        }
+        String wrapped = "(function(){ " + scriptSource + " })()";
+        Source source = sourceCache.computeIfAbsent(wrapped, s -> Source.create("js", s));
+
+        Borrowed borrowed = borrow(false);
+        Context ctx = borrowed.ctx();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<Value> resultRef = new AtomicReference<>();
+        Future<?> future = executor.submit(() -> {
+            try {
+                ctx.getBindings("js").putMember("elapsedMs", elapsedMs);
+                ctx.getBindings("js").putMember("confirmed", confirmed);
+                ctx.getBindings("js").putMember("readProjectTag", readProjectTagFunction(tagReader));
+                resultRef.set(ctx.eval(source));
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        });
+
+        ScheduledFuture<?> cancelTask = watchdog.schedule(() -> {
+            if (!future.isDone()) {
+                log.warn("Condition script execution exceeded {} ms, cancelling context", timeoutMs);
+                try {
+                    ctx.close(true);
+                } catch (Exception ignored) {
+                }
+            }
+        }, timeoutMs, TimeUnit.MILLISECONDS);
+
+        try {
+            future.get(timeoutMs + 100, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.warn("Condition script execution failed/timed out: {}", e.getMessage());
+            future.cancel(true);
+            replace(borrowed);
+            throw new ScriptExecutionException("Condition script execution failed or timed out", e);
+        } finally {
+            cancelTask.cancel(false);
+        }
+
+        Throwable t = failure.get();
+        if (t != null) {
+            boolean cancelled = t instanceof PolyglotException pe && pe.isCancelled();
+            if (cancelled) {
+                replace(borrowed);
+            } else {
+                release(borrowed);
+            }
+            throw new ScriptExecutionException("Condition script execution error: " + t.getMessage(), t);
+        }
+
+        release(borrowed);
+        Value result = resultRef.get();
+        if (result == null || !result.isBoolean()) {
+            log.warn("Condition script did not return a boolean (got {}), treating as false",
+                    result == null ? "null" : result);
+            return false;
+        }
+        return result.asBoolean();
+    }
+
+    private ProxyExecutable readProjectTagFunction(TagReader reader) {
+        return arguments -> {
+            if (arguments.length < 1 || !arguments[0].isString()) {
+                log.warn("readProjectTag(): first argument must be a tag path string");
+                return null;
+            }
+            return reader.read(arguments[0].asString());
+        };
+    }
+
     private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
                                         ScriptWriteSinks writeSinks, boolean forAction) {
         if (scriptSource == null || scriptSource.isBlank()) {
