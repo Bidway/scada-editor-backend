@@ -67,7 +67,7 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
             if (!changed.isEmpty()) {
                 RuntimeSession session = sessionService.getSession(sessionId);
                 if (session != null) {
-                    send(session, new OutboundMessage(null, changed));
+                    send(session, new OutboundMessage(null, changed, null));
                 }
             }
         } else {

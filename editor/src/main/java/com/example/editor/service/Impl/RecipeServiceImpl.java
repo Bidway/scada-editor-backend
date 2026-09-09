@@ -2,20 +2,15 @@ package com.example.editor.service.Impl;
 
 import com.example.editor.dto.recipe.RecipeCreateDto;
 import com.example.editor.dto.recipe.RecipeResponseDto;
-import com.example.editor.dto.recipe.RecipeValueDto;
-import com.example.editor.dto.recipe.ResolvedRecipeDto;
-import com.example.editor.dto.recipe.ResolvedRecipeValueDto;
+import com.example.editor.dto.recipe.RecipeStepActionDto;
+import com.example.editor.dto.recipe.RecipeStepDto;
+import com.example.editor.dto.recipe.RecipeTagDto;
 import com.example.editor.exception.NotFoundException;
-import com.example.editor.model.component.ComponentProperty;
-import com.example.editor.model.recipe.RecipeTypes;
-import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.recipe.RecipeFileStore;
 import com.example.editor.service.RecipeService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,26 +18,22 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Наборы значений (рецепты) хранятся файлами через {@link RecipeFileStore} — один файл на
- * рецепт, {@code id} стабилен (слаг, выделяется один раз при создании и не меняется при
- * переименовании). Журнал правок (бывший {@code recipe_change}) не переносится: признан
- * некритичным для этого вида данных.
+ * Процедурные рецепты хранятся файлами через {@link RecipeFileStore} — один файл на
+ * рецепт, {@code id} стабилен (слаг из имени, не меняется при переименовании).
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class RecipeServiceImpl implements RecipeService {
 
     private final RecipeFileStore fileStore;
-    private final ComponentPropertyRepository propertyRepository;
 
     @Override
     public RecipeResponseDto create(RecipeCreateDto dto) {
         RecipeResponseDto recipe = new RecipeResponseDto();
         recipe.setName(dto.getName());
-        recipe.setType(typeOrDefault(dto.getType()));
-        recipe.setComponent_id(dto.getComponent_id());
-        recipe.setValues(normalizedValues(dto.getValues()));
+        recipe.setTags(dto.getTags() == null ? List.of() : dto.getTags());
+        recipe.setSteps(dto.getSteps());
+        validate(recipe);
         return fileStore.create(recipe);
     }
 
@@ -51,11 +42,9 @@ public class RecipeServiceImpl implements RecipeService {
         RecipeResponseDto recipe = fileStore.findById(id)
                 .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
         recipe.setName(dto.getName());
-        recipe.setType(typeOrDefault(dto.getType()));
-        recipe.setComponent_id(dto.getComponent_id());
-        if (dto.getValues() != null) {
-            recipe.setValues(normalizedValues(dto.getValues()));
-        }
+        recipe.setTags(dto.getTags() == null ? List.of() : dto.getTags());
+        recipe.setSteps(dto.getSteps());
+        validate(recipe);
         return fileStore.update(recipe);
     }
 
@@ -66,8 +55,8 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
-    public List<RecipeResponseDto> listByComponent(Long componentId) {
-        return fileStore.findByComponentId(componentId);
+    public List<RecipeResponseDto> list() {
+        return fileStore.findAll();
     }
 
     @Override
@@ -77,85 +66,52 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     /**
-     * Сопоставление значений набора со свойствами компонента по имени. Из свойства берутся тег
-     * (может отсутствовать — тогда значение локальное) и value_type: рантайму он нужен для
-     * коэрсинга значения перед записью.
+     * Каждый {@code action.tag} шага должен существовать в манифесте {@code tags}, а если у
+     * тега манифеста задан {@code value_type} — значение в JSON должно ему соответствовать.
+     * Опечатка в имени тега или несовпадение типа отклоняются здесь, а не тихо уезжают в
+     * файл, откуда всплывут только при исполнении рецепта в runtime.
      */
-    @Override
-    public ResolvedRecipeDto resolve(String id) {
-        RecipeResponseDto recipe = fileStore.findById(id)
-                .orElseThrow(() -> new NotFoundException("Recipe not found: " + id));
-
-        Map<String, ComponentProperty> propertiesByName = new HashMap<>();
-        for (ComponentProperty property : propertyRepository.findByComponentId(recipe.getComponent_id())) {
-            String name = normalize(property.getName());
-            if (name == null) {
+    private void validate(RecipeResponseDto recipe) {
+        Map<String, RecipeTagDto> tagsByName = new HashMap<>();
+        for (RecipeTagDto tag : recipe.getTags()) {
+            tagsByName.put(tag.getName(), tag);
+        }
+        Set<String> unknown = new HashSet<>();
+        for (RecipeStepDto step : recipe.getSteps()) {
+            if (step.getAction() == null) {
                 continue;
             }
-            ComponentProperty duplicate = propertiesByName.putIfAbsent(name, property);
-            if (duplicate != null) {
-                log.warn("Component {} has duplicate property name '{}' (ids {} and {}); "
-                                + "recipe values resolve to the first one",
-                        recipe.getComponent_id(), name, duplicate.getId(), property.getId());
+            for (RecipeStepActionDto action : step.getAction()) {
+                RecipeTagDto tag = tagsByName.get(action.getTag());
+                if (tag == null) {
+                    unknown.add(action.getTag());
+                    continue;
+                }
+                requireTypeMatch(tag, action);
             }
         }
-
-        List<ResolvedRecipeValueDto> values = new ArrayList<>();
-        List<String> unmatched = new ArrayList<>();
-        for (RecipeValueDto value : recipe.getValues()) {
-            String propertyName = normalize(value.getProperty_name());
-            ComponentProperty property = propertyName == null ? null : propertiesByName.get(propertyName);
-            if (property == null) {
-                unmatched.add(value.getProperty_name());
-                continue;
-            }
-            values.add(new ResolvedRecipeValueDto(
-                    propertyName, value.getValue(), property.getValueType(), property.getTagId()));
+        if (!unknown.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Recipe step action references tag(s) not declared in manifest 'tags': " + unknown);
         }
-        if (!unmatched.isEmpty()) {
-            log.warn("Recipe {} has {} value(s) with no matching property in component {}: {}",
-                    id, unmatched.size(), recipe.getComponent_id(), unmatched);
-        }
-        return new ResolvedRecipeDto(recipe.getId(), recipe.getComponent_id(), values, unmatched);
     }
 
-    /**
-     * Имя свойства обязательно и уникально в пределах набора — резолв берёт значение по имени,
-     * второе значение на то же свойство осталось бы недостижимым.
-     */
-    private List<RecipeValueDto> normalizedValues(List<RecipeValueDto> values) {
-        if (values == null) {
-            return new ArrayList<>();
+    private void requireTypeMatch(RecipeTagDto tag, RecipeStepActionDto action) {
+        String valueType = tag.getValue_type();
+        if (valueType == null || valueType.isBlank()) {
+            return;
         }
-        Set<String> seen = new HashSet<>();
-        List<RecipeValueDto> result = new ArrayList<>();
-        for (RecipeValueDto v : values) {
-            String propertyName = normalize(v.getProperty_name());
-            if (propertyName == null) {
-                throw new IllegalArgumentException("Recipe value requires property_name");
-            }
-            if (!seen.add(propertyName)) {
-                throw new IllegalArgumentException(
-                        "Duplicate value for property '" + propertyName
-                                + "'; a property can have only one value in a set");
-            }
-            RecipeValueDto copy = new RecipeValueDto();
-            copy.setProperty_name(propertyName);
-            copy.setValue(v.getValue());
-            result.add(copy);
+        Object value = action.getValue();
+        boolean matches = switch (valueType) {
+            case "number" -> value instanceof Number;
+            case "bool" -> value instanceof Boolean;
+            case "string" -> value instanceof String;
+            default -> true;
+        };
+        if (!matches) {
+            throw new IllegalArgumentException(
+                    "Value for tag '" + tag.getName() + "' does not match declared value_type '"
+                            + valueType + "': " + value);
         }
-        return result;
-    }
-
-    private static String typeOrDefault(String type) {
-        return (type == null || type.isBlank()) ? RecipeTypes.RECIPE : type.trim();
-    }
-
-    private static String normalize(String name) {
-        if (name == null) {
-            return null;
-        }
-        String trimmed = name.trim();
-        return trimmed.isEmpty() ? null : trimmed;
     }
 }
