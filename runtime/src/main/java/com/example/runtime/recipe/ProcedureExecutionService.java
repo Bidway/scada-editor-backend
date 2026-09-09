@@ -13,6 +13,7 @@ import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionStore;
 import com.example.runtime.stream.ProcedureEvent;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Движок исполнения процедурных рецептов. Состояние — только в памяти, по ключу
@@ -41,6 +44,25 @@ public class ProcedureExecutionService {
     private final RuntimeSessionStore sessionStore;
 
     private final Map<ExecutionKey, ProcedureExecution> executions = new ConcurrentHashMap<>();
+
+    // Тот же приём, что OnChangeDispatcher в TagValueRouter: onSessionTagChanged приходит
+    // синхронно с треда kafka-tags-consumer (Spring ApplicationEventPublisher по умолчанию
+    // синхронный), а тело обработчика делает блокирующий HTTP-вызов editorClient.getRecipe(...)
+    // и прогоняет GraalVM-условие. Без выноса на отдельный пул просевший/недоступный editor
+    // останавливал бы приём телеметрии для всех сессий на этом треде/партиции — не только для
+    // сессий с активными процедурами. final-поле со своим инициализатором, а не параметр
+    // конструктора: @RequiredArgsConstructor его не тронет (как уже сделано для `executions`),
+    // и не придётся менять уже закрытый в Задаче 9 тестовый конструктор.
+    private final ExecutorService onTagChangeExecutor = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "procedure-tag-change");
+        t.setDaemon(true);
+        return t;
+    });
+
+    @PreDestroy
+    void shutdown() {
+        onTagChangeExecutor.shutdownNow();
+    }
 
     public ProcedureStatusDto start(String sessionId, String recipeId) {
         RuntimeSession session = requireSession(sessionId);
@@ -108,19 +130,34 @@ public class ProcedureExecutionService {
         return 0;
     }
 
-    /** Вызывается по {@link SessionTagChangedEvent} — пересчитывает все активные процедуры сессии. */
+    /**
+     * Вызывается по {@link SessionTagChangedEvent} на треде Kafka-consumer'а. Сам обработчик
+     * (сетевой вызов editor + GraalVM) уводится в {@link #onTagChangeExecutor} — см. комментарий
+     * у поля.
+     */
     @EventListener
     public void onSessionTagChanged(SessionTagChangedEvent event) {
-        RuntimeSession session = sessionStore.get(event.sessionId());
-        if (session == null) {
-            return;
-        }
-        for (Map.Entry<ExecutionKey, ProcedureExecution> entry : executions.entrySet()) {
-            if (!entry.getKey().sessionId().equals(event.sessionId()) || entry.getValue().completed()) {
-                continue;
+        onTagChangeExecutor.submit(() -> handleSessionTagChanged(event));
+    }
+
+    /** Пересчитывает все активные процедуры сессии. Выполняется на {@link #onTagChangeExecutor}. */
+    private void handleSessionTagChanged(SessionTagChangedEvent event) {
+        try {
+            RuntimeSession session = sessionStore.get(event.sessionId());
+            if (session == null) {
+                return;
             }
-            EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
-            advanceWhileConditionMet(session, recipe, entry.getValue());
+            for (Map.Entry<ExecutionKey, ProcedureExecution> entry : executions.entrySet()) {
+                if (!entry.getKey().sessionId().equals(event.sessionId()) || entry.getValue().completed()) {
+                    continue;
+                }
+                EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
+                advanceWhileConditionMet(session, recipe, entry.getValue());
+            }
+        } catch (Exception e) {
+            // Runnable в ExecutorService.submit(...) — Future никто не читает, без этого
+            // сбой обработки события молча терялся бы.
+            log.warn("Failed to handle tag change for session {}: {}", event.sessionId(), e.getMessage());
         }
     }
 
