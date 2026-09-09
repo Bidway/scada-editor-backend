@@ -1,7 +1,7 @@
 package com.example.runtime.client;
 
 import com.example.runtime.client.dto.EditorComponentDto;
-import com.example.runtime.client.dto.ResolvedRecipe;
+import com.example.runtime.client.dto.EditorRecipeDto;
 import com.example.runtime.config.RuntimeProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -32,12 +32,12 @@ public class EditorClient {
                 .body(EditorComponentDto.class);
     }
 
-    /** Резолв значений набора для применения. Вызывается по действию оператора. */
-    public ResolvedRecipe getResolvedRecipe(String recipeId) {
-        log.debug("Fetching resolved recipe {} from editor", recipeId);
+    /** Определение процедурного рецепта (манифест тегов + шаги), как есть, без резолва. */
+    public EditorRecipeDto getRecipe(String recipeId) {
+        log.debug("Fetching recipe {} from editor", recipeId);
         return restClient.get()
-                .uri("/api/editor/recipes/{id}/resolved", recipeId)
+                .uri("/api/editor/recipes/{id}", recipeId)
                 .retrieve()
-                .body(ResolvedRecipe.class);
+                .body(EditorRecipeDto.class);
     }
 }
