@@ -112,7 +112,7 @@ public class ScriptEngineService {
     }
 
     @PostConstruct
-    void initPool() {
+    public void initPool() {
         int size = pool.remainingCapacity();
         for (int i = 0; i < size; i++) {
             contextSlots.acquireUninterruptibly();
@@ -153,7 +153,7 @@ public class ScriptEngineService {
     }
 
     @PreDestroy
-    void shutdown() {
+    public void shutdown() {
         watchdog.shutdownNow();
         executor.shutdownNow();
         pool.forEach(Context::close);
