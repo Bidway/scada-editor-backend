@@ -7,9 +7,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
- * CRUD процедурных рецептов: создание, обновление, удаление, получение.
- * Рецепты хранятся в файлах ({@code RecipeFileStore}), один файл на рецепт.
+ * CRUD процедурных рецептов — упорядоченных шагов с действием и условием перехода.
+ * Хранилище — файлы ({@code RecipeFileStore}). Исполняет рецепт {@code runtime}
+ * (`/api/runtime/recipes/{id}/start` и далее), забирая определение отсюда как есть —
+ * без предварительного резолва тег-путей.
  */
 @RestController
 @RequestMapping("/api/editor/recipes")
@@ -31,6 +35,11 @@ public class RecipeController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable String id) {
         service.delete(id);
+    }
+
+    @GetMapping
+    public List<RecipeResponseDto> list() {
+        return service.list();
     }
 
     @GetMapping("/{id}")
