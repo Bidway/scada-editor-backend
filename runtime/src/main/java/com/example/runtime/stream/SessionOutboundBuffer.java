@@ -26,6 +26,8 @@ public class SessionOutboundBuffer {
     /** ConcurrentLinkedQueue.size() — O(n), поэтому длину считаем отдельно. */
     private final AtomicInteger tagCount = new AtomicInteger();
     private final AtomicInteger propertyCount = new AtomicInteger();
+    private final Queue<ProcedureEvent> procedureEvents = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger procedureEventCount = new AtomicInteger();
 
     public void offerTag(TagUpdate update) {
         tagUpdates.add(update);
@@ -41,14 +43,22 @@ public class SessionOutboundBuffer {
         }
     }
 
+    public void offerProcedureEvent(ProcedureEvent event) {
+        procedureEvents.add(event);
+        if (procedureEventCount.incrementAndGet() > MAX_QUEUED_PER_KIND && procedureEvents.poll() != null) {
+            procedureEventCount.decrementAndGet();
+        }
+    }
+
     public boolean isEmpty() {
-        return tagUpdates.isEmpty() && propertyUpdates.isEmpty();
+        return tagUpdates.isEmpty() && propertyUpdates.isEmpty() && procedureEvents.isEmpty();
     }
 
     /** Забирает всё накопленное и очищает буфер. Вызывается только флашером. */
     public Drained drainAll() {
         List<TagUpdate> tags = new ArrayList<>();
         List<PropertyUpdate> properties = new ArrayList<>();
+        List<ProcedureEvent> procedures = new ArrayList<>();
         TagUpdate t;
         while ((t = tagUpdates.poll()) != null) {
             tags.add(t);
@@ -59,12 +69,17 @@ public class SessionOutboundBuffer {
             properties.add(p);
             propertyCount.decrementAndGet();
         }
-        return new Drained(tags, properties);
+        ProcedureEvent e;
+        while ((e = procedureEvents.poll()) != null) {
+            procedures.add(e);
+            procedureEventCount.decrementAndGet();
+        }
+        return new Drained(tags, properties, procedures);
     }
 
-    public record Drained(List<TagUpdate> tags, List<PropertyUpdate> properties) {
+    public record Drained(List<TagUpdate> tags, List<PropertyUpdate> properties, List<ProcedureEvent> procedures) {
         public boolean isEmpty() {
-            return tags.isEmpty() && properties.isEmpty();
+            return tags.isEmpty() && properties.isEmpty() && procedures.isEmpty();
         }
     }
 }
