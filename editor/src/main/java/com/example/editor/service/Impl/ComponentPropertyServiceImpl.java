@@ -8,23 +8,19 @@ import com.example.editor.model.component.ComponentProperty;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentPropertyRepository;
-import com.example.editor.repository.recipe.RecipeFileStore;
 import com.example.editor.service.ComponentPropertyService;
 import com.example.editor.service.component.SceneRootResolver;
 import com.example.editor.service.version.DocumentVersionService;
 import com.example.editor.service.version.SceneDocumentSource;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ComponentPropertyServiceImpl implements ComponentPropertyService {
 
     private final ComponentPropertyRepository repository;
-    private final RecipeFileStore recipeFileStore;
     private final ComponentPropertyMapper mapper;
     private final DocumentVersionService versionService;
     private final SceneDocumentSource sceneDocumentSource;
@@ -51,16 +47,11 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
     }
 
     /**
-     * Точечное обновление свойства — единственное место, где значения набора переносятся на
-     * новое имя: здесь на руках сразу и старое имя, и id, и перенос делается тут же, через
-     * {@link RecipeFileStore#renameProperty}.
-     * <p>
-     * Массовый путь ({@code ComponentScriptBindingApplier.applyProperties}) с 14.08.2026 тоже
-     * распознаёт переименование, если прислан {@code id}, — строка больше не пересоздаётся
-     * (см. {@code applyProperties}). Но значения набора он не переносит: меняется только
-     * {@code ComponentProperty.name}, а файлы рецептов остаются со старым именем. Поэтому для
-     * переноса значений набора по-прежнему нужен именно этот эндпоинт —
-     * {@code PUT /api/editor/properties/{id}}.
+     * Точечное обновление свойства. Массовый путь
+     * ({@code ComponentScriptBindingApplier.applyProperties}) с 14.08.2026 тоже
+     * распознаёт переименование, если прислан {@code id}, — строка больше не
+     * пересоздаётся (см. {@code applyProperties}). Этот эндпоинт остаётся отдельной
+     * точкой обновления одного свойства по его id.
      */
     @Override
     @Transactional
@@ -69,7 +60,6 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
                 .orElseThrow(() -> new IllegalStateException("Property not found: " + id));
         Component component = existing.getComponent();
         Long componentId = component == null ? null : component.getId();
-        String oldName = existing.getName();
         requireSameComponent(id, componentId, dto.getComponent_id());
 
         String newName = normalize(dto.getName());
@@ -86,13 +76,6 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
         mapper.updateEntity(dto, existing);
         PropertyResponseDto response = mapper.toDto(repository.save(existing));
 
-        if (newName != null && componentId != null && !newName.equals(oldName)) {
-            int moved = recipeFileStore.renameProperty(componentId, oldName, newName);
-            if (moved > 0) {
-                log.info("Renamed row '{}' -> '{}' in component {}: {} value(s) moved to the new name",
-                        oldName, newName, componentId, moved);
-            }
-        }
         snapshot(sceneId, userName, dto.getBased_on_version());
         return response;
     }

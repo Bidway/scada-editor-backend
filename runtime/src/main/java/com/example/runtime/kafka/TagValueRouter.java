@@ -11,6 +11,7 @@ import com.example.runtime.stream.TagUpdate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +42,7 @@ public class TagValueRouter {
     private final TagCommandService tagCommandService;
     private final OnChangeDispatcher onChangeDispatcher;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последняя сессия. */
     private final Map<String, TagRuntimeState> tagStates = new ConcurrentHashMap<>();
@@ -49,12 +51,14 @@ public class TagValueRouter {
                           ScriptEngineService scriptEngineService,
                           TagCommandService tagCommandService,
                           OnChangeDispatcher onChangeDispatcher,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          ApplicationEventPublisher eventPublisher) {
         this.sessionStore = sessionStore;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
         this.onChangeDispatcher = onChangeDispatcher;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -158,6 +162,7 @@ public class TagValueRouter {
         // очередь, доли микросекунды, и оно должно происходить как можно ближе к моменту
         // приёма, чтобы значение на экране было свежим.
         session.getOutboundBuffer().offerTag(toUpdate(tagId, snapshot));
+        eventPublisher.publishEvent(new SessionTagChangedEvent(sessionId));
 
         // Недостоверное значение до скриптов не доходит вообще. Значение тега не
         // «изменилось» — оно стало неизвестным, а это не событие процесса, на которое
@@ -180,7 +185,7 @@ public class TagValueRouter {
         // Смешав их, мы протащили бы дрейф часов ПЛК в properties[], про который фронту
         // не сказано ни слова.
         long ts = System.currentTimeMillis();
-        Object coercedValue = coerce(snapshot.value());
+        Object coercedValue = coerceTagValue(snapshot.value());
         // Тяжёлая часть уходит в пул: GraalVM с таймаутом до 200 мс на треде consumer'а
         // останавливал бы приём телеметрии для всех сессий разом.
         onChangeDispatcher.submit(sessionId, () -> {
@@ -356,7 +361,12 @@ public class TagValueRouter {
                 snapshot.good() ? TagUpdate.GOOD : TagUpdate.BAD);
     }
 
-    private Object coerce(String value) {
+    /**
+     * Строка тега → примитив JS (Boolean/Double/String) по её виду. Публичный — им же
+     * пользуется {@code ProcedureExecutionService} при чтении тега условием шага
+     * процедуры ({@code readProjectTag}), не только диспетчинг телеметрии здесь.
+     */
+    public static Object coerceTagValue(String value) {
         if (value == null) {
             return null;
         }

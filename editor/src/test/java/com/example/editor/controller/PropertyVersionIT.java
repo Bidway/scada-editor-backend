@@ -92,37 +92,6 @@ class PropertyVersionIT extends EditorApiTestSupport {
     }
 
     /**
-     * Точечная правка — единственное место, где переименование значения набора отличимо от пары
-     * «удалили строку, добавили другую», и потому единственное, откуда зовётся
-     * {@code RecipeFileStore.renameProperty}. Без набора с этим именем ветка {@code moved > 0}
-     * не исполняется вовсе: тест, проверяющий только номер версии, зелен и на коде, где переноса
-     * нет.
-     */
-    @Test
-    @DisplayName("Переименование свойства переносит значения наборов на новое имя")
-    void update_renamingProperty_movesRecipeValues() throws Exception {
-        long sceneId = newScene();
-        long componentId = componentInScene(sceneId);
-        long propertyId = createProperty(componentId, "speed", currentVersion(sceneId, "scenes"));
-        String recipeId = createRecipe(componentId, "speed", "10");
-        int before = currentVersion(sceneId, "scenes");
-
-        mockMvc.perform(put("/api/editor/properties/" + propertyId)
-                        .header("X-Username", USER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(propertyJson(componentId, "velocity", before)))
-                .andExpect(status().isOk());
-
-        JsonNode values = valuesOf(recipeId);
-        assertThat(values)
-                .as("значение набора обязано переехать на новое имя свойства, а не осиротеть")
-                .hasSize(1);
-        assertEquals("velocity", values.get(0).get("property_name").asText());
-        assertEquals("10", values.get(0).get("value").asText());
-        assertEquals(before + 1, currentVersion(sceneId, "scenes"));
-    }
-
-    /**
      * Перенос свойства на компонент другой сцены отвергается. {@code updateEntity} маппит
      * {@code component} из {@code component_id}, а сцена для гарда и снимка берётся по прежнему
      * компоненту — сцена-приёмник получала бы чужое свойство без проверки версии и без записи в
@@ -209,26 +178,6 @@ class PropertyVersionIT extends EditorApiTestSupport {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body).get("id").asLong();
-    }
-
-    /** Набор с одним значением, привязанным к свойству по имени. */
-    private String createRecipe(long componentId, String propertyName, String value) throws Exception {
-        String body = mockMvc.perform(post("/api/editor/recipes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "Партия A", "component_id": %d,
-                                 "values": [{"property_name": "%s", "value": "%s"}]}
-                                """.formatted(componentId, propertyName, value)))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("id").asText();
-    }
-
-    private JsonNode valuesOf(String recipeId) throws Exception {
-        String body = mockMvc.perform(get("/api/editor/recipes/" + recipeId))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("values");
     }
 
     /**
