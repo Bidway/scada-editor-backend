@@ -69,6 +69,38 @@ class TagSubscriptionIndexTest {
         assertThat(index.resolveTagPath("Foo.Bar")).isEqualTo("Foo.Bar");
     }
 
+    @Test
+    @DisplayName("свойство адресуется парой «имя компонента + имя свойства», одноимённые компоненты дают неоднозначность")
+    void propertyIdsByComponentName_findsByNames_andReportsAmbiguity() {
+        EditorComponentDto root = component(1L, "project", "BN1_MCA1");
+        root.setChildren(List.of(
+                component(2L, "table", "Параметры станции", property(10L, "CONCENTRATION_ALKALI")),
+                component(3L, "group", "Насос", property(20L, "ST")),
+                component(4L, "group", "Насос", property(30L, "ST"))));
+
+        TagSubscriptionIndex index = TagSubscriptionIndex.build(root);
+
+        assertThat(index.propertyIdsByComponentName("Параметры станции", "CONCENTRATION_ALKALI")).containsExactly(10L);
+        assertThat(index.propertyIdsByComponentName("Насос", "ST")).containsExactlyInAnyOrder(20L, 30L);
+        assertThat(index.propertyIdsByComponentName("Параметры станции", "НЕТ_ТАКОГО")).isEmpty();
+    }
+
+    private static EditorComponentDto component(long id, String type, String name, EditorPropertyDto... properties) {
+        EditorComponentDto component = new EditorComponentDto();
+        component.setId(id);
+        component.setType(type);
+        component.setName(name);
+        component.setProperties(List.of(properties));
+        return component;
+    }
+
+    private static EditorPropertyDto property(long id, String name) {
+        EditorPropertyDto property = new EditorPropertyDto();
+        property.setId(id);
+        property.setName(name);
+        return property;
+    }
+
     private static TagSubscriptionIndex indexWithTags(String... tagIds) {
         EditorComponentDto root = new EditorComponentDto();
         root.setId(1L);

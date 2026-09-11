@@ -187,10 +187,12 @@ public class ScriptEngineService {
      * Скрипт пишется в расчёте на функцию верхнего уровня ({@code return ...;}), поэтому
      * оборачивается в IIFE перед разбором — top-level {@code return} иначе SyntaxError.
      * В отличие от onChange/action условие ничего не пишет — только читает
-     * {@code readProjectTag} и решает, пора ли шагу завершиться. Пустой/{@code null}
-     * скрипт — сразу {@code true} (нецепочечный шаг проскакивает мгновенно).
+     * {@code readProjectTag} (тег ПЛК) и {@code readProjectProperty} (локальное свойство
+     * проекта) и решает, пора ли шагу завершиться. Пустой/{@code null} скрипт — сразу
+     * {@code true} (нецепочечный шаг проскакивает мгновенно).
      */
-    public boolean runCondition(String scriptSource, long elapsedMs, boolean confirmed, TagReader tagReader) {
+    public boolean runCondition(String scriptSource, long elapsedMs, boolean confirmed, TagReader tagReader,
+                                PropertyReader propertyReader) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return true;
         }
@@ -220,6 +222,7 @@ public class ScriptEngineService {
                 ctx.getBindings("js").putMember("elapsedMs", elapsedMs);
                 ctx.getBindings("js").putMember("confirmed", confirmed);
                 ctx.getBindings("js").putMember("readProjectTag", readProjectTagFunction(tagReader));
+                ctx.getBindings("js").putMember("readProjectProperty", readProjectPropertyFunction(propertyReader));
                 Value result = ctx.eval(source);
                 resultRef.set(result != null && result.isBoolean() ? result.asBoolean() : null);
             } catch (Throwable t) {
@@ -278,6 +281,16 @@ public class ScriptEngineService {
         };
     }
 
+    private ProxyExecutable readProjectPropertyFunction(PropertyReader reader) {
+        return arguments -> {
+            if (arguments.length < 2 || !arguments[0].isString() || !arguments[1].isString()) {
+                log.warn("readProjectProperty(): expected (componentName, propertyName) strings");
+                return null;
+            }
+            return reader.read(arguments[0].asString(), arguments[1].asString());
+        };
+    }
+
     private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
                                         ScriptWriteSinks writeSinks, boolean forAction) {
         if (scriptSource == null || scriptSource.isBlank()) {
@@ -297,6 +310,9 @@ public class ScriptEngineService {
                 ctx.getBindings("js").putMember("writeTag", writeTagFunction(sinks.byProperty()));
                 ctx.getBindings("js").putMember("writeTagPath", writeTagFunction(sinks.byPath()));
                 ctx.getBindings("js").putMember("writeProjectTag", writeTagFunction(sinks.byProjectTag()));
+                // Контекст общий с runCondition: без сброса скрипту компонента достался бы ридер,
+                // замкнутый на сессию чужой процедуры (readProjectTag — тот же случай, scada-re9).
+                ctx.getBindings("js").putMember("readProjectProperty", null);
                 ctx.eval(source);
             } catch (Throwable t) {
                 failure.set(t);
