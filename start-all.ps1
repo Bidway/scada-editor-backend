@@ -639,6 +639,9 @@ if ($Mode -eq 'host') {
                         $simInner = "`$host.ui.RawUI.WindowTitle='plc-simulator (native)'; " +
                             "Set-Location '$(Join-Path $GatewayDir 'plc-simulator')'; " +
                             "`$env:OPCUA_ENDPOINT='opc.tcp://localhost:4840'; " +
+                            # simulator.py открывает конфиг без encoding=, и на Windows Python читает
+                            # его в cp1251: UTF-8 с кириллицей падает на байте 0x98 («И»).
+                            "`$env:PYTHONUTF8='1'; " +
                             "& '$venvPy' simulator.py config\replay_config.yaml"
                         Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoExit', '-Command', $simInner -WindowStyle Normal | Out-Null
                     }

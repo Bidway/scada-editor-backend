@@ -294,11 +294,31 @@ public class ProcedureExecutionService {
         try {
             return scriptEngineService.runCondition(step.getCondition_script(), elapsedMs, confirmed,
                     path -> TagValueRouter.coerceTagValue(
-                            tagValueRouter.lastValue(session.getIndex().resolveTagPath(path))));
+                            tagValueRouter.lastValue(session.getIndex().resolveTagPath(path))),
+                    (componentName, propertyName) -> readProjectProperty(session, step, componentName, propertyName));
         } catch (Exception e) {
             log.warn("Recipe step '{}' condition_script failed: {}", step.getName(), e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Значение берётся из состояния сессии, а не из editor: его засевает {@code default_value}
+     * при старте сессии, и его же меняют скрипты компонентов — условие видит то же, что оператор.
+     * Неоднозначный адрес не разрешается «первым попавшимся»: условие шага решает, идти ли
+     * процедуре дальше, и чужое одноимённое свойство здесь хуже, чем {@code null}. Лог — debug:
+     * условие пересчитывается каждый тик, и warn на опечатке в адресе заливал бы лог.
+     */
+    private Object readProjectProperty(RuntimeSession session, EditorRecipeStepDto step,
+                                       String componentName, String propertyName) {
+        List<Long> ids = session.getIndex().propertyIdsByComponentName(componentName, propertyName);
+        if (ids.size() != 1) {
+            log.debug("Recipe step '{}': readProjectProperty('{}', '{}') — {}", step.getName(), componentName,
+                    propertyName, ids.isEmpty() ? "no such property" : "ambiguous across " + ids.size() + " components");
+            return null;
+        }
+        Object value = session.getPropertyValues().get(ids.get(0));
+        return value instanceof String s ? TagValueRouter.coerceTagValue(s) : value;
     }
 
     private void publishEvent(RuntimeSession session, String recipeId, Integer stepIndex, String stepName,

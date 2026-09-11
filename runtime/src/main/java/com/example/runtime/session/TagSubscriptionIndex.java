@@ -30,6 +30,8 @@ public class TagSubscriptionIndex {
     private final Map<Long, List<Long>> componentPropertyIds = new HashMap<>();
     private final Map<Long, Object> initialPropertyValues = new ConcurrentHashMap<>();
     private final Set<String> allTagIds = new HashSet<>();
+    /** Имя компонента → id компонентов с этим именем: имена в дереве не уникальны («Насос», «Element»). */
+    private final Map<String, List<Long>> componentIdsByName = new HashMap<>();
 
     /**
      * Общий префикс путей всех тегов проекта (для {@code writeProjectTag} из скрипта),
@@ -57,6 +59,9 @@ public class TagSubscriptionIndex {
 
     private void indexComponent(EditorComponentDto component) {
         Long componentId = component.getId();
+        if (component.getName() != null && !component.getName().isBlank()) {
+            componentIdsByName.computeIfAbsent(component.getName().trim(), name -> new ArrayList<>()).add(componentId);
+        }
 
         if (component.getProperties() != null) {
             for (EditorPropertyDto property : component.getProperties()) {
@@ -92,6 +97,25 @@ public class TagSubscriptionIndex {
                 scriptsById.put(script.getId(), new ScriptEntry(script.getId(), componentId, script.getName(), script.getScript()));
             }
         }
+    }
+
+    /**
+     * Свойства {@code propertyName} у всех компонентов с именем {@code componentName} — для
+     * {@code readProjectProperty} в условии шага. Решение за вызывающим: одно совпадение —
+     * адрес однозначен, пусто — такого свойства нет, больше одного — одноимённые компоненты.
+     */
+    public List<Long> propertyIdsByComponentName(String componentName, String propertyName) {
+        if (componentName == null || propertyName == null) {
+            return List.of();
+        }
+        List<Long> result = new ArrayList<>();
+        for (Long componentId : componentIdsByName.getOrDefault(componentName.trim(), List.of())) {
+            Long propertyId = propertyIdOfComponentProperty(componentId, propertyName);
+            if (propertyId != null) {
+                result.add(propertyId);
+            }
+        }
+        return result;
     }
 
     public Set<String> getAllTagIds() {
