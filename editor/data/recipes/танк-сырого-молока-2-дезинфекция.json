@@ -1,0 +1,1060 @@
+{
+  "id" : "танк-сырого-молока-2-дезинфекция",
+  "name" : "Танк сырого молока №2 — Дезинфекция",
+  "tags" : [ {
+    "name" : "V0",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V0.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V00"
+  }, {
+    "name" : "V1",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V1.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V01"
+  }, {
+    "name" : "V2",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V2.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V02"
+  }, {
+    "name" : "V3",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V3.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V03"
+  }, {
+    "name" : "V4",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V4.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V04"
+  }, {
+    "name" : "V5",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V5.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V05"
+  }, {
+    "name" : "V6",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V6.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V06"
+  }, {
+    "name" : "V7",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V7.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V07"
+  }, {
+    "name" : "V8",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V8.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V08"
+  }, {
+    "name" : "V9",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V9.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V09"
+  }, {
+    "name" : "V10",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V10.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V10"
+  }, {
+    "name" : "V11",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V11.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V11"
+  }, {
+    "name" : "V12",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V12.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V12"
+  }, {
+    "name" : "V13",
+    "tag" : "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V13.ST",
+    "value_type" : "bool",
+    "description" : "Клапан V13"
+  }, {
+    "name" : "NP",
+    "tag" : "Барановичи-1.BN1_MCA1.M_ST.LINE1M1.ST",
+    "value_type" : "bool",
+    "description" : "Подающий насос (NP)"
+  }, {
+    "name" : "RET",
+    "tag" : "Барановичи-1.BN1_MCA1.DO_ST.LINE1DO1102.ST",
+    "value_type" : "number",
+    "description" : "Управление возвратным насосом (P_N_UPR=1102)"
+  }, {
+    "name" : "CIP_END",
+    "tag" : "Барановичи-1.BN1_MCA1.DO_ST.LINE1DO1103.ST",
+    "value_type" : "number",
+    "description" : "Сигнал «Мойка окончена» (1103)"
+  }, {
+    "name" : "MEDIUM",
+    "tag" : "Барановичи-1.BN1_MCA1.DO_ST.LINE1DO1104.ST",
+    "value_type" : "bool",
+    "description" : "Сигнал «Смена среды» (1104)"
+  }, {
+    "name" : "FQT",
+    "tag" : "Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V",
+    "value_type" : "number",
+    "description" : "Счётчик объёма линии LINE1FQT1, л (обнуляется на старте шага)"
+  } ],
+  "steps" : [ {
+    "name" : "0. Ожидание готовности танка №2 (DI1102)",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : false
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : false
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : false
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : false
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1102.ST\") === true;",
+    "timeout_ms" : null
+  }, {
+    "name" : "61. Заполнение бачка водой",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : true
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : false
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : false
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : true
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : false
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "62. Подача V1=665 л на танк",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : true
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    }, {
+      "tag" : "FQT",
+      "value" : 0
+    } ],
+    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 665);",
+    "timeout_ms" : 171000
+  }, {
+    "name" : "63. Опорожнение танка (смена среды)",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : false
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : false
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : true
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1118.ST\") === true || (elapsedMs >= 12000 && readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\") !== true);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "64. Подача V2=1210 л с нагревом до 95 °C",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : true
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : true
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    }, {
+      "tag" : "FQT",
+      "value" : 0
+    } ],
+    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1210);",
+    "timeout_ms" : 311000
+  }, {
+    "name" : "65. Заполнение контура циркуляции",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : false
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : true
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "66а. Циркуляция: нагрев возврата до 85 °C (95 − ΔT 10)",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : false
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : true
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : true
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.TE_V.LINE1TE2.V\") >= 85;",
+    "timeout_ms" : 900000
+  }, {
+    "name" : "66б. Циркуляция: выдержка 1200 с при 95 °C",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : false
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : true
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : true
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "return confirmed || (elapsedMs >= 1200000 && readProjectTag(\"Барановичи-1.BN1_MCA1.TE_V.LINE1TE2.V\") >= 85);",
+    "timeout_ms" : 1500000
+  }, {
+    "name" : "67. Опорожнение бачка (35 л после LL)",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || (elapsedMs >= 4500 && !on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS3.ST\"));",
+    "timeout_ms" : 60000
+  }, {
+    "name" : "81. Окончательное ополаскивание: заполнение бачка",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : true
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : false
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : false
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : true
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : false
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "83. Ополаскивание: подача V1=665 л",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : true
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    }, {
+      "tag" : "FQT",
+      "value" : 0
+    } ],
+    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 665);",
+    "timeout_ms" : 171000
+  }, {
+    "name" : "84. Ополаскивание: опорожнение танка",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : false
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : false
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : true
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1118.ST\") === true || (elapsedMs >= 12000 && readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\") !== true);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "85. Ополаскивание: подача V2=1210 л",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : true
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    }, {
+      "tag" : "FQT",
+      "value" : 0
+    } ],
+    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1210);",
+    "timeout_ms" : 311000
+  }, {
+    "name" : "86. Доп. объём ополаскивания 1100 л",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : true
+    }, {
+      "tag" : "V1",
+      "value" : true
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : true
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    }, {
+      "tag" : "FQT",
+      "value" : 0
+    } ],
+    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1100);",
+    "timeout_ms" : 283000
+  }, {
+    "name" : "91. Финальное опорожнение танка",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : false
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : true
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : true
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : false
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "MEDIUM",
+      "value" : true
+    }, {
+      "tag" : "CIP_END",
+      "value" : 0
+    } ],
+    "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1118.ST\") === true || (elapsedMs >= 12000 && readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\") !== true);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "555. Мойка окончена",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : false
+    }, {
+      "tag" : "V1",
+      "value" : false
+    }, {
+      "tag" : "V2",
+      "value" : false
+    }, {
+      "tag" : "V3",
+      "value" : false
+    }, {
+      "tag" : "V4",
+      "value" : false
+    }, {
+      "tag" : "V5",
+      "value" : false
+    }, {
+      "tag" : "V6",
+      "value" : false
+    }, {
+      "tag" : "V7",
+      "value" : false
+    }, {
+      "tag" : "V8",
+      "value" : false
+    }, {
+      "tag" : "V9",
+      "value" : false
+    }, {
+      "tag" : "V10",
+      "value" : false
+    }, {
+      "tag" : "V11",
+      "value" : false
+    }, {
+      "tag" : "V12",
+      "value" : false
+    }, {
+      "tag" : "V13",
+      "value" : false
+    }, {
+      "tag" : "NP",
+      "value" : false
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "MEDIUM",
+      "value" : false
+    }, {
+      "tag" : "CIP_END",
+      "value" : 1
+    } ],
+    "condition_script" : null,
+    "timeout_ms" : null
+  } ]
+}
