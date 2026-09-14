@@ -1,6 +1,7 @@
 package com.example.runtime.kafka;
 
 import com.example.runtime.config.KafkaProperties;
+import com.example.runtime.session.VariableTags;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -114,6 +115,12 @@ public class CommandProducer {
         if (idNode == null || idNode.isBlank()) {
             return CompletableFuture.completedFuture(
                     CommandOutcome.failure(CommandOutcome.NO_TAG, "Свойство не привязано к тегу"));
+        }
+        // Одна проверка на все пути записи (ACTION, onChange, «Опции», шаги процедур): адрес
+        // переменной, ушедший в шлюз, был бы воспринят как путь тега ПЛК.
+        if (VariableTags.isVariable(idNode) || VariableTags.isVariableKey(idNode)) {
+            return CompletableFuture.completedFuture(CommandOutcome.failure(CommandOutcome.REJECTED_VARIABLE,
+                    "Переменная проекта недоступна для записи: её пишет только automation"));
         }
         String topic = kafkaProperties.getCommandsTopic();
         String commandId = UUID.randomUUID().toString();

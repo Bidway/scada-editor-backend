@@ -33,6 +33,12 @@ public record CommandOutcome(boolean applied, String status, String message) {
     /** Отправлять нечего: свойство не привязано к тегу. Локальный статус. */
     public static final String NO_TAG = "NO_TAG";
 
+    /**
+     * Адрес — переменная проекта ({@code @var.*}): её пишет только сервис automation, из
+     * монитора и скриптов runtime запись запрещена. Локальный статус.
+     */
+    public static final String REJECTED_VARIABLE = "REJECTED_VARIABLE";
+
     public static CommandOutcome applied(String message) {
         return new CommandOutcome(true, APPLIED, message);
     }
