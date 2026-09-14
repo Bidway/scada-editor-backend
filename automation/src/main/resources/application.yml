@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: automation
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:savushkin}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  sql:
+    init:
+      # Схема automation создаётся schema.sql (CREATE … IF NOT EXISTS) при каждом старте.
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: false
+
+server:
+  port: 8086
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always
+
+automation:
+  # Стабильный и уникальный на экземпляр: это group.instance.id (статическое членство —
+  # быстрый перезапуск без перебалансировки). Два экземпляра на одной машине — задать явно.
+  instance-id: ${AUTOMATION_INSTANCE_ID:automation-${COMPUTERNAME:${HOSTNAME:local}}}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    definitions-topic: automation.definitions
+    state-topic: automation.state
+    tags-topic: ${KAFKA_TAGS_TOPIC:scada.tags}
+    commands-topic: ${KAFKA_COMMANDS_TOPIC:scada-commands}
+    command-results-topic: ${KAFKA_COMMAND_RESULTS_TOPIC:scada-command-results}
+    group-id: automation
+    # Фиксируется навсегда — см. спеку, раздел «Kafka».
+    partitions: 12
+    replication-factor: ${AUTOMATION_TOPIC_REPLICATION:1}
+    session-timeout-ms: 10000
+    heartbeat-interval-ms: 3000
+    command-timeout-ms: 5000
+  engine:
+    worker-threads: 4
+    context-pool-size: 4
+    checkpoint-flush-ms: 1000
+    status-refresh-ms: 10000

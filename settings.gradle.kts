@@ -1,3 +1,3 @@
 rootProject.name = "scada-editor-backend"
 
-include("auth", "channel", "editor", "gateway", "runtime", "script-core")
+include("auth", "channel", "editor", "gateway", "runtime", "script-core", "automation")
