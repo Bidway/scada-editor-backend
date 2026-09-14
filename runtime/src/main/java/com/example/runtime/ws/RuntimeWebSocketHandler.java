@@ -1,5 +1,6 @@
 package com.example.runtime.ws;
 
+import com.example.runtime.kafka.AutomationStateConsumer;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionService;
 import com.example.runtime.stream.PropertyUpdate;
@@ -25,10 +26,13 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
 
     private final RuntimeSessionService sessionService;
     private final ObjectMapper objectMapper;
+    private final AutomationStateConsumer automationState;
 
-    public RuntimeWebSocketHandler(RuntimeSessionService sessionService, ObjectMapper objectMapper) {
+    public RuntimeWebSocketHandler(RuntimeSessionService sessionService, ObjectMapper objectMapper,
+                                   AutomationStateConsumer automationState) {
         this.sessionService = sessionService;
         this.objectMapper = objectMapper;
+        this.automationState = automationState;
     }
 
     @Override
@@ -69,6 +73,18 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
                 if (session != null) {
                     send(session, new OutboundMessage(null, changed, null));
                 }
+            }
+        } else if ("SUBSCRIBE_TASKS".equalsIgnoreCase(inbound.getType())) {
+            RuntimeSession session = sessionService.getSession(sessionId);
+            if (session != null) {
+                session.setTasksSubscribed(true);
+                // Полный список при подписке, дальше — изменения из AutomationStateConsumer.
+                automationState.statusesOf(session.getProjectId()).forEach(session.getOutboundBuffer()::offerTask);
+            }
+        } else if ("UNSUBSCRIBE_TASKS".equalsIgnoreCase(inbound.getType())) {
+            RuntimeSession session = sessionService.getSession(sessionId);
+            if (session != null) {
+                session.setTasksSubscribed(false);
             }
         } else {
             log.warn("Unknown inbound message type '{}' on session {}", inbound.getType(), sessionId);

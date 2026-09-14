@@ -108,7 +108,8 @@ public class OutboundFlusher {
             if (drained.isEmpty()) {
                 return;
             }
-            webSocketHandler.send(session, new OutboundMessage(drained.tags(), drained.properties(), drained.procedures()));
+            webSocketHandler.send(session, new OutboundMessage(drained.tags(), drained.properties(),
+                    drained.procedures(), drained.tasks()));
         } finally {
             lock.unlock();
         }
