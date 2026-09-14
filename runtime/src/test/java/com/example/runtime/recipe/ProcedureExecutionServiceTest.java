@@ -131,6 +131,50 @@ class ProcedureExecutionServiceTest {
     }
 
     @Test
+    void jump_appliesAccumulatedStateOfPreviousSteps_notOnlyTargetStepDelta() {
+        EditorRecipeTagDto v1 = new EditorRecipeTagDto();
+        v1.setName("V1");
+        v1.setTag("LINE1.V1.ST");
+        EditorRecipeTagDto v2 = new EditorRecipeTagDto();
+        v2.setName("V2");
+        v2.setTag("LINE1.V2.ST");
+
+        // Шаги пишут только изменения: 0 — V1 открыт, 1 — V2 открыт, 2 — V1 закрыт.
+        EditorRecipeDto recipe = new EditorRecipeDto();
+        recipe.setId(RECIPE_ID);
+        recipe.setName("Дельты");
+        recipe.setTags(List.of(v1, v2));
+        recipe.setSteps(List.of(
+                step("0", action("V1", 1), action("V2", 0)),
+                step("1", action("V2", 1)),
+                step("2", action("V1", 0))));
+        when(editorClient.getRecipe(RECIPE_ID)).thenReturn(recipe);
+
+        service.jump(SESSION_ID, RECIPE_ID, 2);
+
+        // На шаге 2 V2 должен быть открыт, хотя сам шаг 2 его не упоминает.
+        verify(commandProducer).send("LINE1.V2.ST", 1);
+        verify(commandProducer).send("LINE1.V1.ST", 0);
+        verify(commandProducer, org.mockito.Mockito.never()).send("LINE1.V1.ST", 1);
+        verify(commandProducer, org.mockito.Mockito.never()).send("LINE1.V2.ST", 0);
+    }
+
+    private static EditorRecipeStepDto step(String name, EditorRecipeStepActionDto... actions) {
+        EditorRecipeStepDto step = new EditorRecipeStepDto();
+        step.setName(name);
+        step.setAction(List.of(actions));
+        step.setCondition_script("return confirmed;");
+        return step;
+    }
+
+    private static EditorRecipeStepActionDto action(String tag, Object value) {
+        EditorRecipeStepActionDto action = new EditorRecipeStepActionDto();
+        action.setTag(tag);
+        action.setValue(value);
+        return action;
+    }
+
+    @Test
     void resumeGuess_scansFromEnd_skippingStepsWithoutObservableCondition() {
         EditorRecipeStepDto delayStep = new EditorRecipeStepDto();
         delayStep.setName("Пауза");

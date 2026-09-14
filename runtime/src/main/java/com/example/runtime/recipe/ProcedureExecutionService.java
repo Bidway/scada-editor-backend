@@ -20,6 +20,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -124,9 +126,31 @@ public class ProcedureExecutionService {
         ProcedureExecution execution = executions.computeIfAbsent(
                 new ExecutionKey(sessionId, recipeId), k -> new ProcedureExecution(recipeId));
         synchronized (execution) {
-            enterStep(session, recipe, execution, stepIndex);
+            enterStep(session, recipe, execution, stepIndex, accumulatedActions(recipe, stepIndex));
             return toStatus(recipe, execution);
         }
+    }
+
+    /**
+     * Состояние тегов, в котором процедура стоит на шаге {@code index}: действия шагов 0..index,
+     * по каждому тегу — последнее значение. Шаг рецепта пишет только то, что меняется
+     * относительно предыдущего шага, поэтому при прыжке одних действий целевого шага мало —
+     * клапаны остались бы в положении того шага, откуда прыгнули. Порядок — по последнему
+     * присваиванию, так что действия самого целевого шага уходят последними.
+     */
+    private List<EditorRecipeStepActionDto> accumulatedActions(EditorRecipeDto recipe, int index) {
+        Map<String, EditorRecipeStepActionDto> state = new LinkedHashMap<>();
+        for (int i = 0; i <= index; i++) {
+            List<EditorRecipeStepActionDto> actions = recipe.getSteps().get(i).getAction();
+            if (actions == null) {
+                continue;
+            }
+            for (EditorRecipeStepActionDto action : actions) {
+                state.remove(action.getTag());
+                state.put(action.getTag(), action);
+            }
+        }
+        return new ArrayList<>(state.values());
     }
 
     public void abort(String sessionId, String recipeId) {
@@ -254,17 +278,23 @@ public class ProcedureExecutionService {
     }
 
     private void enterStep(RuntimeSession session, EditorRecipeDto recipe, ProcedureExecution execution, int index) {
+        enterStep(session, recipe, execution, index, recipe.getSteps().get(index).getAction());
+    }
+
+    private void enterStep(RuntimeSession session, EditorRecipeDto recipe, ProcedureExecution execution, int index,
+                           List<EditorRecipeStepActionDto> actions) {
         execution.enterStep(index);
         EditorRecipeStepDto step = recipe.getSteps().get(index);
-        applyAction(session, recipe, execution.recipeId(), step);
+        applyAction(session, recipe, execution.recipeId(), step, actions);
         publishEvent(session, execution.recipeId(), index, step.getName(), ProcedureEvent.Kind.STEP_STARTED, null);
     }
 
-    private void applyAction(RuntimeSession session, EditorRecipeDto recipe, String recipeId, EditorRecipeStepDto step) {
-        if (step.getAction() == null) {
+    private void applyAction(RuntimeSession session, EditorRecipeDto recipe, String recipeId, EditorRecipeStepDto step,
+                             List<EditorRecipeStepActionDto> actions) {
+        if (actions == null) {
             return;
         }
-        for (EditorRecipeStepActionDto entry : step.getAction()) {
+        for (EditorRecipeStepActionDto entry : actions) {
             String path = tagPath(recipe, entry.getTag());
             if (path == null) {
                 log.warn("Recipe {}: step '{}' action references unknown tag '{}'",
