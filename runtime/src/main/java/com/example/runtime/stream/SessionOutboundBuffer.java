@@ -2,6 +2,7 @@ package com.example.runtime.stream;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,6 +29,8 @@ public class SessionOutboundBuffer {
     private final AtomicInteger propertyCount = new AtomicInteger();
     private final Queue<ProcedureEvent> procedureEvents = new ConcurrentLinkedQueue<>();
     private final AtomicInteger procedureEventCount = new AtomicInteger();
+    private final Queue<Map<String, Object>> taskUpdates = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger taskCount = new AtomicInteger();
 
     public void offerTag(TagUpdate update) {
         tagUpdates.add(update);
@@ -50,8 +53,16 @@ public class SessionOutboundBuffer {
         }
     }
 
+    /** Статус задачи automation — только для сессий, подписанных на панель «Задачи». */
+    public void offerTask(Map<String, Object> status) {
+        taskUpdates.add(status);
+        if (taskCount.incrementAndGet() > MAX_QUEUED_PER_KIND && taskUpdates.poll() != null) {
+            taskCount.decrementAndGet();
+        }
+    }
+
     public boolean isEmpty() {
-        return tagUpdates.isEmpty() && propertyUpdates.isEmpty() && procedureEvents.isEmpty();
+        return tagUpdates.isEmpty() && propertyUpdates.isEmpty() && procedureEvents.isEmpty() && taskUpdates.isEmpty();
     }
 
     /** Забирает всё накопленное и очищает буфер. Вызывается только флашером. */
@@ -74,12 +85,19 @@ public class SessionOutboundBuffer {
             procedures.add(e);
             procedureEventCount.decrementAndGet();
         }
-        return new Drained(tags, properties, procedures);
+        List<Map<String, Object>> tasks = new ArrayList<>();
+        Map<String, Object> task;
+        while ((task = taskUpdates.poll()) != null) {
+            tasks.add(task);
+            taskCount.decrementAndGet();
+        }
+        return new Drained(tags, properties, procedures, tasks);
     }
 
-    public record Drained(List<TagUpdate> tags, List<PropertyUpdate> properties, List<ProcedureEvent> procedures) {
+    public record Drained(List<TagUpdate> tags, List<PropertyUpdate> properties, List<ProcedureEvent> procedures,
+                          List<Map<String, Object>> tasks) {
         public boolean isEmpty() {
-            return tags.isEmpty() && properties.isEmpty() && procedures.isEmpty();
+            return tags.isEmpty() && properties.isEmpty() && procedures.isEmpty() && tasks.isEmpty();
         }
     }
 }

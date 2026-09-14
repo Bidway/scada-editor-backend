@@ -3,6 +3,7 @@ package com.example.runtime.session;
 import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.dto.TagSnapshot;
+import com.example.runtime.kafka.AutomationStateConsumer;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
@@ -27,19 +28,22 @@ public class RuntimeSessionService {
     private final ScriptEngineService scriptEngineService;
     private final TagCommandService tagCommandService;
     private final ActionDedupGuard actionDedupGuard;
+    private final AutomationStateConsumer automationState;
 
     public RuntimeSessionService(EditorClient editorClient,
                                   RuntimeSessionStore sessionStore,
                                   TagValueRouter tagValueRouter,
                                   ScriptEngineService scriptEngineService,
                                   TagCommandService tagCommandService,
-                                  ActionDedupGuard actionDedupGuard) {
+                                  ActionDedupGuard actionDedupGuard,
+                                  AutomationStateConsumer automationState) {
         this.editorClient = editorClient;
         this.sessionStore = sessionStore;
         this.tagValueRouter = tagValueRouter;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
         this.actionDedupGuard = actionDedupGuard;
+        this.automationState = automationState;
     }
 
     /**
@@ -59,6 +63,7 @@ public class RuntimeSessionService {
         RuntimeSession session = new RuntimeSession(sessionId, projectId, index);
         sessionStore.put(session);
         tagValueRouter.registerSession(session);
+        automationState.replayVariables(session);
 
         log.info("Runtime session {} started for project {} ({} tags)",
                 sessionId, projectId, index.getAllTagIds().size());

@@ -20,6 +20,9 @@ public class RuntimeSession {
 
     private volatile WebSocketSession webSocketSession;
 
+    /** Прислала ли сессия SUBSCRIBE_TASKS: статусы задач нужны только открытой панели «Задачи». */
+    private volatile boolean tasksSubscribed;
+
     public RuntimeSession(String id, Long projectId, TagSubscriptionIndex index) {
         this.id = id;
         this.projectId = projectId;
@@ -62,5 +65,13 @@ public class RuntimeSession {
     /** WebSocketSession.sendMessage не потокобезопасен при конкурентных отправках. */
     public ReentrantLock getSendLock() {
         return sendLock;
+    }
+
+    public boolean isTasksSubscribed() {
+        return tasksSubscribed;
+    }
+
+    public void setTasksSubscribed(boolean tasksSubscribed) {
+        this.tasksSubscribed = tasksSubscribed;
     }
 }
