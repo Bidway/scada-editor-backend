@@ -119,4 +119,45 @@ class TagSubscriptionIndexTest {
 
         return TagSubscriptionIndex.build(root);
     }
+
+    @Test
+    @DisplayName("переменная проекта подписывается под ключом automation.state и не ломает префикс проекта")
+    void projectVariableIsSubscribedByStateKey() {
+        EditorComponentDto root = new EditorComponentDto();
+        root.setId(1L);
+        root.setProperties(List.of(
+                tagProperty(100L, "Барановичи-1.BN1_MCA1.FQT_ST.LINE1FQT1.ST"),
+                tagProperty(101L, "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V0.ST"),
+                tagProperty(102L, "@var.line1.mode")));
+
+        TagSubscriptionIndex index = TagSubscriptionIndex.build(root, 8501L);
+
+        assertThat(index.getAllTagIds()).contains("var:8501:line1.mode");
+        assertThat(index.resolveTagPath("AI_M.AI2.M")).isEqualTo("Барановичи-1.BN1_MCA1.AI_M.AI2.M");
+    }
+
+    @Test
+    @DisplayName("теги из композиции группы попадают в подписку сессии (scada-33o)")
+    void compositionTagsAreSubscribed() {
+        EditorComponentDto group = new EditorComponentDto();
+        group.setId(10L);
+        com.example.runtime.client.dto.EditorStateDto state = new com.example.runtime.client.dto.EditorStateDto();
+        // Так image приходит из editor: JSON-строка внутри jsonb.
+        state.setImage(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.textNode("{\"composition\":["
+                + "{\"type\":\"progress_bar\",\"bindings\":[{\"direct\":true,\"tag\":\"A.B.FQT_F.LINE1FQT1.F\"}]},"
+                + "{\"type\":\"table\",\"properties\":[{\"name\":\"PIDF_Z\",\"tag_id\":\"A.B.OBJECT1.RT_PAR_F[72]\"}]}]}"));
+        group.setStates(List.of(state));
+
+        TagSubscriptionIndex index = TagSubscriptionIndex.build(group, 8501L);
+
+        assertThat(index.getAllTagIds()).contains("A.B.FQT_F.LINE1FQT1.F", "A.B.OBJECT1.RT_PAR_F[72]");
+    }
+
+    private static EditorPropertyDto tagProperty(long id, String tagId) {
+        EditorPropertyDto property = new EditorPropertyDto();
+        property.setId(id);
+        property.setName("p" + id);
+        property.setTag_id(tagId);
+        return property;
+    }
 }

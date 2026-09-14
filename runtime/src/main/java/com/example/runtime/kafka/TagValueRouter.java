@@ -6,6 +6,7 @@ import com.example.runtime.session.OnChangeBinding;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionStore;
 import com.example.runtime.session.TagCommandService;
+import com.example.runtime.session.VariableTags;
 import com.example.runtime.stream.PropertyUpdate;
 import com.example.runtime.stream.TagUpdate;
 import com.example.scriptcore.TelemetryEnvelope;
@@ -245,7 +246,7 @@ public class TagValueRouter {
     }
 
     private static TagUpdate toUpdate(String tagId, TagRuntimeState.Snapshot snapshot) {
-        return new TagUpdate(tagId, snapshot.value(), snapshot.ts(),
+        return new TagUpdate(VariableTags.displayId(tagId), snapshot.value(), snapshot.ts(),
                 snapshot.good() ? TagUpdate.GOOD : TagUpdate.BAD);
     }
 

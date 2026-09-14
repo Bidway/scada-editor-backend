@@ -53,7 +53,7 @@ public class RuntimeSessionService {
         if (tree == null) {
             throw new IllegalArgumentException("Project not found: " + projectId);
         }
-        TagSubscriptionIndex index = TagSubscriptionIndex.build(tree);
+        TagSubscriptionIndex index = TagSubscriptionIndex.build(tree, projectId);
 
         String sessionId = UUID.randomUUID().toString();
         RuntimeSession session = new RuntimeSession(sessionId, projectId, index);

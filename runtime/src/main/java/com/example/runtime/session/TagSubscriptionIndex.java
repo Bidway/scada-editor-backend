@@ -3,6 +3,9 @@ package com.example.runtime.session;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.client.dto.EditorPropertyDto;
 import com.example.runtime.client.dto.EditorScriptDto;
+import com.example.runtime.client.dto.EditorStateDto;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -13,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Строится один раз при старте сессии обходом дерева проекта, полученного от editor.
@@ -20,6 +24,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * все структуры — простые неизменяемые/потокобезопасные map-ы для чтения без блокировок.
  */
 public class TagSubscriptionIndex {
+
+    private static final ObjectMapper IMAGE_READER = new ObjectMapper();
+
+    /** Проект сессии: нужен для ключа переменных {@code var:<projectId>:<имя>}; {@code null} — без переменных. */
+    private final Long projectId;
 
     private final Map<String, List<OnChangeBinding>> tagToOnChangeBindings = new HashMap<>();
     private final Map<Long, ScriptEntry> scriptsById = new HashMap<>();
@@ -39,8 +48,16 @@ public class TagSubscriptionIndex {
      */
     private String projectTagPrefix = "";
 
+    private TagSubscriptionIndex(Long projectId) {
+        this.projectId = projectId;
+    }
+
     public static TagSubscriptionIndex build(EditorComponentDto root) {
-        TagSubscriptionIndex index = new TagSubscriptionIndex();
+        return build(root, null);
+    }
+
+    public static TagSubscriptionIndex build(EditorComponentDto root, Long projectId) {
+        TagSubscriptionIndex index = new TagSubscriptionIndex(projectId);
         Deque<EditorComponentDto> queue = new ArrayDeque<>();
         queue.add(root);
         while (!queue.isEmpty()) {
@@ -49,11 +66,15 @@ public class TagSubscriptionIndex {
                 continue;
             }
             index.indexComponent(component);
+            index.indexComposition(component);
             if (component.getChildren() != null) {
                 queue.addAll(component.getChildren());
             }
         }
-        index.projectTagPrefix = computeProjectTagPrefix(index.allTagIds);
+        // Переменные в префикс проекта не входят: у них нет пути узла ПЛК.
+        index.projectTagPrefix = computeProjectTagPrefix(index.allTagIds.stream()
+                .filter(tagId -> !VariableTags.isVariableKey(tagId))
+                .collect(Collectors.toSet()));
         return index;
     }
 
@@ -78,7 +99,7 @@ public class TagSubscriptionIndex {
 
                 // property_type — свободная строка без валидации ("Тег", "TAG", ...),
                 // поэтому признак тега — только непустой tag_id.
-                String tagId = property.getTag_id();
+                String tagId = subscriptionKey(property.getTag_id());
                 if (tagId != null && !tagId.isBlank()) {
                     allTagIds.add(tagId);
                     propertyTagIds.put(propertyId, tagId);
@@ -97,6 +118,65 @@ public class TagSubscriptionIndex {
                 scriptsById.put(script.getId(), new ScriptEntry(script.getId(), componentId, script.getName(), script.getScript()));
             }
         }
+    }
+
+    /**
+     * Теги примитивов внутри группы (scada-33o): таблица, прогресс-бар, текст живут не отдельными
+     * компонентами, а дескрипторами в {@code state.image.composition}. Их свойства
+     * ({@code properties[].tag_id}) и прямые привязки ({@code bindings[]} с {@code direct && tag})
+     * без этого не попадали в подписку, и шкала на мониторе вечно показывала «нет данных».
+     */
+    private void indexComposition(EditorComponentDto component) {
+        if (component.getStates() == null) {
+            return;
+        }
+        for (EditorStateDto state : component.getStates()) {
+            JsonNode image = readImage(state.getImage());
+            JsonNode composition = image == null ? null : image.get("composition");
+            if (composition == null || !composition.isArray()) {
+                continue;
+            }
+            for (JsonNode element : composition) {
+                for (JsonNode property : element.path("properties")) {
+                    addCompositionTag(property.path("tag_id").asText(null));
+                }
+                for (JsonNode binding : element.path("bindings")) {
+                    if (binding.path("direct").asBoolean(false)) {
+                        addCompositionTag(binding.path("tag").asText(null));
+                    }
+                }
+            }
+        }
+    }
+
+    private void addCompositionTag(String tagId) {
+        String key = subscriptionKey(tagId);
+        if (key != null && !key.isBlank()) {
+            allTagIds.add(key);
+        }
+    }
+
+    /** {@code image} приходит JSON-строкой внутри jsonb либо уже объектом — принимаем оба. */
+    private static JsonNode readImage(JsonNode image) {
+        if (image == null || image.isNull()) {
+            return null;
+        }
+        if (image.isTextual()) {
+            try {
+                return IMAGE_READER.readTree(image.asText());
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return image;
+    }
+
+    /** Переменная проекта → ключ {@code automation.state}; путь тега ПЛК — как есть. */
+    private String subscriptionKey(String tagId) {
+        if (projectId != null && VariableTags.isVariable(tagId)) {
+            return VariableTags.subscriptionKey(projectId, tagId);
+        }
+        return tagId;
     }
 
     /**
