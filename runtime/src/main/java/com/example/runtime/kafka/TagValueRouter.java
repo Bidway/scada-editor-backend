@@ -8,19 +8,17 @@ import com.example.runtime.session.RuntimeSessionStore;
 import com.example.runtime.session.TagCommandService;
 import com.example.runtime.stream.PropertyUpdate;
 import com.example.runtime.stream.TagUpdate;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.example.scriptcore.TelemetryEnvelope;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
 
 /**
  * Горячий путь: диспетчеризация сообщений единого Kafka-топика проекта на все сессии,
@@ -118,7 +116,9 @@ public class TagValueRouter {
         if (state == null) {
             return;
         }
-        Envelope envelope = parse(event.rawValue(), tagId);
+        TelemetryEnvelope envelope = TelemetryEnvelope.parse(objectMapper, event.rawValue(),
+                // Раньше битый конверт молча уезжал оператору на экран как значение тега.
+                e -> log.warn("Tag '{}': malformed message envelope, using raw payload: {}", tagId, e.getMessage()));
 
         // Недостоверное чтение НЕ затирает последнее хорошее значение — оно лишь снимает
         // с него признак актуальности. Иначе обрыв связи стирал бы с мнемосхемы всё, что
@@ -244,118 +244,6 @@ public class TagValueRouter {
         }
     }
 
-    /**
-     * Строгий формат числа: опциональный знак, целая часть без ведущих нулей
-     * ({@code 0} либо {@code [1-9]\d*}), опциональная дробная часть и экспонента.
-     * Намеренно отвергает то, что {@link Double#parseDouble} проглотил бы неверно:
-     * {@code NaN}/{@code Infinity}, суффиксы типа {@code "1d"}/{@code "1f"}, hex-литералы,
-     * и статус-коды с ведущими нулями ({@code "0012"} должен остаться строкой, а не стать 12.0).
-     */
-    private static final Pattern NUMERIC =
-            Pattern.compile("[+-]?(0|[1-9]\\d*)(\\.\\d+)?([eE][+-]?\\d+)?");
-
-    /**
-     * Разобранное тело сообщения телеметрии.
-     *
-     * @param value    значение тега сырой строкой ({@code "72.7"}, {@code "true"}) —
-     *                 модель тега по всей цепочке строковая
-     * @param good     достоверно ли значение
-     * @param sourceTs момент снятия значения с контроллера (epoch ms), {@code null} —
-     *                 источник времени не прислан, берём момент приёма
-     */
-    private record Envelope(String value, boolean good, Long sourceTs) {
-
-        static Envelope raw(String value) {
-            return new Envelope(value, true, null);
-        }
-    }
-
-    /**
-     * Достаёт значение, качество и метку времени из сообщения. В топике сосуществуют
-     * три формата, и все три разбираются одним кодом:
-     * <ul>
-     *   <li>текущий контракт шлюза — {@code {value, quality, timestamp}};</li>
-     *   <li>прежний 13-польный {@code TelemetryMessage} — берётся {@code value},
-     *       качества и времени в нём фактически не было;</li>
-     *   <li>голый скаляр от ручных публикаций и {@code kafka-sim}.</li>
-     * </ul>
-     * Совместимость держится на том, что отсутствующее {@code quality} трактуется как
-     * достоверное: иначе выкладка шлюза и runtime стали бы связаны по порядку, а старый
-     * формат мгновенно погасил бы все теги на экранах.
-     * <p>
-     * Вызывается только для подписанных тегов, поэтому и разбор, и предупреждение о
-     * битом теле ограничены тем, что реально смотрят операторы: залить лог потоком в
-     * миллион сообщений здесь нечем.
-     */
-    private Envelope parse(String raw, String tagId) {
-        if (raw == null || raw.isEmpty() || raw.charAt(0) != '{') {
-            return Envelope.raw(raw);
-        }
-        try {
-            JsonNode root = objectMapper.readTree(raw);
-            JsonNode value = root.get("value");
-            if (value == null) {
-                return Envelope.raw(raw);
-            }
-            return new Envelope(
-                    value.isNull() ? null : value.asText(),
-                    isGood(root.get("quality")),
-                    sourceTs(root.get("timestamp")));
-        } catch (Exception e) {
-            // Раньше битый конверт молча уезжал оператору на экран как значение тега.
-            log.warn("Tag '{}': malformed message envelope, using raw payload: {}", tagId, e.getMessage());
-            return Envelope.raw(raw);
-        }
-    }
-
-    /**
-     * Достоверно <b>только</b> {@code "GOOD"}. Проверять на равенство {@code "BAD"}
-     * нельзя: контракт расширяемый, и у OPC UA рядом есть {@code UNCERTAIN} — он тоже
-     * не является основанием что-то показывать оператору как факт.
-     */
-    private static boolean isGood(JsonNode quality) {
-        return quality == null || quality.isNull() || TagUpdate.GOOD.equalsIgnoreCase(quality.asText());
-    }
-
-    /**
-     * Граница «это секунды, а не миллисекунды». {@code 1e11} мс — это 1973 год, а
-     * {@code 1e11} с — 5138-й: между осмысленными датами в двух единицах зазор в тысячи
-     * лет, поэтому порог надёжен и не требует договорённости с отправителем.
-     */
-    private static final double EPOCH_SECONDS_CEILING = 1e11;
-
-    /**
-     * Метка времени источника, приведённая к epoch ms. Принимаются три написания:
-     * <ul>
-     *   <li>строка ISO-8601 — то, что описано в контракте;</li>
-     *   <li>дробное число — Jackson без {@code JavaTimeModule} сериализует {@code Instant}
-     *       как epoch-<b>секунды</b> с наносекундной дробью ({@code 1785935496.271793106});</li>
-     *   <li>целое число — epoch ms от простых публикаций.</li>
-     * </ul>
-     * Второй случай реален: именно так шлюз пишет сегодня. Приняв его за миллисекунды,
-     * мы датировали бы все значения январём 1970-го, и «возраст значения» на экране
-     * оператора составил бы 56 лет.
-     * <p>
-     * Разбор не должен ронять приём телеметрии, поэтому любая неудача означает лишь
-     * фолбэк на момент приёма; на уровень {@code warn} это не выносится — при ~1200
-     * сообщениях в секунду кривой формат залил бы лог целиком.
-     */
-    private Long sourceTs(JsonNode timestamp) {
-        if (timestamp == null || timestamp.isNull()) {
-            return null;
-        }
-        if (timestamp.isNumber()) {
-            double raw = timestamp.asDouble();
-            return raw < EPOCH_SECONDS_CEILING ? Math.round(raw * 1000) : (long) raw;
-        }
-        try {
-            return Instant.parse(timestamp.asText()).toEpochMilli();
-        } catch (Exception e) {
-            log.debug("Unparseable telemetry timestamp '{}', falling back to receive time", timestamp.asText());
-            return null;
-        }
-    }
-
     private static TagUpdate toUpdate(String tagId, TagRuntimeState.Snapshot snapshot) {
         return new TagUpdate(tagId, snapshot.value(), snapshot.ts(),
                 snapshot.good() ? TagUpdate.GOOD : TagUpdate.BAD);
@@ -367,20 +255,6 @@ public class TagValueRouter {
      * процедуры ({@code readProjectTag}), не только диспетчинг телеметрии здесь.
      */
     public static Object coerceTagValue(String value) {
-        if (value == null) {
-            return null;
-        }
-        // Дискретные теги (OPC UA) приходят как true/false — без этого скрипт получал бы строку.
-        if ("true".equals(value) || "false".equals(value)) {
-            return Boolean.valueOf(value);
-        }
-        if (NUMERIC.matcher(value).matches()) {
-            double d = Double.parseDouble(value);
-            // Отсекаем переполнение (например "1e400" -> Infinity): Jackson такое не сериализует.
-            if (Double.isFinite(d)) {
-                return d;
-            }
-        }
-        return value;
+        return TelemetryEnvelope.coerce(value);
     }
 }
