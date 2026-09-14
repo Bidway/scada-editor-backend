@@ -140,6 +140,26 @@ services:
       editor:
         condition: service_started
 
+  automation:
+    build: ./automation
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KAFKA_TAGS_TOPIC: ${KAFKA_TAGS_TOPIC:-scada.tags}
+      # Стабильный идентификатор для статического членства в группе automation.
+      AUTOMATION_INSTANCE_ID: automation-compose
+    expose:
+      - "8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
   gateway:
     build: ./gateway
     environment:
@@ -148,6 +168,7 @@ services:
       CHANNEL_HOST: channel
       EDITOR_HOST: editor
       RUNTIME_HOST: runtime
+      AUTOMATION_HOST: automation
     ports:
       - "8080:8080"
     depends_on:
@@ -155,6 +176,7 @@ services:
       - channel
       - editor
       - runtime
+      - automation
 
 volumes:
   postgres_data:

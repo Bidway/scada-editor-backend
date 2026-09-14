@@ -36,6 +36,11 @@ spring:
           predicates:
             - Path=/api/runtime/**
 
+        - id: automation-service
+          uri: http://${AUTOMATION_HOST:localhost}:8086
+          predicates:
+            - Path=/api/automation/**
+
         # WebSocket мониторинга. Апгрейд распознаётся по заголовку Upgrade, схема
         # http -> ws подставляется автоматически (WebsocketRoutingFilter), тело кадров
         # не разбирается — gateway их только пересылает.
