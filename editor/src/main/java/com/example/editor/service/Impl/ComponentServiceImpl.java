@@ -22,6 +22,7 @@ import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
+import com.example.editor.service.automation.AutomationService;
 import com.example.editor.service.component.ComponentHierarchyValidator;
 import com.example.editor.service.component.ComponentScriptBindingApplier;
 import com.example.editor.service.component.SceneRootResolver;
@@ -58,6 +59,7 @@ public class ComponentServiceImpl implements ComponentService {
     private final DocumentVersionService versionService;
     private final SceneDocumentSource sceneDocumentSource;
     private final SceneMergeService sceneMergeService;
+    private final AutomationService automationService;
 
     /**
      * Проверка версии, запись данных и запись снимка — одна транзакция.
@@ -365,6 +367,7 @@ public class ComponentServiceImpl implements ComponentService {
     @Transactional
     public void delete(List<Long> ids, String userName, VersionKind kind, Integer basedOnVersion) {
         Set<Long> sceneIds = new LinkedHashSet<>();
+        Set<Long> projectIds = new LinkedHashSet<>();
         for (Long id : ids) {
             Component component = repository.findById(id).orElse(null);
             if (component == null) {
@@ -383,6 +386,9 @@ public class ComponentServiceImpl implements ComponentService {
                 // истории здесь сознательно пропускаются, а не забыты по недосмотру — заведено
                 // отдельно, каскадное удаление сцен внутри проекта тоже проходит без проверки
                 // и без снимка (scada-69s).
+                if (ComponentTypes.PROJECT.equals(component.getType())) {
+                    projectIds.add(component.getId());
+                }
                 continue;
             }
             sceneIds.add(sceneId);
@@ -401,6 +407,9 @@ public class ComponentServiceImpl implements ComponentService {
         // которого предостерегает комментарий в SceneDocumentSource.restore, только здесь на
         // входе, а не на выходе). Явный flush() ставит DELETE в базу до этого чтения.
         repository.flush();
+        // Определения автоматизации лежат без FK на проект: deleteById идёт в обход графа. Чистим их
+        // здесь же и ставим tombstone в outbox — automation остановит задачи удалённого проекта.
+        projectIds.forEach(automationService::onProjectDeleted);
         // Сцена, удалённая этим же вызовом (id пришёл прямо в ids, а не только её ребёнок),
         // сама себе корень по SceneRootResolver — и попадает в sceneIds. Но документа, который
         // снимок читает через sceneDocumentSource.contentOf, после удаления уже нет: снимать

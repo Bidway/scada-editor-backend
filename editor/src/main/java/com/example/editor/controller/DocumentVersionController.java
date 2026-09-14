@@ -79,8 +79,9 @@ public class DocumentVersionController {
         return switch (type) {
             case "scenes" -> DocumentType.SCENE;
             case "templates" -> DocumentType.TEMPLATE;
+            case "automation" -> DocumentType.AUTOMATION;
             default -> throw new IllegalArgumentException(
-                    "Unknown document type: " + type + "; expected scenes or templates");
+                    "Unknown document type: " + type + "; expected scenes, templates or automation");
         };
     }
 }
