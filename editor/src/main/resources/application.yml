@@ -36,3 +36,16 @@ editor:
     # Один файл на рецепт, имя — <component_id>-<slug>.json. Переопределяется переменной
     # окружения, как остальной конфиг сервиса.
     storage-path: ${RECIPES_DIR:./data/recipes}
+  automation:
+    kafka:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      definitions-topic: ${AUTOMATION_DEFINITIONS_TOPIC:automation.definitions}
+      # Фиксируется навсегда: смена числа партиций разнесёт версии одного проекта по разным
+      # партициям. 12 делится на 1, 2, 3, 4, 6, 12 — ровное распределение экземпляров automation.
+      partitions: 12
+      # На объекте — 3 (и min.insync.replicas=2 на топике), на стенде один брокер.
+      replication-factor: ${AUTOMATION_TOPIC_REPLICATION:1}
+    outbox:
+      # Досылка после сбоя публикации. Пока сбоев нет, база не опрашивается: публикация идёт
+      # сразу после коммита сохранения.
+      retry-interval-ms: 30000

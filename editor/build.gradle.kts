@@ -60,6 +60,8 @@ dependencies {
 
     // Проверка синтаксиса скриптов фоновых задач (сервис automation) при сохранении набора.
     implementation(project(":script-core"))
+    // Только producer и AdminClient: публикация определений автоматизации (outbox).
+    implementation("org.apache.kafka:kafka-clients")
 }
 tasks.withType<Test> {
     useJUnitPlatform()
