@@ -57,6 +57,9 @@ dependencies {
 
     // Source: https://mvnrepository.com/artifact/com.vladmihalcea/hibernate-types-60
     implementation("com.vladmihalcea:hibernate-types-60:2.21.1")
+
+    // Проверка синтаксиса скриптов фоновых задач (сервис automation) при сохранении набора.
+    implementation(project(":script-core"))
 }
 tasks.withType<Test> {
     useJUnitPlatform()
