@@ -38,6 +38,9 @@ dependencies {
     implementation("org.graalvm.polyglot:polyglot:24.1.0")
     implementation("org.graalvm.polyglot:js:24.1.0")
 
+    // Общий технический код скриптов и разбор телеметрии (общий с сервисом automation).
+    implementation(project(":script-core"))
+
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14")
 
     // jjwt здесь больше не нужен: подпись токена проверяет gateway, в runtime личность

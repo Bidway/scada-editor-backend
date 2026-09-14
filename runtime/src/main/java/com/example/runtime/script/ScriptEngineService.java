@@ -1,6 +1,9 @@
 package com.example.runtime.script;
 
 import com.example.runtime.config.RuntimeProperties;
+import com.example.scriptcore.GraalValues;
+import com.example.scriptcore.MapProxyObject;
+import com.example.scriptcore.ScriptExecutionException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;

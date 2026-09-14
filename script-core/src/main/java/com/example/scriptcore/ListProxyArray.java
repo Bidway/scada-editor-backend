@@ -1,4 +1,4 @@
-package com.example.runtime.script;
+package com.example.scriptcore;
 
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;

@@ -1,4 +1,4 @@
-package com.example.runtime.script;
+package com.example.scriptcore;
 
 import org.graalvm.polyglot.Value;
 
@@ -17,12 +17,12 @@ import java.util.Map;
  * или массива вернул бы прокси, привязанный к живому контексту, — отсюда «Context is closed»
  * либо гонка. Здесь всё материализуется в обычные Java-типы (примитивы / List / Map).
  */
-final class GraalValues {
+public final class GraalValues {
 
     private GraalValues() {
     }
 
-    static Object toJava(Value value) {
+    public static Object toJava(Value value) {
         if (value == null || value.isNull()) {
             return null;
         }

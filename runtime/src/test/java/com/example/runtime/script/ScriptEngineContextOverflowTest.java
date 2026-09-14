@@ -1,6 +1,7 @@
 package com.example.runtime.script;
 
 import com.example.runtime.config.RuntimeProperties;
+import com.example.scriptcore.ScriptExecutionException;
 import org.graalvm.polyglot.Context;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

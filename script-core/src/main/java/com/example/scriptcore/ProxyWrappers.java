@@ -1,4 +1,4 @@
-package com.example.runtime.script;
+package com.example.scriptcore;
 
 import java.util.IdentityHashMap;
 import java.util.List;
