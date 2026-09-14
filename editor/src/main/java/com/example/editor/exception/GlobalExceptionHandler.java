@@ -91,6 +91,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    /**
+     * Своя форма, как у {@code version_mismatch}: фронту нужен список нарушений с задачей и полем,
+     * чтобы подсветить их в форме, а не одна строка текста.
+     */
+    @ExceptionHandler(AutomationValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleAutomationInvalid(AutomationValidationException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "automation_invalid");
+        body.put("errors", ex.getErrors());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
         log.error("Unhandled exception -> 500", ex);
