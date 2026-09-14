@@ -29,6 +29,9 @@ services:
 
   kafka:
     image: apache/kafka:3.8.0
+    # В режиме host start-all.ps1 поднимает из этого файла только kafka (нативная Kafka на
+    # Windows регулярно падает, KAFKA-1194) — пусть переживает перезапуск Docker Desktop.
+    restart: unless-stopped
     ports:
       - "9092:9092"
     environment:

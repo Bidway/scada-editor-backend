@@ -4,7 +4,8 @@
     Два режима:
 
       -Mode host   (по умолчанию) — быстрый цикл разработки.
-                   Инфраструктура на хосте (PostgreSQL/Redis/Kafka), БД шлюза и
+                   Инфраструктура на хосте (PostgreSQL/Redis), Kafka — контейнер
+                   из docker-compose.yml (с 14.09.2026; нативная — -NativeKafka), БД шлюза и
                    PLC-симулятор — тоже без Docker (см. -DockerGateway ниже),
                    всё остальное — своим окном на хосте через gradlew bootRun.
                    Пересборка модуля = перезапуск окна.
@@ -72,6 +73,11 @@ param(
     # известного бага, на 3.14 есть; см. plc-simulator/Dockerfile) и роль/базу
     # scada_user/scada_db в хостовом PostgreSQL.
     [switch]$DockerGateway,
+    # Прежнее поведение (до 14.09.2026): Kafka нативно из $KafkaHome. По умолчанию брокер —
+    # контейнер kafka из docker-compose.yml: нативная Kafka на Windows падает намертво раз в
+    # час–сутки на переименовании замапленных файлов (KAFKA-1194, scada-r69), и это не лечится
+    # ни конфигом, ни санацией каталога.
+    [switch]$NativeKafka,
     [switch]$NoFrontend,
     [switch]$Status,
     [switch]$Stop
@@ -524,6 +530,15 @@ if ($Mode -eq 'host') {
 
         if (Test-Port 9092) {
             Ok 'Kafka уже работает (9092)'
+        } elseif (-not $NativeKafka) {
+            if (-not (Test-Docker)) {
+                Err 'Docker не запущен — Kafka теперь в контейнере. Запусти Docker Desktop или -NativeKafka.'
+            } else {
+                Info 'Запускаю Kafka в Docker (docker compose up -d kafka) ...'
+                & docker compose -f (Join-Path $ProjectRoot 'docker-compose.yml') up -d kafka
+                # Как и для нативной: уже запущенный шлюз мог остаться с мёртвым соединением.
+                $KafkaJustStarted = $true
+            }
         } else {
             $cfg      = Join-Path $KafkaHome 'config\server.properties'
             $fmtBat   = Join-Path $KafkaHome 'bin\windows\kafka-storage.bat'
