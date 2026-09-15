@@ -1,8 +1,10 @@
 package com.example.runtime.script;
 
 import com.example.runtime.config.RuntimeProperties;
+import com.example.scriptcore.DataFunction;
 import com.example.scriptcore.GraalValues;
 import com.example.scriptcore.MapProxyObject;
+import com.example.scriptcore.ProjectData;
 import com.example.scriptcore.ScriptExecutionException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -50,6 +52,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *   <li>{@code writeProjectTag(shortTagPath, value)} — по короткому пути в рамках текущего
  *       проекта (общий префикс проекта подставляется автоматически).</li>
  * </ul>
+ * Функция {@code data(таблица[, ключ])} читает таблицы данных проекта из снимка сессии
+ * ({@link DataFunction}).
  */
 @Service
 @Slf4j
@@ -147,6 +151,7 @@ public class ScriptEngineService {
             ctx.getBindings("js").putMember("writeTag", writeTagFunction(TagWriteSink.NOOP));
             ctx.getBindings("js").putMember("writeTagPath", writeTagFunction(TagWriteSink.NOOP));
             ctx.getBindings("js").putMember("writeProjectTag", writeTagFunction(TagWriteSink.NOOP));
+            ctx.getBindings("js").putMember("data", new DataFunction(ProjectData.EMPTY));
             ctx.eval(Source.create("js",
                     "typeof tag; typeof props; props.__warm = tag; writeTag('__warm', tag); "
                             + "writeTagPath('__warm', tag); writeProjectTag('__warm', tag);"));
@@ -176,13 +181,19 @@ public class ScriptEngineService {
      * Возвращает мутированную копию {@code props} — вызывающий сам вычисляет diff.
      */
     public Map<String, Object> runOnChange(String scriptSource, Object tagValue, Map<String, Object> props,
-                                            ScriptWriteSinks writeSinks) {
-        return execute(scriptSource, tagValue, props, writeSinks, false);
+                                            ScriptWriteSinks writeSinks, ProjectData data) {
+        return execute(scriptSource, tagValue, props, writeSinks, false, data);
     }
 
     /** Выполняет компонентный Script по действию с фронта (нажатие кнопки и т.п.). */
+    public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks,
+                                         ProjectData data) {
+        return execute(scriptSource, null, props, writeSinks, true, data);
+    }
+
+    /** Без данных проекта — для тестов движка; сессия всегда передаёт свой снимок. */
     public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks) {
-        return execute(scriptSource, null, props, writeSinks, true);
+        return runAction(scriptSource, props, writeSinks, ProjectData.EMPTY);
     }
 
     /**
@@ -196,6 +207,12 @@ public class ScriptEngineService {
      */
     public boolean runCondition(String scriptSource, long elapsedMs, boolean confirmed, TagReader tagReader,
                                 PropertyReader propertyReader) {
+        return runCondition(scriptSource, elapsedMs, confirmed, tagReader, propertyReader, ProjectData.EMPTY);
+    }
+
+    /** То же с данными проекта: процедура передаёт снимок своей сессии. */
+    public boolean runCondition(String scriptSource, long elapsedMs, boolean confirmed, TagReader tagReader,
+                                PropertyReader propertyReader, ProjectData data) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return true;
         }
@@ -226,6 +243,7 @@ public class ScriptEngineService {
                 ctx.getBindings("js").putMember("confirmed", confirmed);
                 ctx.getBindings("js").putMember("readProjectTag", readProjectTagFunction(tagReader));
                 ctx.getBindings("js").putMember("readProjectProperty", readProjectPropertyFunction(propertyReader));
+                ctx.getBindings("js").putMember("data", new DataFunction(data));
                 Value result = ctx.eval(source);
                 resultRef.set(result != null && result.isBoolean() ? result.asBoolean() : null);
             } catch (Throwable t) {
@@ -295,7 +313,7 @@ public class ScriptEngineService {
     }
 
     private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
-                                        ScriptWriteSinks writeSinks, boolean forAction) {
+                                        ScriptWriteSinks writeSinks, boolean forAction, ProjectData data) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return props;
         }
@@ -316,6 +334,7 @@ public class ScriptEngineService {
                 // Контекст общий с runCondition: без сброса скрипту компонента достался бы ридер,
                 // замкнутый на сессию чужой процедуры (readProjectTag — тот же случай, scada-re9).
                 ctx.getBindings("js").putMember("readProjectProperty", null);
+                ctx.getBindings("js").putMember("data", new DataFunction(data));
                 ctx.eval(source);
             } catch (Throwable t) {
                 failure.set(t);

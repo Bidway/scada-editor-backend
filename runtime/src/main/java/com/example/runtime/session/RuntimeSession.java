@@ -1,6 +1,7 @@
 package com.example.runtime.session;
 
 import com.example.runtime.stream.SessionOutboundBuffer;
+import com.example.scriptcore.ProjectData;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.time.Instant;
@@ -13,6 +14,7 @@ public class RuntimeSession {
     private final String id;
     private final Long projectId;
     private final TagSubscriptionIndex index;
+    private final ProjectData projectData;
     private final SessionOutboundBuffer outboundBuffer = new SessionOutboundBuffer();
     private final Map<Long, Object> propertyValues;
     private final Instant createdAt = Instant.now();
@@ -24,9 +26,14 @@ public class RuntimeSession {
     private volatile boolean tasksSubscribed;
 
     public RuntimeSession(String id, Long projectId, TagSubscriptionIndex index) {
+        this(id, projectId, index, ProjectData.EMPTY);
+    }
+
+    public RuntimeSession(String id, Long projectId, TagSubscriptionIndex index, ProjectData projectData) {
         this.id = id;
         this.projectId = projectId;
         this.index = index;
+        this.projectData = projectData;
         this.propertyValues = new ConcurrentHashMap<>(index.getInitialPropertyValues());
     }
 
@@ -40,6 +47,11 @@ public class RuntimeSession {
 
     public TagSubscriptionIndex getIndex() {
         return index;
+    }
+
+    /** Снимок таблиц данных проекта, взятый при открытии сессии; правка в редакторе видна новым сессиям. */
+    public ProjectData getProjectData() {
+        return projectData;
     }
 
     public SessionOutboundBuffer getOutboundBuffer() {

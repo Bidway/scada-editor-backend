@@ -1,6 +1,8 @@
 package com.example.runtime.script;
 
 import com.example.runtime.config.RuntimeProperties;
+import com.example.scriptcore.ProjectData;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,6 +75,17 @@ class ScriptEngineConditionTest {
     @Test
     void nonBooleanReturn_isTreatedAsFalse() {
         assertThat(engine.runCondition("return 42;", 0, false, NO_TAGS, NO_PROPERTIES)).isFalse();
+    }
+
+    @Test
+    void data_readsProjectTableRow() throws Exception {
+        ProjectData data = ProjectData.parse(new ObjectMapper().readTree(
+                "{\"tables\":[{\"name\":\"solutions\",\"columns\":[{\"name\":\"density\",\"value_type\":\"float\"}],"
+                        + "\"rows\":[{\"key\":\"ALK\",\"values\":{\"density\":1.32}}]}]}"));
+        String script = "return readProjectTag('LINE1.RO') >= data('solutions', 'ALK').density;";
+
+        assertThat(engine.runCondition(script, 0, false, path -> 1.4, NO_PROPERTIES, data)).isTrue();
+        assertThat(engine.runCondition(script, 0, false, path -> 1.1, NO_PROPERTIES, data)).isFalse();
     }
 
     @Test

@@ -325,7 +325,8 @@ public class ProcedureExecutionService {
             return scriptEngineService.runCondition(step.getCondition_script(), elapsedMs, confirmed,
                     path -> TagValueRouter.coerceTagValue(
                             tagValueRouter.lastValue(session.getIndex().resolveTagPath(path))),
-                    (componentName, propertyName) -> readProjectProperty(session, step, componentName, propertyName));
+                    (componentName, propertyName) -> readProjectProperty(session, step, componentName, propertyName),
+                    session.getProjectData());
         } catch (Exception e) {
             log.warn("Recipe step '{}' condition_script failed: {}", step.getName(), e.getMessage());
             return false;

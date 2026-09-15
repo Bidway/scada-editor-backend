@@ -8,6 +8,7 @@ import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.stream.PropertyUpdate;
+import com.example.scriptcore.ProjectData;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -47,10 +48,10 @@ public class RuntimeSessionService {
     }
 
     /**
-     * Разовое обращение к editor — только здесь, при старте сессии. Это не горячий путь:
-     * происходит один раз на сессию, а не на каждое обновление тега. Дерево уже приходит
-     * со связями: ComponentProperty.tagId — это путь узла базы каналов, он же Kafka-key,
-     * поэтому резолвить его где-то ещё не нужно.
+     * Обращения к editor — только здесь, при старте сессии: дерево проекта и таблицы данных.
+     * Это не горячий путь: происходит один раз на сессию, а не на каждое обновление тега. Дерево
+     * уже приходит со связями: ComponentProperty.tagId — это путь узла базы каналов, он же
+     * Kafka-key, поэтому резолвить его где-то ещё не нужно.
      */
     public SessionBootstrap createSession(Long projectId) {
         EditorComponentDto tree = editorClient.getProjectTree(projectId);
@@ -58,9 +59,10 @@ public class RuntimeSessionService {
             throw new IllegalArgumentException("Project not found: " + projectId);
         }
         TagSubscriptionIndex index = TagSubscriptionIndex.build(tree, projectId);
+        ProjectData projectData = ProjectData.parse(editorClient.getProjectData(projectId));
 
         String sessionId = UUID.randomUUID().toString();
-        RuntimeSession session = new RuntimeSession(sessionId, projectId, index);
+        RuntimeSession session = new RuntimeSession(sessionId, projectId, index, projectData);
         sessionStore.put(session);
         tagValueRouter.registerSession(session);
         automationState.replayVariables(session);
@@ -120,8 +122,8 @@ public class RuntimeSessionService {
 
         Map<String, Object> after;
         try {
-            after = scriptEngineService.runAction(
-                    script.source(), props, tagCommandService.sinksFor(session, script.componentId()));
+            after = scriptEngineService.runAction(script.source(), props,
+                    tagCommandService.sinksFor(session, script.componentId()), session.getProjectData());
         } catch (Exception e) {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
             return List.of();

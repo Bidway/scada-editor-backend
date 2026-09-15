@@ -213,8 +213,8 @@ public class TagValueRouter {
 
         Map<String, Object> after;
         try {
-            after = scriptEngineService.runOnChange(
-                    binding.scriptSource(), tagValue, props, tagCommandService.sinksFor(session, componentId));
+            after = scriptEngineService.runOnChange(binding.scriptSource(), tagValue, props,
+                    tagCommandService.sinksFor(session, componentId), session.getProjectData());
         } catch (Exception e) {
             log.warn("onChange script failed for property {}: {}", binding.componentPropertyId(), e.getMessage());
             return;

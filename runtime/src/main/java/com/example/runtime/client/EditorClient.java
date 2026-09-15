@@ -3,6 +3,7 @@ package com.example.runtime.client;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.client.dto.EditorRecipeDto;
 import com.example.runtime.config.RuntimeProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,15 @@ public class EditorClient {
                 .uri("/api/editor/components/{id}", projectId)
                 .retrieve()
                 .body(EditorComponentDto.class);
+    }
+
+    /** Таблицы данных проекта — ответ {@code GET /api/editor/projects/{id}/data} как есть. */
+    public JsonNode getProjectData(Long projectId) {
+        log.debug("Fetching project data {} from editor", projectId);
+        return restClient.get()
+                .uri("/api/editor/projects/{id}/data", projectId)
+                .retrieve()
+                .body(JsonNode.class);
     }
 
     /** Определение процедурного рецепта (манифест тегов + шаги), как есть, без резолва. */
