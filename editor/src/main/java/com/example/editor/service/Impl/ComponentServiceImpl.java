@@ -23,6 +23,7 @@ import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
 import com.example.editor.service.automation.AutomationService;
+import com.example.editor.service.data.ProjectDataService;
 import com.example.editor.service.component.ComponentHierarchyValidator;
 import com.example.editor.service.component.ComponentScriptBindingApplier;
 import com.example.editor.service.component.SceneRootResolver;
@@ -60,6 +61,7 @@ public class ComponentServiceImpl implements ComponentService {
     private final SceneDocumentSource sceneDocumentSource;
     private final SceneMergeService sceneMergeService;
     private final AutomationService automationService;
+    private final ProjectDataService projectDataService;
 
     /**
      * Проверка версии, запись данных и запись снимка — одна транзакция.
@@ -410,6 +412,7 @@ public class ComponentServiceImpl implements ComponentService {
         // Определения автоматизации лежат без FK на проект: deleteById идёт в обход графа. Чистим их
         // здесь же и ставим tombstone в outbox — automation остановит задачи удалённого проекта.
         projectIds.forEach(automationService::onProjectDeleted);
+        projectIds.forEach(projectDataService::onProjectDeleted);
         // Сцена, удалённая этим же вызовом (id пришёл прямо в ids, а не только её ребёнок),
         // сама себе корень по SceneRootResolver — и попадает в sceneIds. Но документа, который
         // снимок читает через sceneDocumentSource.contentOf, после удаления уже нет: снимать
