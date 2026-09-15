@@ -10,6 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AutomationProperties {
 
     private String instanceId = "automation-local";
+    /** Откуда брать таблицы данных проекта: {@code GET /api/editor/projects/{id}/data}. */
+    private String editorBaseUrl = "http://localhost:8083";
     private Kafka kafka = new Kafka();
     private Engine engine = new Engine();
 
@@ -37,5 +39,8 @@ public class AutomationProperties {
         private int contextPoolSize = 4;
         private long checkpointFlushMs = 1000;
         private long statusRefreshMs = 10000;
+        /** Первая пауза повтора загрузки данных проекта; удваивается до {@link #dataRetryMaxMs}. */
+        private long dataRetryMinMs = 5000;
+        private long dataRetryMaxMs = 60000;
     }
 }

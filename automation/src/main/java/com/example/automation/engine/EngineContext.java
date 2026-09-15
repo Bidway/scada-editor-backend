@@ -11,5 +11,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /** Общие для всех проектов экземпляра зависимости движка. */
 record EngineContext(ScheduledExecutorService scheduler, ExecutorService workers, SandboxExecutor scripts,
                      TagCache tags, CommandSender commands, TaskObserver observer, OwnershipGuard guard,
-                     AutomationStore store, ObjectMapper mapper) {
+                     AutomationStore store, ObjectMapper mapper,
+                     ProjectDataFetcher dataFetcher, ScheduledExecutorService dataLoader,
+                     long dataRetryMinMs, long dataRetryMaxMs) {
 }

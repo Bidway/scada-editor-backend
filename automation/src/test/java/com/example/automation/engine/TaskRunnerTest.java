@@ -3,6 +3,7 @@ package com.example.automation.engine;
 import com.example.automation.command.CommandOutcome;
 import com.example.automation.definition.IoDefinition;
 import com.example.automation.definition.TaskDefinition;
+import com.example.scriptcore.ProjectData;
 import com.example.scriptcore.SandboxExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -26,6 +27,7 @@ class TaskRunnerTest {
     private final List<TaskStatusUpdate> statuses = new ArrayList<>();
     private final List<Map<String, Object>> checkpoints = new ArrayList<>();
     private final Map<String, TagReading> tags = new HashMap<>();
+    private ProjectData projectData = ProjectData.EMPTY;
 
     @BeforeAll
     static void startScripts() {
@@ -62,6 +64,20 @@ class TaskRunnerTest {
         assertEquals(TaskState.INPUT_STALE, statuses.get(statuses.size() - 1).state());
     }
 
+    /** editor лежал при запуске проекта: задача со справочником стоит в ошибке с причиной, а не молчит. */
+    @Test
+    void dataNotLoadedFailsTickWithReason() {
+        projectData = null;
+        TaskRunner runner = runner(List.of(), "write('U', data('solutions', 'ALK').density);", 5000);
+
+        runner.tick();
+
+        assertTrue(sent.isEmpty());
+        TaskStatusUpdate last = statuses.get(statuses.size() - 1);
+        assertEquals(TaskState.ERROR, last.state());
+        assertTrue(last.lastError().contains("data(): данные проекта не загружены"), last.lastError());
+    }
+
     private TaskRunner runner(List<IoDefinition> inputs, String script, long nowMs) {
         TaskDefinition definition = new TaskDefinition(1L, "pid", true, 1000, 500, 1000, false,
                 inputs, List.of(new IoDefinition("U", "PUMP.V", "float")), List.of(), script);
@@ -93,7 +109,7 @@ class TaskRunnerTest {
             }
         };
         return new TaskRunner(7L, 1L, definition, "hash", null, scripts, tags::get,
-                new OutputWriter(sender), new VariableBoard(Map.of()), observer, () -> true, () -> nowMs,
-                new ObjectMapper());
+                new OutputWriter(sender), new VariableBoard(Map.of()), () -> projectData, observer, () -> true,
+                () -> nowMs, new ObjectMapper());
     }
 }

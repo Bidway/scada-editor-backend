@@ -28,6 +28,8 @@ automation:
   # Стабильный и уникальный на экземпляр: это group.instance.id (статическое членство —
   # быстрый перезапуск без перебалансировки). Два экземпляра на одной машине — задать явно.
   instance-id: ${AUTOMATION_INSTANCE_ID:automation-${COMPUTERNAME:${HOSTNAME:local}}}
+  # Таблицы данных проекта: читаются при запуске проекта и по запросу reload.
+  editor-base-url: http://${EDITOR_HOST:localhost}:${EDITOR_PORT:8083}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     definitions-topic: automation.definitions
@@ -47,3 +49,5 @@ automation:
     context-pool-size: 4
     checkpoint-flush-ms: 1000
     status-refresh-ms: 10000
+    data-retry-min-ms: 5000
+    data-retry-max-ms: 60000

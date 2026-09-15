@@ -25,6 +25,7 @@ final class ProjectRuntime {
     private final EngineContext context;
     private final List<ScheduledFuture<?>> futures = new ArrayList<>();
     private final List<String> watchedTags = new ArrayList<>();
+    private ProjectDataHolder data;
 
     ProjectRuntime(int partition, long epoch, ProjectDefinitions definitions, EngineContext context) {
         this.partition = partition;
@@ -39,6 +40,10 @@ final class ProjectRuntime {
 
     void start() {
         long projectId = definitions.projectId();
+        ProjectDataHolder holder = new ProjectDataHolder(projectId, context.dataFetcher(), context.dataLoader(),
+                context.dataRetryMinMs(), context.dataRetryMaxMs());
+        data = holder;
+        holder.start();
         VariableBoard variables = new VariableBoard(initialVariables(projectId));
         OutputWriter outputs = new OutputWriter(context.commands());
 
@@ -50,7 +55,7 @@ final class ProjectRuntime {
         for (TaskDefinition task : definitions.tasksOrEmpty()) {
             String hash = DefinitionHash.of(context.mapper(), task);
             TaskRunner runner = new TaskRunner(projectId, epoch, task, hash, restoredState(projectId, task, hash),
-                    context.scripts(), context.tags(), outputs, variables, context.observer(),
+                    context.scripts(), context.tags(), outputs, variables, holder::current, context.observer(),
                     context.guard()::valid, System::currentTimeMillis, context.mapper());
             futures.add(context.scheduler().scheduleAtFixedRate(() -> context.workers().execute(runner::tick),
                     0, Math.max(100, task.periodMs()), TimeUnit.MILLISECONDS));
@@ -68,10 +73,19 @@ final class ProjectRuntime {
     }
 
     void stop() {
+        if (data != null) {
+            data.stop();
+        }
         futures.forEach(future -> future.cancel(false));
         futures.clear();
         context.tags().unwatch(watchedTags);
         watchedTags.clear();
+    }
+
+    void reloadData() {
+        if (data != null) {
+            data.reload();
+        }
     }
 
     /** Значения по умолчанию из определения, поверх — последние сохранённые (только объявленные). */

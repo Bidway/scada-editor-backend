@@ -34,7 +34,8 @@ public class ProjectRegistry {
     private final Map<Integer, Long> epochs = new HashMap<>();
 
     public ProjectRegistry(AutomationProperties properties, TagCache tags, CommandSender commands,
-                           TaskObserver observer, OwnershipGuard guard, AutomationStore store, ObjectMapper mapper) {
+                           TaskObserver observer, OwnershipGuard guard, AutomationStore store, ObjectMapper mapper,
+                           ProjectDataFetcher dataFetcher) {
         int workers = Math.max(1, properties.getEngine().getWorkerThreads());
         // Очередь ограничена, лишние такты отбрасываются: переполнение — это OVERRUN, а не растущая очередь.
         ThreadPoolExecutor workerPool = new ThreadPoolExecutor(workers, workers, 0, TimeUnit.MILLISECONDS,
@@ -44,7 +45,12 @@ public class ProjectRegistry {
                 Executors.newScheduledThreadPool(2, daemon("automation-scheduler")),
                 workerPool,
                 new SandboxExecutor(properties.getEngine().getContextPoolSize()),
-                tags, commands, observer, guard, store, mapper);
+                tags, commands, observer, guard, store, mapper,
+                dataFetcher,
+                // Свой поток: HTTP к editor с таймаутом до секунд не должен задерживать такты.
+                Executors.newSingleThreadScheduledExecutor(daemon("automation-data")),
+                properties.getEngine().getDataRetryMinMs(),
+                properties.getEngine().getDataRetryMaxMs());
     }
 
     public synchronized void assign(int partition, long epoch) {
@@ -87,11 +93,27 @@ public class ProjectRegistry {
         return running.size();
     }
 
+    /**
+     * Перечитать данные проекта из editor. Под локом только поиск проекта — сама загрузка уходит
+     * на поток данных.
+     *
+     * @return {@code false}, если проект не исполняется этим экземпляром
+     */
+    public synchronized boolean reloadData(long projectId) {
+        ProjectRuntime runtime = running.get(projectId);
+        if (runtime == null) {
+            return false;
+        }
+        runtime.reloadData();
+        return true;
+    }
+
     @PreDestroy
     void shutdown() {
         revokeAll(false);
         context.scheduler().shutdownNow();
         context.workers().shutdownNow();
+        context.dataLoader().shutdownNow();
         context.scripts().close();
     }
 

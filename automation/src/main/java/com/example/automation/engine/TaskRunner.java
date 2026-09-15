@@ -2,8 +2,10 @@ package com.example.automation.engine;
 
 import com.example.automation.definition.IoDefinition;
 import com.example.automation.definition.TaskDefinition;
+import com.example.scriptcore.DataFunction;
 import com.example.scriptcore.GraalValues;
 import com.example.scriptcore.MapProxyObject;
+import com.example.scriptcore.ProjectData;
 import com.example.scriptcore.SandboxExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -48,6 +51,7 @@ public final class TaskRunner {
     private final TagReader tags;
     private final OutputWriter outputs;
     private final VariableBoard variables;
+    private final Supplier<ProjectData> projectData;
     private final TaskObserver observer;
     private final BooleanSupplier ownershipValid;
     private final LongSupplier clock;
@@ -66,8 +70,8 @@ public final class TaskRunner {
 
     public TaskRunner(long projectId, long epoch, TaskDefinition definition, String definitionHash,
                       Map<String, Object> restoredState, SandboxExecutor scripts, TagReader tags,
-                      OutputWriter outputs, VariableBoard variables, TaskObserver observer,
-                      BooleanSupplier ownershipValid, LongSupplier clock, ObjectMapper mapper) {
+                      OutputWriter outputs, VariableBoard variables, Supplier<ProjectData> projectData,
+                      TaskObserver observer, BooleanSupplier ownershipValid, LongSupplier clock, ObjectMapper mapper) {
         this.projectId = projectId;
         this.epoch = epoch;
         this.definition = definition;
@@ -77,6 +81,7 @@ public final class TaskRunner {
         this.tags = tags;
         this.outputs = outputs;
         this.variables = variables;
+        this.projectData = projectData;
         this.observer = observer;
         this.ownershipValid = ownershipValid;
         this.clock = clock;
@@ -186,6 +191,8 @@ public final class TaskRunner {
             return ProxyObject.fromMap(details);
         });
         bindings.put("vars", new MapProxyObject(variables.snapshot()));
+        // Снимок берётся один раз на такт: перечитывание посреди расчёта его не меняет.
+        bindings.put("data", new DataFunction(projectData.get()));
         bindings.put("write", (ProxyExecutable) args -> {
             String alias = stringArg(args, "write");
             if (!outputsByAlias.containsKey(alias)) {
