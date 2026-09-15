@@ -99,6 +99,15 @@ public class AutomationSetValidator {
                     (syntax.line() == null ? "" : "строка " + syntax.line() + ": ") + syntax.message())));
         }
 
+        // Граница с данными проекта: значение без писателя меняет только человек в редакторе,
+        // и живёт оно в таблицах данных, а не в переменных automation.
+        for (String variable : variableNames) {
+            if (!variableWriter.containsKey(variable)) {
+                errors.add(error(null, "variables.name", "Переменная '" + variable
+                        + "': у переменной нет задачи-писателя — константы проекта храните в таблицах данных"));
+            }
+        }
+
         if (watchdog != null) {
             if (watchdog.tag() == null || watchdog.tag().isBlank()) {
                 errors.add(error(null, "watchdog.tag", "Не задан тег сторожевого таймера"));

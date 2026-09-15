@@ -60,6 +60,19 @@ class AutomationSetValidatorTest {
                 .anyMatch(e -> "B".equals(e.task()) && "outputs".equals(e.field())));
     }
 
+    /** Переменная без писателя — это константа: ей место в таблицах данных проекта. */
+    @Test
+    void rejectsVariableWithoutWriter() {
+        AutomationSetValidator validator = new AutomationSetValidator(checker);
+        List<AutomationVariableDto> variables = List.of(new AutomationVariableDto("limit", "float", "5", null));
+
+        AutomationValidationException ex = assertThrows(AutomationValidationException.class,
+                () -> validator.validate(List.of(task("A", List.of(), List.of())), variables, null));
+
+        assertTrue(ex.getErrors().stream()
+                .anyMatch(e -> "variables.name".equals(e.field()) && e.message().contains("limit")));
+    }
+
     private static AutomationTaskDto task(String name, List<AutomationIoDto> outputs, List<String> writes) {
         return new AutomationTaskDto(null, name, true, 1000, 100, 5000, false,
                 List.of(), outputs, writes, "return;");
