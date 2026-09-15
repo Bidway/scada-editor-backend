@@ -103,6 +103,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    /** Та же форма для данных проекта: нарушения с таблицей и полем. */
+    @ExceptionHandler(ProjectDataValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleProjectDataInvalid(ProjectDataValidationException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "project_data_invalid");
+        body.put("errors", ex.getErrors());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
         log.error("Unhandled exception -> 500", ex);
