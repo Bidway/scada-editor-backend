@@ -112,6 +112,20 @@ function Test-Port([int]$Port) {
     [bool](Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
 }
 
+# PAC (driver-master) симулятора. Не стандартный 10000: его занимает настоящий ptusa_main, и тогда
+# симулятор молча стартовал без PAC, а все pac-теги шлюза шли BAD (15.09.2026, scada-96i).
+# Должен совпадать с pac_port в plc-simulator/config/replay_config.yaml и SIM_PAC_PORT шлюза.
+$SimPacPort = 10001
+
+# Кто слушает порт: "имя (pid N)"; $null — никто.
+function Get-PortOwner([int]$Port) {
+    $c = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $c) { return $null }
+    $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+    if ($p) { return "$($p.ProcessName) (pid $($p.Id))" }
+    return "pid $($c.OwningProcess)"
+}
+
 function Wait-Port([int]$Port, [string]$Name, [int]$TimeoutSec = 90) {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
@@ -289,13 +303,22 @@ function Start-GatewayNative([string]$DbUrl, [switch]$ForceRestart) {
                -ErrorAction SilentlyContinue |
            Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
     $jdk = $null
-    if (-not $jar) {
+    # controllers.yaml лежит в ресурсах jar: правка тегов или адреса контроллера без пересборки
+    # молча не применяется. 15.09.2026 так шлюз после переноса PAC на 10001 ходил на старый 10000,
+    # и все pac-теги были BAD. Поэтому пересобираем и тогда, когда конфиг новее jar.
+    $gwConfig = Get-Item (Join-Path $GatewayDir 'SCADA-gateway\src\main\resources\controllers.yaml') -ErrorAction SilentlyContinue
+    $jarStale = $jar -and $gwConfig -and ($gwConfig.LastWriteTime -gt $jar.LastWriteTime)
+    if (-not $jar -or $jarStale) {
         $jdk = Resolve-Jdk21
         if (-not $jdk) {
             Err 'Не нашёл JDK 21 — шлюз требует именно её (наши модули под 17). Поставь JDK 21 или задай JAVA_HOME.'
             return
         }
-        Info "Jar шлюза не найден — собираю (JDK 21: $jdk), это займёт минуту ..."
+        if ($jarStale) {
+            Info "controllers.yaml новее jar шлюза — пересобираю (JDK 21: $jdk), это займёт минуту ..."
+        } else {
+            Info "Jar шлюза не найден — собираю (JDK 21: $jdk), это займёт минуту ..."
+        }
         $saved = $env:JAVA_HOME
         $env:JAVA_HOME = $jdk
         Push-Location (Join-Path $GatewayDir 'SCADA-gateway')
@@ -382,6 +405,15 @@ if ($Status) {
     )
     foreach ($c in $checks) {
         if (Test-Port $c.P) { Ok "$($c.N) : $($c.P)" } else { Warn "$($c.N) : $($c.P) — не слушает" }
+    }
+    # Порт мало слушать — важно, КТО слушает: чужой driver-master на этом порту даёт шлюзу
+    # связь, но все pac-теги BAD, а по списку выше стенд зелёный. У контейнерного симулятора
+    # PAC на хост не публикуется — там проверять нечего.
+    if (-not ((Test-Docker) -and (Test-ContainerRunning 'scada-simulator'))) {
+        $pacOwner = Get-PortOwner $SimPacPort
+        if (-not $pacOwner) { Warn "PLC-симулятор PAC : $SimPacPort — не слушает (pac-теги шлюза будут BAD)" }
+        elseif ($pacOwner -like 'python*') { Ok "PLC-симулятор PAC : $SimPacPort" }
+        else { Err "PLC-симулятор PAC : $SimPacPort — занят чужим процессом $pacOwner (pac-теги шлюза будут BAD)" }
     }
     if (Test-Docker) {
         Write-Host ''
@@ -663,6 +695,21 @@ if ($Mode -eq 'host') {
                         Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoExit', '-Command', $simInner -WindowStyle Normal | Out-Null
                     }
                     Wait-Port 4840 'plc-simulator (native, OPC UA)' 30 | Out-Null
+                    # PAC поднимается позже OPC UA и при занятом порту не падает, а молча пропускается
+                    # (plc.py init_pac_server) — без этой проверки все pac-теги шлюза BAD при зелёном
+                    # стенде. Ждём порт и сверяем владельца: чужой driver-master тоже «слушает».
+                    $pacWait = [System.Diagnostics.Stopwatch]::StartNew()
+                    while (-not (Test-Port $SimPacPort) -and $pacWait.Elapsed.TotalSeconds -lt 15) {
+                        Start-Sleep -Milliseconds 500
+                    }
+                    $pacOwner = Get-PortOwner $SimPacPort
+                    if (-not $pacOwner) {
+                        Err "PAC симулятора не слушает $SimPacPort — pac-теги шлюза будут BAD (причина — в окне plc-simulator: Failed to start PAC server)"
+                    } elseif ($pacOwner -notlike 'python*') {
+                        Err "PAC-порт симулятора $SimPacPort занят чужим процессом $pacOwner — pac-теги шлюза будут BAD. Освободи порт и перезапусти симулятор."
+                    } else {
+                        Ok "plc-simulator (native, PAC) готов (порт $SimPacPort)"
+                    }
                     Repair-GatewayDb-Native
                     Start-GatewayNative 'jdbc:postgresql://localhost:5432/scada_db' -ForceRestart:$KafkaJustStarted
                 }

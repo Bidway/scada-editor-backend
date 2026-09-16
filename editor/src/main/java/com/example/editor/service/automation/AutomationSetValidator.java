@@ -17,6 +17,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static com.example.editor.service.automation.AutomationRules.checkIo;
+import static com.example.editor.service.automation.AutomationRules.checkRange;
+import static com.example.editor.service.automation.AutomationRules.checkTiming;
+import static com.example.editor.service.automation.AutomationRules.error;
+import static com.example.editor.service.automation.AutomationRules.isValueType;
+
 /**
  * Проверка набора автоматизации проекта перед сохранением. Собирает все нарушения, а не падает
  * на первом: инженер правит форму один раз, а не по кругу.
@@ -29,9 +35,6 @@ public class AutomationSetValidator {
 
     public static final String VARIABLE_TAG_PREFIX = "@var.";
 
-    static final Set<String> VALUE_TYPES = Set.of("bool", "int", "float", "string");
-
-    private static final Pattern ALIAS = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern VARIABLE_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_.]*");
 
     private final ScriptSyntaxChecker syntaxChecker;
@@ -54,7 +57,8 @@ public class AutomationSetValidator {
             }
             if (!isValueType(variable.valueType())) {
                 errors.add(error(null, "variables.value_type",
-                        "Переменная '" + name + "': value_type должен быть одним из " + VALUE_TYPES));
+                        "Переменная '" + name + "': value_type должен быть одним из "
+                                + AutomationRules.VALUE_TYPES));
             }
         }
 
@@ -68,13 +72,9 @@ public class AutomationSetValidator {
             } else if (!taskNames.add(name)) {
                 errors.add(error(name, "name", "Задача с таким именем уже есть"));
             }
-            checkRange(errors, name, "period_ms", task.periodMs(), 100, 3_600_000);
-            checkRange(errors, name, "stale_after_ms", task.staleAfterMs(), 100, 86_400_000);
-            if (task.periodMs() != null) {
-                checkRange(errors, name, "timeout_ms", task.timeoutMs(), 1, Math.max(1, task.periodMs() / 2));
-            }
-            checkIo(errors, name, "inputs", task.inputs());
-            checkIo(errors, name, "outputs", task.outputs());
+            checkTiming(errors, name, task.periodMs(), task.staleAfterMs(), task.timeoutMs());
+            checkTaskIo(errors, name, "inputs", task.inputs());
+            checkTaskIo(errors, name, "outputs", task.outputs());
 
             for (AutomationIoDto output : task.outputs()) {
                 if (output.tag() == null) {
@@ -123,15 +123,12 @@ public class AutomationSetValidator {
         }
     }
 
-    private void checkIo(List<AutomationValidationError> errors, String task, String field,
-                         List<AutomationIoDto> items) {
+    /** Вход или выход задачи: общая часть — в {@link AutomationRules}, тег проверяется только здесь. */
+    private void checkTaskIo(List<AutomationValidationError> errors, String task, String field,
+                             List<AutomationIoDto> items) {
         Set<String> aliases = new HashSet<>();
         for (AutomationIoDto io : items) {
-            if (io.alias() == null || !ALIAS.matcher(io.alias()).matches()) {
-                errors.add(error(task, field, "Алиас '" + io.alias() + "' недопустим"));
-            } else if (!aliases.add(io.alias())) {
-                errors.add(error(task, field, "Алиас '" + io.alias() + "' повторяется"));
-            }
+            checkIo(errors, task, field, io.alias(), io.valueType(), aliases);
             if (io.tag() == null || io.tag().isBlank()) {
                 errors.add(error(task, field, "У '" + io.alias() + "' не задан тег"));
             } else if (io.tag().startsWith(VARIABLE_TAG_PREFIX)) {
@@ -139,25 +136,7 @@ public class AutomationSetValidator {
                 errors.add(error(task, field, "'" + io.alias() + "': переменная проекта не может быть входом "
                         + "или выходом — используйте vars и writes_variables"));
             }
-            if (!isValueType(io.valueType())) {
-                errors.add(error(task, field, "'" + io.alias() + "': value_type должен быть одним из " + VALUE_TYPES));
-            }
         }
     }
 
-    private void checkRange(List<AutomationValidationError> errors, String task, String field,
-                            Integer value, int min, int max) {
-        if (value == null || value < min || value > max) {
-            errors.add(error(task, field, field + " должен быть от " + min + " до " + max + ", получено " + value));
-        }
-    }
-
-    /** {@code Set.of(...).contains(null)} бросает NPE — отсюда явная проверка. */
-    private static boolean isValueType(String valueType) {
-        return valueType != null && VALUE_TYPES.contains(valueType);
-    }
-
-    private static AutomationValidationError error(String task, String field, String message) {
-        return new AutomationValidationError(task, field, message);
-    }
 }
