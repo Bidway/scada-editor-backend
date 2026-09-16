@@ -3,6 +3,7 @@ package com.example.runtime.kafka;
 import com.example.runtime.script.OnChangeDispatcher;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.OnChangeBinding;
+import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionStore;
 import com.example.runtime.session.TagCommandService;
@@ -91,6 +92,20 @@ public class TagValueRouter {
                 return state.sessionIds.isEmpty() ? null : state;
             });
         }
+    }
+
+    /**
+     * Интерес к тегам от имени проекта. Заглушка: реализуется в задаче переноса onChange и
+     * состояния свойств на проект. До тех пор интерес продолжают объявлять сессии сами, так
+     * что существующее поведение не меняется.
+     */
+    public void registerProject(ProjectRuntime project) {
+        // Намеренно пусто — см. javadoc.
+    }
+
+    /** Парная заглушка к {@link #registerProject(ProjectRuntime)}. */
+    public void unregisterProject(ProjectRuntime project) {
+        // Намеренно пусто — см. javadoc.
     }
 
     /**
