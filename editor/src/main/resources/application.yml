@@ -49,3 +49,8 @@ editor:
       # Досылка после сбоя публикации. Пока сбоев нет, база не опрашивается: публикация идёт
       # сразу после коммита сохранения.
       retry-interval-ms: 30000
+  runtime-projects:
+    # Флаги «проект в эксплуатации»: bootstrap-servers общий с editor.automation.kafka —
+    # один Kafka-кластер на сервис, топик отдельный, компактный.
+    topic: ${RUNTIME_PROJECTS_TOPIC:runtime.projects}
+    resync-interval-ms: 60000
