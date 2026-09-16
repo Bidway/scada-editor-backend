@@ -1,6 +1,16 @@
 spring:
   application:
     name: runtime
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:savushkin}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: runtime
 
 springdoc:
   api-docs:
@@ -12,6 +22,8 @@ server:
   port: 8085
 
 runtime:
+  # Имя этого экземпляра в аренде драйверов. По умолчанию — имя хоста.
+  instance-id: ${RUNTIME_INSTANCE_ID:}
   # Разовое (не горячий путь) обращение к editor — только при старте сессии мониторинга.
   # Дерево проекта приходит уже со связями (ComponentProperty.tagId = путь узла = Kafka-key),
   # поэтому обращений к channel нет вообще.

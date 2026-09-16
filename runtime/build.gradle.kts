@@ -24,11 +24,16 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.kafka:spring-kafka")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("com.vladmihalcea:hibernate-types-60:2.21.1")
+    runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
+    testImplementation("org.testcontainers:postgresql:1.20.4")
 
     // Lombok
     implementation("org.projectlombok:lombok")
@@ -49,6 +54,12 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Docker Desktop на этой машине слушает testcontainers-совместимый API на
+    // dockerDesktopLinuxEngine, а не на дефолтном docker_engine — без этого
+    // NpipeSocketClientProviderStrategy падает на BadRequestException. См. editor/build.gradle.kts.
+    // Второй кусок той же проблемы — версия API, см. src/test/resources/docker-java.properties.
+    environment("DOCKER_HOST", "npipe:////./pipe/dockerDesktopLinuxEngine")
+    environment("TESTCONTAINERS_RYUK_DISABLED", "true")
 }
 
 // -Xlint включён по scada-2li: ловит ошибки уровня компилятора (raw types, unchecked,
