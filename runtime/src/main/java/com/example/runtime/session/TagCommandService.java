@@ -1,5 +1,6 @@
 package com.example.runtime.session;
 
+import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.kafka.CommandProducer;
 import com.example.runtime.script.ScriptWriteSinks;
 import lombok.extern.slf4j.Slf4j;
@@ -30,15 +31,15 @@ public class TagCommandService {
     }
 
     /** Три sink'а для скрипта конкретного компонента — см. {@link ScriptWriteSinks}. */
-    public ScriptWriteSinks sinksFor(RuntimeSession session, Long componentId) {
+    public ScriptWriteSinks sinksFor(ProjectRuntime project, Long componentId) {
         return new ScriptWriteSinks(
-                (propertyName, value) -> writeByProperty(session, componentId, propertyName, value),
+                (propertyName, value) -> writeByProperty(project, componentId, propertyName, value),
                 this::writeByPath,
-                (path, value) -> writeByProjectTag(session, path, value));
+                (path, value) -> writeByProjectTag(project, path, value));
     }
 
-    private void writeByProperty(RuntimeSession session, Long componentId, String propertyName, Object value) {
-        String idNode = session.getIndex().tagIdOfComponentProperty(componentId, propertyName);
+    private void writeByProperty(ProjectRuntime project, Long componentId, String propertyName, Object value) {
+        String idNode = project.getIndex().tagIdOfComponentProperty(componentId, propertyName);
         if (idNode == null) {
             log.warn("writeTag('{}'): у компонента {} нет свойства с таким именем или оно не привязано к тегу",
                     propertyName, componentId);
@@ -57,8 +58,8 @@ public class TagCommandService {
         send("writeTagPath", path, path, value);
     }
 
-    private void writeByProjectTag(RuntimeSession session, String path, Object value) {
-        String idNode = session.getIndex().resolveTagPath(path);
+    private void writeByProjectTag(ProjectRuntime project, String path, Object value) {
+        String idNode = project.getIndex().resolveTagPath(path);
         send("writeProjectTag", path, idNode, value);
     }
 

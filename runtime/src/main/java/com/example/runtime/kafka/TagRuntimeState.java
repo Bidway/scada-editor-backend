@@ -11,7 +11,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TagRuntimeState {
 
     final String tagId;
-    final Set<String> sessionIds = ConcurrentHashMap.newKeySet();
+    /** Проекты, которым интересен этот тег. Раньше здесь были сессии — из-за этого
+     *  значения тегов исчезали вместе с последним открытым монитором. */
+    final Set<Long> projectIds = ConcurrentHashMap.newKeySet();
 
     /**
      * Значение, его достоверность и время снятия — одним снимком.
@@ -36,6 +38,9 @@ public class TagRuntimeState {
 
         /** Тег известен (кто-то на него подписан), но телеметрия по нему ещё не приходила. */
         static final Snapshot UNKNOWN = new Snapshot(null, false, 0L);
+
+        /** То же самое, но доступное снаружи: тег проекта, о котором ещё ничего не известно. */
+        public static final Snapshot EMPTY = UNKNOWN;
 
         /**
          * Та же пара {@code value}/{@code ts}, но помеченная как недостоверная.

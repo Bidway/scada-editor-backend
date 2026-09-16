@@ -8,6 +8,8 @@ import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.stream.PropertyUpdate;
+import com.example.runtime.project.ProjectRuntime;
+import com.example.runtime.project.ProjectRuntimeStore;
 import com.example.scriptcore.ProjectData;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,9 +32,11 @@ public class RuntimeSessionService {
     private final TagCommandService tagCommandService;
     private final ActionDedupGuard actionDedupGuard;
     private final AutomationStateConsumer automationState;
+    private final ProjectRuntimeStore projectStore;
 
     public RuntimeSessionService(EditorClient editorClient,
                                   RuntimeSessionStore sessionStore,
+                                  ProjectRuntimeStore projectStore,
                                   TagValueRouter tagValueRouter,
                                   ScriptEngineService scriptEngineService,
                                   TagCommandService tagCommandService,
@@ -40,6 +44,7 @@ public class RuntimeSessionService {
                                   AutomationStateConsumer automationState) {
         this.editorClient = editorClient;
         this.sessionStore = sessionStore;
+        this.projectStore = projectStore;
         this.tagValueRouter = tagValueRouter;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
@@ -61,10 +66,23 @@ public class RuntimeSessionService {
         TagSubscriptionIndex index = TagSubscriptionIndex.build(tree, projectId);
         ProjectData projectData = ProjectData.parse(editorClient.getProjectData(projectId));
 
+        // Проект, поднятый по флагу «в эксплуатации», — источник индекса, данных и общего
+        // состояния свойств. Пока такого проекта нет, сессия работает на временном проекте:
+        // это сохраняет сегодняшнее поведение «открыл монитор — увидел». Отказ для проекта
+        // не в эксплуатации появится вместе с кадром SNAPSHOT, отдельной задачей.
+        ProjectRuntime project = projectStore.get(projectId);
+        if (project == null) {
+            project = new ProjectRuntime(projectId, index, projectData);
+            tagValueRouter.registerProject(project);
+        }
+
         String sessionId = UUID.randomUUID().toString();
-        RuntimeSession session = new RuntimeSession(sessionId, projectId, index, projectData);
+        RuntimeSession session = new RuntimeSession(sessionId, project);
         sessionStore.put(session);
-        tagValueRouter.registerSession(session);
+        project.addObserver(session);
+        // Раньше эти кадры раздавала регистрация сессии в роутере; теперь интерес к тегам
+        // держит проект, поэтому начальное состояние отдаётся наблюдателю явно.
+        tagValueRouter.snapshot(project).forEach(session.getOutboundBuffer()::offerTag);
         automationState.replayVariables(session);
 
         log.info("Runtime session {} started for project {} ({} tags)",
@@ -78,7 +96,9 @@ public class RuntimeSessionService {
         if (session == null) {
             return;
         }
-        tagValueRouter.unregisterSession(session);
+        // Сессия — наблюдатель: её уход снимает только подписку на кадры. Интерес к тегам
+        // и всё состояние остаются у проекта, поэтому мойка продолжает идти.
+        session.getProject().removeObserver(sessionId);
         log.info("Runtime session {} closed", sessionId);
     }
 
@@ -115,7 +135,7 @@ public class RuntimeSessionService {
         for (Long propertyId : propertyIds) {
             String name = session.getIndex().propertyName(propertyId);
             if (name != null) {
-                props.put(name, session.getPropertyValues().get(propertyId));
+                props.put(name, session.getProject().getPropertyValues().get(propertyId));
             }
         }
         Map<String, Object> before = new HashMap<>(props);
@@ -123,7 +143,7 @@ public class RuntimeSessionService {
         Map<String, Object> after;
         try {
             after = scriptEngineService.runAction(script.source(), props,
-                    tagCommandService.sinksFor(session, script.componentId()), session.getProjectData());
+                    tagCommandService.sinksFor(session.getProject(), script.componentId()), session.getProjectData());
         } catch (Exception e) {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
             return List.of();
@@ -204,9 +224,9 @@ public class RuntimeSessionService {
      */
     private static void storePropertyValue(RuntimeSession session, Long propertyId, Object value) {
         if (value == null) {
-            session.getPropertyValues().remove(propertyId);
+            session.getProject().getPropertyValues().remove(propertyId);
         } else {
-            session.getPropertyValues().put(propertyId, value);
+            session.getProject().getPropertyValues().put(propertyId, value);
         }
     }
 

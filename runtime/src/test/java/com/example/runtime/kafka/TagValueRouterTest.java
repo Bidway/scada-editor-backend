@@ -1,5 +1,7 @@
 package com.example.runtime.kafka;
 
+import com.example.runtime.project.ProjectRuntime;
+import com.example.runtime.project.ProjectRuntimeStore;
 import com.example.runtime.script.OnChangeDispatcher;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.OnChangeBinding;
@@ -36,6 +38,7 @@ class TagValueRouterTest {
 
     private static final String TAG = "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V0.ST";
     private static final String SESSION = "s-1";
+    private static final Long PROJECT = 8501L;
 
     private RuntimeSessionStore sessionStore;
     private OnChangeDispatcher onChangeDispatcher;
@@ -53,16 +56,23 @@ class TagValueRouterTest {
         buffer = new SessionOutboundBuffer();
 
         when(index.getAllTagIds()).thenReturn(Set.of(TAG));
+        when(index.getInitialPropertyValues()).thenReturn(java.util.Map.of());
         when(index.onChangeBindingsForTag(anyString())).thenReturn(List.of());
         when(session.getId()).thenReturn(SESSION);
-        when(session.getIndex()).thenReturn(index);
         when(session.getOutboundBuffer()).thenReturn(buffer);
         when(sessionStore.get(SESSION)).thenReturn(session);
 
-        router = new TagValueRouter(sessionStore, mock(ScriptEngineService.class),
+        ProjectRuntime project = new ProjectRuntime(PROJECT, index, null);
+        project.addObserver(session);
+        ProjectRuntimeStore projectStore = mock(ProjectRuntimeStore.class);
+        when(projectStore.get(PROJECT)).thenReturn(project);
+
+        router = new TagValueRouter(sessionStore, projectStore, mock(ScriptEngineService.class),
                 mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper(),
                 mock(org.springframework.context.ApplicationEventPublisher.class));
-        router.registerSession(session);
+        router.registerProject(project);
+        // Начальные кадры «нет данных» раздаёт теперь не регистрация, а снимок для наблюдателя.
+        router.snapshot(project).forEach(buffer::offerTag);
     }
 
     @Test
@@ -182,7 +192,7 @@ class TagValueRouterTest {
 
         // Ключевая гарантия: null в JS falsy, и setState(tag ? 'Открыт' : 'Закрыт')
         // нарисовал бы клапан ЗАКРЫТЫМ при потере связи. Скрипт не должен запускаться.
-        verify(onChangeDispatcher, never()).submit(anyString(), any());
+        verify(onChangeDispatcher, never()).submit(any(Long.class), any());
     }
 
     @Test
@@ -195,7 +205,7 @@ class TagValueRouterTest {
         router.onMessage(message("true", "GOOD", null));
 
         // Шлюз шлёт значение каждого тега каждый цикл опроса, меняется оно или нет.
-        verify(onChangeDispatcher).submit(anyString(), any());
+        verify(onChangeDispatcher).submit(any(Long.class), any());
     }
 
     @Test
@@ -209,7 +219,7 @@ class TagValueRouterTest {
 
         // Пока значение было недостоверным, скрипты не работали, поэтому состояние
         // компонента всё это время отражало ровно это значение — пересчитывать нечего.
-        verify(onChangeDispatcher).submit(anyString(), any());
+        verify(onChangeDispatcher).submit(any(Long.class), any());
     }
 
     private static OnChangeBinding binding() {

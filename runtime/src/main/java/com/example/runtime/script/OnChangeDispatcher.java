@@ -81,17 +81,19 @@ public class OnChangeDispatcher {
     }
 
     /**
-     * Ставит исполнение скриптов в полосу, закреплённую за сессией.
+     * Ставит исполнение скриптов в полосу, закреплённую за проектом.
      *
-     * @param sessionId ключ закрепления — гарантирует последовательность в пределах сессии
+     * @param projectId ключ закрепления — гарантирует последовательность в пределах проекта.
+     *                  Последовательность нужна, чтобы скрипты одного проекта не гонялись за
+     *                  общую карту его свойств; разные проекты идут параллельно.
      */
-    public void submit(String sessionId, Runnable task) {
-        stripeFor(sessionId).execute(task);
+    public void submit(Long projectId, Runnable task) {
+        stripeFor(projectId).execute(task);
     }
 
-    private ThreadPoolExecutor stripeFor(String sessionId) {
+    private ThreadPoolExecutor stripeFor(Long projectId) {
         // Math.floorMod, а не %: hashCode бывает отрицательным.
-        return stripes[Math.floorMod(sessionId.hashCode(), stripes.length)];
+        return stripes[Math.floorMod(projectId.hashCode(), stripes.length)];
     }
 
     private void registerDrop() {

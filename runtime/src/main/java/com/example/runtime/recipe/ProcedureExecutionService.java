@@ -348,7 +348,7 @@ public class ProcedureExecutionService {
                     propertyName, ids.isEmpty() ? "no such property" : "ambiguous across " + ids.size() + " components");
             return null;
         }
-        Object value = session.getPropertyValues().get(ids.get(0));
+        Object value = session.getProject().getPropertyValues().get(ids.get(0));
         return value instanceof String s ? TagValueRouter.coerceTagValue(s) : value;
     }
 

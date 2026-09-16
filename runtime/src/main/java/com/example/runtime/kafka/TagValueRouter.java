@@ -4,6 +4,7 @@ import com.example.runtime.script.OnChangeDispatcher;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.OnChangeBinding;
 import com.example.runtime.project.ProjectRuntime;
+import com.example.runtime.project.ProjectRuntimeStore;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionStore;
 import com.example.runtime.session.TagCommandService;
@@ -17,6 +18,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,22 +40,25 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TagValueRouter {
 
     private final RuntimeSessionStore sessionStore;
+    private final ProjectRuntimeStore projectStore;
     private final ScriptEngineService scriptEngineService;
     private final TagCommandService tagCommandService;
     private final OnChangeDispatcher onChangeDispatcher;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
 
-    /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последняя сессия. */
+    /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последний проект. */
     private final Map<String, TagRuntimeState> tagStates = new ConcurrentHashMap<>();
 
     public TagValueRouter(RuntimeSessionStore sessionStore,
+                          ProjectRuntimeStore projectStore,
                           ScriptEngineService scriptEngineService,
                           TagCommandService tagCommandService,
                           OnChangeDispatcher onChangeDispatcher,
                           ObjectMapper objectMapper,
                           ApplicationEventPublisher eventPublisher) {
         this.sessionStore = sessionStore;
+        this.projectStore = projectStore;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
         this.onChangeDispatcher = onChangeDispatcher;
@@ -66,46 +71,47 @@ public class TagValueRouter {
      * (его успела принести другая сессия), оно сразу отдаётся новой сессии, чтобы та
      * не ждала следующего обновления.
      */
-    public void registerSession(RuntimeSession session) {
-        for (String tagId : session.getIndex().getAllTagIds()) {
-            // compute атомарен на ключ — иначе одновременные register/unregister
-            // могут выбросить состояние ещё живой сессии.
-            TagRuntimeState state = tagStates.compute(tagId, (key, existing) -> {
+    /**
+     * Интерес к тегам объявляет проект, а не сессия: значения должны жить, пока проект в
+     * эксплуатации, даже когда на него никто не смотрит. Пока записи в tagStates создавались
+     * регистрацией сессии и исчезали с последней, условия процедуры после ухода оператора
+     * получали из readProjectTag только null и мойка вставала навсегда.
+     */
+    public void registerProject(ProjectRuntime project) {
+        for (String tagId : project.getIndex().getAllTagIds()) {
+            // compute атомарен на ключ — иначе одновременные register/unregister могут
+            // выбросить состояние ещё живого проекта.
+            tagStates.compute(tagId, (key, existing) -> {
                 TagRuntimeState s = existing != null ? existing : new TagRuntimeState(key);
-                s.sessionIds.add(session.getId());
+                s.projectIds.add(project.getProjectId());
                 return s;
             });
-
-            // Кадр отдаётся всегда, даже когда значения ещё не было: тег с value=null и
-            // quality=BAD — это штатное «нет данных», а не пустой экран без объяснения.
-            // Холодный старт реального шлюза длится до полутора минут (последовательный
-            // обход 2471 канала при auto.offset.reset=latest), и всё это время оператор
-            // должен видеть, что данных нет, а не гадать.
-            session.getOutboundBuffer().offerTag(toUpdate(tagId, state.snapshot));
         }
     }
 
-    public void unregisterSession(RuntimeSession session) {
-        for (String tagId : session.getIndex().getAllTagIds()) {
+    public void unregisterProject(ProjectRuntime project) {
+        for (String tagId : project.getIndex().getAllTagIds()) {
             tagStates.computeIfPresent(tagId, (key, state) -> {
-                state.sessionIds.remove(session.getId());
-                return state.sessionIds.isEmpty() ? null : state;
+                state.projectIds.remove(project.getProjectId());
+                return state.projectIds.isEmpty() ? null : state;
             });
         }
     }
 
     /**
-     * Интерес к тегам от имени проекта. Заглушка: реализуется в задаче переноса onChange и
-     * состояния свойств на проект. До тех пор интерес продолжают объявлять сессии сами, так
-     * что существующее поведение не меняется.
+     * Текущее состояние всех тегов проекта — для кадра, который получает подключившийся
+     * наблюдатель. Кадр отдаётся и для тега без значения: тег с value=null и quality=BAD —
+     * это штатное «нет данных», а не пустой экран без объяснения. Холодный старт реального
+     * шлюза длится до полутора минут, и всё это время оператор должен видеть, что данных нет,
+     * а не гадать.
      */
-    public void registerProject(ProjectRuntime project) {
-        // Намеренно пусто — см. javadoc.
-    }
-
-    /** Парная заглушка к {@link #registerProject(ProjectRuntime)}. */
-    public void unregisterProject(ProjectRuntime project) {
-        // Намеренно пусто — см. javadoc.
+    public List<TagUpdate> snapshot(ProjectRuntime project) {
+        List<TagUpdate> updates = new ArrayList<>();
+        for (String tagId : project.getIndex().getAllTagIds()) {
+            TagRuntimeState state = tagStates.get(tagId);
+            updates.add(toUpdate(tagId, state == null ? TagRuntimeState.Snapshot.EMPTY : state.snapshot));
+        }
+        return updates;
     }
 
     /**
@@ -163,63 +169,63 @@ public class TagValueRouter {
         // время и отражало это самое значение — пересчитывать нечего.
         boolean valueChanged = !java.util.Objects.equals(previous.value(), snapshot.value());
 
-        for (String sessionId : state.sessionIds) {
-            dispatchToSession(sessionId, tagId, snapshot, valueChanged);
+        for (Long projectId : state.projectIds) {
+            ProjectRuntime project = projectStore.get(projectId);
+            if (project == null) {
+                continue;
+            }
+            dispatchToProject(project, tagId, snapshot, valueChanged);
         }
     }
 
-    private void dispatchToSession(String sessionId, String tagId,
+    private void dispatchToProject(ProjectRuntime project, String tagId,
                                    TagRuntimeState.Snapshot snapshot, boolean valueChanged) {
-        RuntimeSession session = sessionStore.get(sessionId);
-        if (session == null) {
-            return;
-        }
         // Лёгкая часть остаётся на треде consumer'а: запись в буфер — это добавление в
         // очередь, доли микросекунды, и оно должно происходить как можно ближе к моменту
-        // приёма, чтобы значение на экране было свежим.
-        session.getOutboundBuffer().offerTag(toUpdate(tagId, snapshot));
-        eventPublisher.publishEvent(new SessionTagChangedEvent(sessionId));
+        // приёма, чтобы значение на экране было свежим. Наблюдателей может не быть вовсе —
+        // тогда рассылать просто некому, а проект продолжает работать.
+        TagUpdate update = toUpdate(tagId, snapshot);
+        for (RuntimeSession session : project.sessions()) {
+            session.getOutboundBuffer().offerTag(update);
+            eventPublisher.publishEvent(new SessionTagChangedEvent(session.getId()));
+        }
 
         // Недостоверное значение до скриптов не доходит вообще. Значение тега не
         // «изменилось» — оно стало неизвестным, а это не событие процесса, на которое
         // скрипт должен реагировать. Пропусти мы null внутрь, типичный биндинг
         // setState(tag ? 'Открыт' : 'Закрыт') при потере связи уверенно нарисовал бы
-        // клапан ЗАКРЫТЫМ: null в JS — falsy. Замерший тег плохо, тег с уверенно
-        // неверным состоянием — хуже. Компонент остаётся как есть, а «нет данных»
-        // рисует фронт по quality из кадра.
+        // клапан ЗАКРЫТЫМ: null в JS — falsy.
         if (!snapshot.good() || !valueChanged) {
             return;
         }
 
-        List<OnChangeBinding> onChangeBindings = session.getIndex().onChangeBindingsForTag(tagId);
+        List<OnChangeBinding> onChangeBindings = project.getIndex().onChangeBindingsForTag(tagId);
         if (onChangeBindings.isEmpty()) {
             return;
         }
         // Свойству — время его вычисления, а не метка измерения из snapshot.ts(). Это
         // разные величины: тег датируется моментом снятия с ПЛК (и потому не монотонен —
         // часы контроллера свои), а свойство порождается скриптом здесь и сейчас.
-        // Смешав их, мы протащили бы дрейф часов ПЛК в properties[], про который фронту
-        // не сказано ни слова.
         long ts = System.currentTimeMillis();
         Object coercedValue = coerceTagValue(snapshot.value());
-        // Тяжёлая часть уходит в пул: GraalVM с таймаутом до 200 мс на треде consumer'а
-        // останавливал бы приём телеметрии для всех сессий разом.
-        onChangeDispatcher.submit(sessionId, () -> {
+        // Один раз на проект, а не на каждого наблюдателя: у записи в ПЛК внутри скрипта
+        // не должно быть кратности числу открытых экранов.
+        onChangeDispatcher.submit(project.getProjectId(), () -> {
             for (OnChangeBinding binding : onChangeBindings) {
-                runOnChangeAndPublish(session, binding, coercedValue, ts);
+                runOnChangeAndPublish(project, binding, coercedValue, ts);
             }
         });
     }
 
-    private void runOnChangeAndPublish(RuntimeSession session, OnChangeBinding binding, Object tagValue, long ts) {
+    private void runOnChangeAndPublish(ProjectRuntime project, OnChangeBinding binding, Object tagValue, long ts) {
         Long componentId = binding.componentId();
-        List<Long> propertyIds = session.getIndex().propertyIdsOfComponent(componentId);
+        List<Long> propertyIds = project.getIndex().propertyIdsOfComponent(componentId);
         // HashMap, а не ConcurrentHashMap: значение свойства может быть не задано (null),
         // и скрипт вправе выставить props.x = null. Карта живёт одно выполнение скрипта.
         Map<String, Object> props = new HashMap<>();
         for (Long propertyId : propertyIds) {
-            String name = session.getIndex().propertyName(propertyId);
-            Object current = session.getPropertyValues().get(propertyId);
+            String name = project.getIndex().propertyName(propertyId);
+            Object current = project.getPropertyValues().get(propertyId);
             if (name != null) {
                 props.put(name, current);
             }
@@ -229,34 +235,38 @@ public class TagValueRouter {
         Map<String, Object> after;
         try {
             after = scriptEngineService.runOnChange(binding.scriptSource(), tagValue, props,
-                    tagCommandService.sinksFor(session, componentId), session.getProjectData());
+                    tagCommandService.sinksFor(project, componentId), project.getProjectData());
         } catch (Exception e) {
             log.warn("onChange script failed for property {}: {}", binding.componentPropertyId(), e.getMessage());
             return;
         }
 
         for (Long propertyId : propertyIds) {
-            String name = session.getIndex().propertyName(propertyId);
+            String name = project.getIndex().propertyName(propertyId);
             if (name == null) {
                 continue;
             }
             Object newValue = after.get(name);
             if (!java.util.Objects.equals(before.get(name), newValue)) {
-                storePropertyValue(session, propertyId, newValue);
-                        session.getOutboundBuffer().offerProperty(new PropertyUpdate(propertyId, name, newValue, ts));
+                storePropertyValue(project, propertyId, newValue);
+                PropertyUpdate update = new PropertyUpdate(propertyId, name, newValue, ts);
+                // Свойство посчитано один раз, а увидеть его должны все наблюдатели проекта.
+                for (RuntimeSession session : project.sessions()) {
+                    session.getOutboundBuffer().offerProperty(update);
+                }
             }
         }
     }
 
     /**
-     * Записывает значение свойства в хранилище сессии. {@code null} (свойство сброшено
+     * Записывает значение свойства в общее состояние проекта. {@code null} (свойство сброшено
      * скриптом) представляется отсутствием ключа — {@code ConcurrentHashMap} не хранит null.
      */
-    private static void storePropertyValue(RuntimeSession session, Long propertyId, Object value) {
+    private static void storePropertyValue(ProjectRuntime project, Long propertyId, Object value) {
         if (value == null) {
-            session.getPropertyValues().remove(propertyId);
+            project.getPropertyValues().remove(propertyId);
         } else {
-            session.getPropertyValues().put(propertyId, value);
+            project.getPropertyValues().put(propertyId, value);
         }
     }
 

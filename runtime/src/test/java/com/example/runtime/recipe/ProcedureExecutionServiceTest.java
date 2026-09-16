@@ -57,7 +57,10 @@ class ProcedureExecutionServiceTest {
         sessionStore = new RuntimeSessionStore();
         TagSubscriptionIndex index = mock(TagSubscriptionIndex.class);
         when(index.resolveTagPath(anyString())).thenAnswer(inv -> inv.getArgument(0));
-        RuntimeSession session = new RuntimeSession(SESSION_ID, 1L, index);
+        when(index.getInitialPropertyValues()).thenReturn(java.util.Map.of());
+        when(index.getAllTagIds()).thenReturn(java.util.Set.of());
+        RuntimeSession session = new RuntimeSession(SESSION_ID,
+                new com.example.runtime.project.ProjectRuntime(1L, index, null));
         sessionStore.put(session);
 
         service = new ProcedureExecutionService(editorClient, commandProducer, tagValueRouter,

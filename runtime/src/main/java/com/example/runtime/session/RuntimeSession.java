@@ -1,22 +1,24 @@
 package com.example.runtime.session;
 
+import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.stream.SessionOutboundBuffer;
 import com.example.scriptcore.ProjectData;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Наблюдатель проекта: открытый экран оператора. Своего состояния, кроме соединения и очереди
+ * отправки, не имеет — индекс, данные проекта и значения свойств принадлежат
+ * {@link ProjectRuntime} и общие для всех, кто смотрит на этот проект. Пока карта свойств была
+ * сессионной, два оператора видели разные значения и их копии не сходились обратно.
+ */
 public class RuntimeSession {
 
     private final String id;
-    private final Long projectId;
-    private final TagSubscriptionIndex index;
-    private final ProjectData projectData;
+    private final ProjectRuntime project;
     private final SessionOutboundBuffer outboundBuffer = new SessionOutboundBuffer();
-    private final Map<Long, Object> propertyValues;
     private final Instant createdAt = Instant.now();
     private final ReentrantLock sendLock = new ReentrantLock();
 
@@ -25,41 +27,35 @@ public class RuntimeSession {
     /** Прислала ли сессия SUBSCRIBE_TASKS: статусы задач нужны только открытой панели «Задачи». */
     private volatile boolean tasksSubscribed;
 
-    public RuntimeSession(String id, Long projectId, TagSubscriptionIndex index) {
-        this(id, projectId, index, ProjectData.EMPTY);
-    }
-
-    public RuntimeSession(String id, Long projectId, TagSubscriptionIndex index, ProjectData projectData) {
+    public RuntimeSession(String id, ProjectRuntime project) {
         this.id = id;
-        this.projectId = projectId;
-        this.index = index;
-        this.projectData = projectData;
-        this.propertyValues = new ConcurrentHashMap<>(index.getInitialPropertyValues());
+        this.project = project;
     }
 
     public String getId() {
         return id;
     }
 
+    public ProjectRuntime getProject() {
+        return project;
+    }
+
     public Long getProjectId() {
-        return projectId;
+        return project.getProjectId();
     }
 
+    /** Делегирует проекту: у сессии своего индекса нет. */
     public TagSubscriptionIndex getIndex() {
-        return index;
+        return project.getIndex();
     }
 
-    /** Снимок таблиц данных проекта, взятый при открытии сессии; правка в редакторе видна новым сессиям. */
+    /** Делегирует проекту: таблицы данных общие, как и всё остальное состояние проекта. */
     public ProjectData getProjectData() {
-        return projectData;
+        return project.getProjectData();
     }
 
     public SessionOutboundBuffer getOutboundBuffer() {
         return outboundBuffer;
-    }
-
-    public Map<Long, Object> getPropertyValues() {
-        return propertyValues;
     }
 
     public Instant getCreatedAt() {

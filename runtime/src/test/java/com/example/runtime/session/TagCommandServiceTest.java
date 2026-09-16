@@ -1,5 +1,6 @@
 package com.example.runtime.session;
 
+import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.kafka.CommandOutcome;
 import com.example.runtime.kafka.CommandProducer;
 import com.example.runtime.script.ScriptWriteSinks;
@@ -32,15 +33,16 @@ class TagCommandServiceTest {
 
     private CommandProducer commandProducer;
     private TagSubscriptionIndex index;
-    private RuntimeSession session;
+    private ProjectRuntime project;
     private TagCommandService service;
 
     @BeforeEach
     void setUp() {
         commandProducer = mock(CommandProducer.class);
         index = mock(TagSubscriptionIndex.class);
-        session = mock(RuntimeSession.class);
-        when(session.getIndex()).thenReturn(index);
+        when(index.getAllTagIds()).thenReturn(java.util.Set.of());
+        when(index.getInitialPropertyValues()).thenReturn(java.util.Map.of());
+        project = new ProjectRuntime(1L, index, null);
         when(commandProducer.send(anyString(), any()))
                 .thenReturn(CompletableFuture.completedFuture(CommandOutcome.applied("ok")));
 
@@ -92,7 +94,7 @@ class TagCommandServiceTest {
     @Test
     @DisplayName("три sink'а из sinksFor не путаются между собой")
     void allThreeSinksAreDistinct() {
-        ScriptWriteSinks sinks = service.sinksFor(session, COMPONENT_ID);
+        ScriptWriteSinks sinks = service.sinksFor(project, COMPONENT_ID);
 
         assertThat(sinks.byProperty()).isNotNull();
         assertThat(sinks.byPath()).isNotNull();
@@ -100,6 +102,6 @@ class TagCommandServiceTest {
     }
 
     private ScriptWriteSinks sink() {
-        return service.sinksFor(session, COMPONENT_ID);
+        return service.sinksFor(project, COMPONENT_ID);
     }
 }
