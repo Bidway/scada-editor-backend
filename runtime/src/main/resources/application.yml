@@ -74,6 +74,9 @@ kafka:
   # Единый топик проекта: все контроллеры/драйверы пишут значения тегов сюда,
   # различаются по key сообщения (= Node.idNode).
   tags-topic: ${KAFKA_TAGS_TOPIC:scada.tags}
+  # Компактный топик активных проектов: его пишет editor, ключ — projectId.
+  # Читается целиком с начала при старте: пока реестр не прочитан, тикать нельзя.
+  projects-topic: ${RUNTIME_PROJECTS_TOPIC:runtime.projects}
   # Обратное направление: запись тега в ПЛК. Имя топика задано шлюзом
   # (kafka.topics.commands в его конфиге), результат он кладёт в scada-command-results.
   commands-topic: ${KAFKA_COMMANDS_TOPIC:scada-commands}

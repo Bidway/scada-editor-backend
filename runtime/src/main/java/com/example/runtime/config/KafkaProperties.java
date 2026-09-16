@@ -15,6 +15,9 @@ public class KafkaProperties {
     private String bootstrapServers = "localhost:9092";
     private String consumerGroupId = "runtime-service";
     private String tagsTopic = "scada.tags";
+
+    /** Компактный топик активных проектов: его пишет editor, ключ — projectId. */
+    private String projectsTopic = "runtime.projects";
     /** Топик команд шлюза (обратное направление: запись тега в ПЛК). Имя задаёт шлюз. */
     private String commandsTopic = "scada-commands";
 
@@ -65,6 +68,14 @@ public class KafkaProperties {
 
     public void setConsumerGroupId(String consumerGroupId) {
         this.consumerGroupId = consumerGroupId;
+    }
+
+    public String getProjectsTopic() {
+        return projectsTopic;
+    }
+
+    public void setProjectsTopic(String projectsTopic) {
+        this.projectsTopic = projectsTopic;
     }
 
     public String getTagsTopic() {
