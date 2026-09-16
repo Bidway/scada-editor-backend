@@ -189,6 +189,9 @@ public class TagValueRouter {
             session.getOutboundBuffer().offerTag(update);
             eventPublisher.publishEvent(new SessionTagChangedEvent(session.getId()));
         }
+        // Событие проекта публикуется независимо от наблюдателей: условия процедур обязаны
+        // пересчитываться и тогда, когда монитор не открыт ни у кого.
+        eventPublisher.publishEvent(new ProjectTagChangedEvent(project.getProjectId()));
 
         // Недостоверное значение до скриптов не доходит вообще. Значение тега не
         // «изменилось» — оно стало неизвестным, а это не событие процесса, на которое

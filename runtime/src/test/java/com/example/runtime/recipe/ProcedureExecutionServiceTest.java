@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
 class ProcedureExecutionServiceTest {
 
     private static final String SESSION_ID = "s1";
+    private static final Long PROJECT_ID = 1L;
     private static final String RECIPE_ID = "r1";
 
     private EditorClient editorClient;
@@ -59,12 +60,19 @@ class ProcedureExecutionServiceTest {
         when(index.resolveTagPath(anyString())).thenAnswer(inv -> inv.getArgument(0));
         when(index.getInitialPropertyValues()).thenReturn(java.util.Map.of());
         when(index.getAllTagIds()).thenReturn(java.util.Set.of());
-        RuntimeSession session = new RuntimeSession(SESSION_ID,
-                new com.example.runtime.project.ProjectRuntime(1L, index, null));
+        com.example.runtime.project.ProjectRuntime project =
+                new com.example.runtime.project.ProjectRuntime(PROJECT_ID, index, null);
+        RuntimeSession session = new RuntimeSession(SESSION_ID, project);
         sessionStore.put(session);
+        project.addObserver(session);
+
+        com.example.runtime.project.ProjectRuntimeStore projectStore =
+                mock(com.example.runtime.project.ProjectRuntimeStore.class);
+        when(projectStore.get(PROJECT_ID)).thenReturn(project);
 
         service = new ProcedureExecutionService(editorClient, commandProducer, tagValueRouter,
-                scriptEngineService, sessionStore);
+                scriptEngineService, sessionStore, projectStore,
+                mock(com.example.runtime.persistence.ProcedureStateRepository.class));
     }
 
     @AfterEach
@@ -103,7 +111,7 @@ class ProcedureExecutionServiceTest {
     void start_appliesFirstStepAction_andAutoAdvancesThroughTrivialCondition() {
         when(editorClient.getRecipe(RECIPE_ID)).thenReturn(twoStepRecipe());
 
-        ProcedureStatusDto status = service.start(SESSION_ID, RECIPE_ID);
+        ProcedureStatusDto status = service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
 
         verify(commandProducer).send("LINE1.V101.OPEN", true);
         assertThat(status.stepIndex()).isEqualTo(1);
@@ -114,9 +122,9 @@ class ProcedureExecutionServiceTest {
     @Test
     void confirm_advancesPastConfirmStep_andCompletesOnLastStep() {
         when(editorClient.getRecipe(RECIPE_ID)).thenReturn(twoStepRecipe());
-        service.start(SESSION_ID, RECIPE_ID);
+        service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
 
-        ProcedureStatusDto status = service.confirm(SESSION_ID, RECIPE_ID);
+        ProcedureStatusDto status = service.confirm(PROJECT_ID, RECIPE_ID, null, SESSION_ID, "tester");
 
         assertThat(status.completed()).isTrue();
     }
@@ -124,9 +132,9 @@ class ProcedureExecutionServiceTest {
     @Test
     void jump_reappliesStepActionAndRearmsCondition() {
         when(editorClient.getRecipe(RECIPE_ID)).thenReturn(twoStepRecipe());
-        service.start(SESSION_ID, RECIPE_ID);
+        service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
 
-        ProcedureStatusDto status = service.jump(SESSION_ID, RECIPE_ID, 0);
+        ProcedureStatusDto status = service.jump(PROJECT_ID, RECIPE_ID, 0, SESSION_ID, "tester");
 
         verify(commandProducer, org.mockito.Mockito.times(2)).send("LINE1.V101.OPEN", true);
         assertThat(status.stepIndex()).isEqualTo(0);
@@ -153,7 +161,7 @@ class ProcedureExecutionServiceTest {
                 step("2", action("V1", 0))));
         when(editorClient.getRecipe(RECIPE_ID)).thenReturn(recipe);
 
-        service.jump(SESSION_ID, RECIPE_ID, 2);
+        service.jump(PROJECT_ID, RECIPE_ID, 2, SESSION_ID, "tester");
 
         // На шаге 2 V2 должен быть открыт, хотя сам шаг 2 его не упоминает.
         verify(commandProducer).send("LINE1.V2.ST", 1);
@@ -178,43 +186,13 @@ class ProcedureExecutionServiceTest {
     }
 
     @Test
-    void resumeGuess_scansFromEnd_skippingStepsWithoutObservableCondition() {
-        EditorRecipeStepDto delayStep = new EditorRecipeStepDto();
-        delayStep.setName("Пауза");
-        delayStep.setAction(List.of());
-        delayStep.setCondition_script("return elapsedMs >= 2000;");
-
-        EditorRecipeStepDto tagStep = new EditorRecipeStepDto();
-        tagStep.setName("Набор объёма");
-        tagStep.setAction(List.of());
-        tagStep.setCondition_script("return readProjectTag('LINE1.LEVEL') >= 300;");
-
-        EditorRecipeStepDto confirmStep = new EditorRecipeStepDto();
-        confirmStep.setName("Подтверждение");
-        confirmStep.setAction(List.of());
-        confirmStep.setCondition_script("return confirmed;");
-
-        EditorRecipeDto recipe = new EditorRecipeDto();
-        recipe.setId(RECIPE_ID);
-        recipe.setName("Тест");
-        recipe.setTags(List.of());
-        recipe.setSteps(List.of(delayStep, tagStep, confirmStep));
-        when(editorClient.getRecipe(RECIPE_ID)).thenReturn(recipe);
-        when(tagValueRouter.lastValue("LINE1.LEVEL")).thenReturn("300");
-
-        int guess = service.resumeGuess(SESSION_ID, RECIPE_ID);
-
-        assertThat(guess).isEqualTo(2);
-    }
-
-    @Test
     void abort_removesExecution_soStatusThrowsAfterward() {
         when(editorClient.getRecipe(RECIPE_ID)).thenReturn(twoStepRecipe());
-        service.start(SESSION_ID, RECIPE_ID);
+        service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
 
-        service.abort(SESSION_ID, RECIPE_ID);
+        service.abort(PROJECT_ID, RECIPE_ID);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.status(SESSION_ID, RECIPE_ID))
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.status(PROJECT_ID, RECIPE_ID))
                 .isInstanceOf(IllegalStateException.class);
     }
 }

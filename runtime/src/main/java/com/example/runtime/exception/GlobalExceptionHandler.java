@@ -1,5 +1,8 @@
 package com.example.runtime.exception;
 
+import com.example.runtime.recipe.ProcedureAlreadyRunningException;
+import com.example.runtime.recipe.ProcedureStepMismatchException;
+import com.example.runtime.recipe.ProjectNotInOperationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,32 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpClientErrorException.NotFound.class)
     public ResponseEntity<Map<String, Object>> handleUpstreamNotFound(HttpClientErrorException.NotFound ex) {
         return buildResponse(HttpStatus.NOT_FOUND, "Referenced project/tag not found in editor/channel");
+    }
+
+    /**
+     * 409, а не 400: запрос корректен, но состояние не позволяет его выполнить. В теле —
+     * текущий статус процедуры, чтобы оператор увидел, на каком шаге мойка, вместо того чтобы
+     * её сбить повторным запуском.
+     */
+    @ExceptionHandler(ProcedureAlreadyRunningException.class)
+    public ResponseEntity<Map<String, Object>> handleAlreadyRunning(ProcedureAlreadyRunningException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("timestamp", LocalDateTime.now(), "status", HttpStatus.CONFLICT.value(),
+                        "error", HttpStatus.CONFLICT.getReasonPhrase(), "message", ex.getMessage(),
+                        "procedure", ex.status()));
+    }
+
+    @ExceptionHandler(ProcedureStepMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleStepMismatch(ProcedureStepMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("timestamp", LocalDateTime.now(), "status", HttpStatus.CONFLICT.value(),
+                        "error", HttpStatus.CONFLICT.getReasonPhrase(), "message", ex.getMessage(),
+                        "procedure", ex.status()));
+    }
+
+    @ExceptionHandler(ProjectNotInOperationException.class)
+    public ResponseEntity<Map<String, Object>> handleNotInOperation(ProjectNotInOperationException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})

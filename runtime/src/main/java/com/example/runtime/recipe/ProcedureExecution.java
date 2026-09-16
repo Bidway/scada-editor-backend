@@ -4,9 +4,9 @@ import java.time.Duration;
 import java.time.Instant;
 
 /**
- * Состояние одной выполняющейся процедуры — только в памяти сессии. При перезапуске
- * runtime теряется; восстановление — через {@code ProcedureExecutionService.resumeGuess},
- * не через это состояние.
+ * Состояние одной выполняющейся процедуры. Живёт в памяти проекта и дублируется в
+ * {@code runtime.procedure_state}, поэтому переживает и уход оператора, и перезапуск сервиса:
+ * после рестарта поднимается через {@code ProcedureExecutionService.restore}.
  */
 class ProcedureExecution {
 
@@ -20,6 +20,23 @@ class ProcedureExecution {
     ProcedureExecution(String recipeId) {
         this.recipeId = recipeId;
         this.stepStartedAt = Instant.now();
+    }
+
+    /**
+     * Восстановление из сохранённого состояния. Действия шага намеренно НЕ применяются:
+     * мойка уже в этом положении, повторная запись дёрнула бы клапаны. Время входа в шаг
+     * берётся сохранённое, иначе условия на времени отсчитались бы заново.
+     */
+    static ProcedureExecution restored(String recipeId, int stepIndex, Instant stepStartedAt, boolean confirmed) {
+        ProcedureExecution execution = new ProcedureExecution(recipeId);
+        execution.stepIndex = stepIndex;
+        execution.stepStartedAt = stepStartedAt;
+        execution.confirmed = confirmed;
+        return execution;
+    }
+
+    Instant stepStartedAt() {
+        return stepStartedAt;
     }
 
     String recipeId() {

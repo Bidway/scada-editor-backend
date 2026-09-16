@@ -7,7 +7,11 @@ import com.example.runtime.client.dto.EditorRecipeStepDto;
 import com.example.runtime.client.dto.EditorRecipeTagDto;
 import com.example.runtime.dto.ProcedureStatusDto;
 import com.example.runtime.kafka.CommandProducer;
-import com.example.runtime.kafka.SessionTagChangedEvent;
+import com.example.runtime.kafka.ProjectTagChangedEvent;
+import com.example.runtime.persistence.ProcedureStateEntity;
+import com.example.runtime.persistence.ProcedureStateRepository;
+import com.example.runtime.project.ProjectRuntime;
+import com.example.runtime.project.ProjectRuntimeStore;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.RuntimeSession;
@@ -29,10 +33,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Движок исполнения процедурных рецептов. Состояние — только в памяти, по ключу
- * (sessionId, recipeId): несколько процедур одновременно в одной сессии (разные
- * линии/таблицы). У runtime своей БД нет — при перезапуске процесса состояние
- * теряется, восстановление — через {@code resumeGuess} (Задача 10), а не через этот кеш.
+ * Движок исполнения процедурных рецептов. Ключ — (projectId, recipeId): несколько процедур
+ * одновременно в одном проекте (разные линии), но один рецепт в проекте — только один.
+ * Состояние держится в памяти и дублируется в {@code runtime.procedure_state}, поэтому
+ * мойка переживает и уход оператора, и перезапуск сервиса.
  */
 @Service
 @Slf4j
@@ -44,6 +48,10 @@ public class ProcedureExecutionService {
     private final TagValueRouter tagValueRouter;
     private final ScriptEngineService scriptEngineService;
     private final RuntimeSessionStore sessionStore;
+    private final ProjectRuntimeStore projectStore;
+    private final ProcedureStateRepository stateRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     private final Map<ExecutionKey, ProcedureExecution> executions = new ConcurrentHashMap<>();
 
@@ -74,35 +82,55 @@ public class ProcedureExecutionService {
     // процедура проскакивает мимо непроверенного условия либо дважды применяет action
     // (повторная запись в ПЛК). Лок именно на экземпляр, чтобы разные процедуры и сессии
     // оставались независимыми и не блокировали друг друга.
-    public ProcedureStatusDto start(String sessionId, String recipeId) {
-        RuntimeSession session = requireSession(sessionId);
+    public ProcedureStatusDto start(Long projectId, String recipeId, String sessionId, String username) {
+        ProjectRuntime project = requireProject(projectId);
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
+        ExecutionKey key = new ExecutionKey(projectId, recipeId);
+
+        ProcedureExecution running = executions.get(key);
+        if (running != null && !running.completed()) {
+            synchronized (running) {
+                throw new ProcedureAlreadyRunningException(projectId, recipeId, toStatus(recipe, running));
+            }
+        }
+
         ProcedureExecution execution = new ProcedureExecution(recipeId);
         // Лок берётся до публикации в executions: иначе в окне между put и началом обработки
         // другой поток мог бы подхватить наполовину инициализированное исполнение.
         synchronized (execution) {
-            executions.put(new ExecutionKey(sessionId, recipeId), execution);
-            enterStep(session, recipe, execution, 0);
-            advanceWhileConditionMet(session, recipe, execution);
+            executions.put(key, execution);
+            log.info("Проект {}: процедура {} запущена пользователем {}", projectId, recipeId, username);
+            enterStep(project, recipe, execution, 0);
+            advanceWhileConditionMet(project, recipe, execution);
             return toStatus(recipe, execution);
         }
     }
 
-    public ProcedureStatusDto status(String sessionId, String recipeId) {
+    public ProcedureStatusDto status(Long projectId, String recipeId) {
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
-        ProcedureExecution execution = requireExecution(sessionId, recipeId);
+        ProcedureExecution execution = requireExecution(projectId, recipeId);
         synchronized (execution) {
             return toStatus(recipe, execution);
         }
     }
 
-    public ProcedureStatusDto confirm(String sessionId, String recipeId) {
-        RuntimeSession session = requireSession(sessionId);
+    public ProcedureStatusDto confirm(Long projectId, String recipeId, Integer expectedStepIndex,
+                                      String sessionId, String username) {
+        ProjectRuntime project = requireProject(projectId);
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
-        ProcedureExecution execution = requireExecution(sessionId, recipeId);
+        ProcedureExecution execution = requireExecution(projectId, recipeId);
         synchronized (execution) {
+            // stepIndex необязателен. Если фронт его прислал — это шаг, который оператор видел
+            // на экране; несовпадение означает, что шаг успели закрыть, и подтверждать нужно
+            // уже другой. Молча закрыть следующий было бы подтверждением не того, что видели.
+            if (expectedStepIndex != null && expectedStepIndex != execution.stepIndex()) {
+                throw new ProcedureStepMismatchException(toStatus(recipe, execution));
+            }
             execution.confirm();
-            advanceWhileConditionMet(session, recipe, execution);
+            log.info("Проект {}: шаг {} процедуры {} подтверждён пользователем {}",
+                    projectId, execution.stepIndex(), recipeId, username);
+            save(projectId, recipe, execution);
+            advanceWhileConditionMet(project, recipe, execution);
             return toStatus(recipe, execution);
         }
     }
@@ -117,16 +145,19 @@ public class ProcedureExecutionService {
     // тривиальных условий у него на глазах. Переоценка условия шага, на который прыгнули,
     // всё равно случится — по следующему тику (tick()) или изменению тега
     // (onSessionTagChanged), так же, как для только что подтверждённого/начатого шага.
-    public ProcedureStatusDto jump(String sessionId, String recipeId, int stepIndex) {
-        RuntimeSession session = requireSession(sessionId);
+    public ProcedureStatusDto jump(Long projectId, String recipeId, int stepIndex,
+                                   String sessionId, String username) {
+        ProjectRuntime project = requireProject(projectId);
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
         if (stepIndex < 0 || stepIndex >= recipe.getSteps().size()) {
             throw new IllegalArgumentException("Step index out of range: " + stepIndex);
         }
         ProcedureExecution execution = executions.computeIfAbsent(
-                new ExecutionKey(sessionId, recipeId), k -> new ProcedureExecution(recipeId));
+                new ExecutionKey(projectId, recipeId), k -> new ProcedureExecution(recipeId));
         synchronized (execution) {
-            enterStep(session, recipe, execution, stepIndex, accumulatedActions(recipe, stepIndex));
+            log.info("Проект {}: процедура {} переведена на шаг {} пользователем {}",
+                    projectId, recipeId, stepIndex, username);
+            enterStep(project, recipe, execution, stepIndex, accumulatedActions(recipe, stepIndex));
             return toStatus(recipe, execution);
         }
     }
@@ -153,55 +184,104 @@ public class ProcedureExecutionService {
         return new ArrayList<>(state.values());
     }
 
-    public void abort(String sessionId, String recipeId) {
-        if (executions.remove(new ExecutionKey(sessionId, recipeId)) != null) {
-            publishEvent(requireSession(sessionId), recipeId, null, null, ProcedureEvent.Kind.ABORTED, null);
-        }
-    }
-
-    /** Ничего не меняет — только предлагает индекс шага, на котором, вероятно, остановилась процедура. */
-    public int resumeGuess(String sessionId, String recipeId) {
-        RuntimeSession session = requireSession(sessionId);
-        EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
-        List<EditorRecipeStepDto> steps = recipe.getSteps();
-        for (int i = steps.size() - 1; i >= 0; i--) {
-            if (evaluateCondition(session, steps.get(i), 0L, false)) {
-                return Math.min(i + 1, steps.size() - 1);
+    public void abort(Long projectId, String recipeId) {
+        if (executions.remove(new ExecutionKey(projectId, recipeId)) != null) {
+            stateRepository.deleteByProjectIdAndRecipeId(projectId, recipeId);
+            ProjectRuntime project = projectStore.get(projectId);
+            if (project != null) {
+                publishEvent(project, recipeId, null, null, ProcedureEvent.Kind.ABORTED, null);
             }
+            log.info("Проект {}: процедура {} прервана", projectId, recipeId);
         }
-        return 0;
     }
 
     /**
-     * Вызывается по {@link SessionTagChangedEvent} на треде Kafka-consumer'а. Сам обработчик
-     * (сетевой вызов editor + GraalVM) уводится в {@link #onTagChangeExecutor} — см. комментарий
-     * у поля.
+     * Поднимает незавершённые процедуры проекта из БД и продолжает их с сохранённого шага.
+     * Действия шага не переприменяются — мойка уже в этом состоянии, повторная запись дёрнула
+     * бы клапаны. Условие переоценивается на первом же тике.
      */
-    @EventListener
-    public void onSessionTagChanged(SessionTagChangedEvent event) {
-        onTagChangeExecutor.submit(() -> handleSessionTagChanged(event));
+    public void restore(Long projectId) {
+        for (ProcedureStateEntity saved : stateRepository.findByProjectIdIn(List.of(projectId))) {
+            ProcedureExecution execution = ProcedureExecution.restored(saved.getRecipeId(),
+                    saved.getStepIndex(), saved.getStepEnteredAt(), saved.isConfirmed());
+            executions.put(new ExecutionKey(projectId, saved.getRecipeId()), execution);
+            log.info("Проект {}: восстановлена процедура {} на шаге {}",
+                    projectId, saved.getRecipeId(), saved.getStepIndex());
+        }
     }
 
-    /** Пересчитывает все активные процедуры сессии. Выполняется на {@link #onTagChangeExecutor}. */
-    private void handleSessionTagChanged(SessionTagChangedEvent event) {
+    /** Записать состояние всех процедур проекта — при выводе проекта из эксплуатации. */
+    public void persistAll(Long projectId) {
+        executions.forEach((key, execution) -> {
+            if (!key.projectId().equals(projectId) || execution.completed()) {
+                return;
+            }
+            synchronized (execution) {
+                EditorRecipeDto recipe = editorClient.getRecipe(key.recipeId());
+                save(projectId, recipe, execution);
+                log.warn("Проект {} выводится из эксплуатации с незавершённой процедурой {} на шаге {}",
+                        projectId, key.recipeId(), execution.stepIndex());
+            }
+        });
+    }
+
+    /** Только для тестов: имитация перезапуска сервиса — память чистая, БД нетронута. */
+    void forgetInMemory(Long projectId) {
+        executions.keySet().removeIf(key -> key.projectId().equals(projectId));
+    }
+
+    /**
+     * Снимок состояния процедуры в БД. Пишется на каждом переходе шага: у «Дезинфекции» это
+     * 28 шагов за 36 минут, то есть единицы записей в секунду в пике — нормальная частота.
+     */
+    private void save(Long projectId, EditorRecipeDto recipe, ProcedureExecution execution) {
+        ProcedureStateEntity row = stateRepository
+                .findByProjectIdAndRecipeId(projectId, execution.recipeId())
+                .orElseGet(() -> {
+                    ProcedureStateEntity created = new ProcedureStateEntity();
+                    created.setProjectId(projectId);
+                    created.setRecipeId(execution.recipeId());
+                    created.setStartedAt(java.time.Instant.now());
+                    return created;
+                });
+        row.setStepIndex(execution.stepIndex());
+        row.setStepEnteredAt(execution.stepStartedAt());
+        row.setConfirmed(execution.confirmed());
+        row.setAccumulatedActions(objectMapper.valueToTree(accumulatedActions(recipe, execution.stepIndex())));
+        stateRepository.save(row);
+    }
+
+    /**
+     * Вызывается по {@link ProjectTagChangedEvent} на треде Kafka-consumer'а. Событие проектное,
+     * а не сессионное: условия процедуры обязаны пересчитываться и тогда, когда на проект никто
+     * не смотрит. Сам обработчик (сетевой вызов editor + GraalVM) уводится в
+     * {@link #onTagChangeExecutor} — см. комментарий у поля.
+     */
+    @EventListener
+    public void onProjectTagChanged(ProjectTagChangedEvent event) {
+        onTagChangeExecutor.submit(() -> handleProjectTagChanged(event));
+    }
+
+    /** Пересчитывает все активные процедуры проекта. Выполняется на {@link #onTagChangeExecutor}. */
+    private void handleProjectTagChanged(ProjectTagChangedEvent event) {
         try {
-            RuntimeSession session = sessionStore.get(event.sessionId());
-            if (session == null) {
+            ProjectRuntime project = projectStore.get(event.projectId());
+            if (project == null) {
                 return;
             }
             for (Map.Entry<ExecutionKey, ProcedureExecution> entry : executions.entrySet()) {
-                if (!entry.getKey().sessionId().equals(event.sessionId()) || entry.getValue().completed()) {
+                if (!entry.getKey().projectId().equals(event.projectId()) || entry.getValue().completed()) {
                     continue;
                 }
                 EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
                 synchronized (entry.getValue()) {
-                    advanceWhileConditionMet(session, recipe, entry.getValue());
+                    advanceWhileConditionMet(project, recipe, entry.getValue());
                 }
             }
         } catch (Exception e) {
             // Runnable в ExecutorService.submit(...) — Future никто не читает, без этого
             // сбой обработки события молча терялся бы.
-            log.warn("Failed to handle tag change for session {}: {}", event.sessionId(), e.getMessage());
+            log.warn("Не удалось пересчитать процедуры проекта {}: {}", event.projectId(), e.getMessage());
         }
     }
 
@@ -224,14 +304,14 @@ public class ProcedureExecutionService {
                 if (execution.completed()) {
                     continue;
                 }
-                RuntimeSession session = sessionStore.get(entry.getKey().sessionId());
-                if (session == null) {
+                ProjectRuntime project = projectStore.get(entry.getKey().projectId());
+                if (project == null) {
                     continue;
                 }
                 EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
                 synchronized (execution) {
-                    advanceWhileConditionMet(session, recipe, execution);
-                    checkStalled(session, recipe, entry.getKey().recipeId(), execution);
+                    advanceWhileConditionMet(project, recipe, execution);
+                    checkStalled(project, recipe, entry.getKey().recipeId(), execution);
                 }
             }
         } catch (Exception e) {
@@ -239,57 +319,82 @@ public class ProcedureExecutionService {
         }
     }
 
-    private void checkStalled(RuntimeSession session, EditorRecipeDto recipe, String recipeId, ProcedureExecution execution) {
+    private void checkStalled(ProjectRuntime project, EditorRecipeDto recipe, String recipeId, ProcedureExecution execution) {
         if (execution.completed() || execution.stalledNotified()) {
             return;
         }
         Long timeoutMs = recipe.getSteps().get(execution.stepIndex()).getTimeout_ms();
         if (timeoutMs != null && execution.elapsedMs() >= timeoutMs) {
             execution.markStalledNotified();
-            publishEvent(session, recipeId, execution.stepIndex(), recipe.getSteps().get(execution.stepIndex()).getName(),
+            String stepName = recipe.getSteps().get(execution.stepIndex()).getName();
+            // Без наблюдателей WS-кадр некому доставить, поэтому «завис» обязан быть и в логе.
+            log.warn("Проект {}: шаг {} процедуры {} завис — условие не выполнилось за timeout_ms",
+                    project.getProjectId(), stepName, recipeId);
+            publishEvent(project, recipeId, execution.stepIndex(), stepName,
                     ProcedureEvent.Kind.STALLED, null);
         }
     }
 
-    private ProcedureExecution requireExecution(String sessionId, String recipeId) {
-        ProcedureExecution execution = executions.get(new ExecutionKey(sessionId, recipeId));
+    private ProcedureExecution requireExecution(Long projectId, String recipeId) {
+        ProcedureExecution execution = executions.get(new ExecutionKey(projectId, recipeId));
         if (execution == null) {
-            throw new IllegalStateException("No active procedure " + recipeId + " for session " + sessionId
-                    + " — call start first");
+            throw new IllegalStateException("В проекте " + projectId + " нет активной процедуры "
+                    + recipeId + " — сначала запустите её");
         }
         return execution;
     }
 
-    private void advanceWhileConditionMet(RuntimeSession session, EditorRecipeDto recipe, ProcedureExecution execution) {
+    /**
+     * Проект должен быть в эксплуатации: пока флаг не выставлен, у runtime нет ни его тегов,
+     * ни состояния свойств, и условия шага читали бы null.
+     */
+    private ProjectRuntime requireProject(Long projectId) {
+        ProjectRuntime project = projectStore.get(projectId);
+        if (project == null) {
+            throw new ProjectNotInOperationException(projectId);
+        }
+        return project;
+    }
+
+    private void advanceWhileConditionMet(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution) {
         List<EditorRecipeStepDto> steps = recipe.getSteps();
         while (!execution.completed()
-                && evaluateCondition(session, steps.get(execution.stepIndex()), execution.elapsedMs(), execution.confirmed())) {
+                && evaluateCondition(project, steps.get(execution.stepIndex()), execution.elapsedMs(), execution.confirmed())) {
             EditorRecipeStepDto finishedStep = steps.get(execution.stepIndex());
-            publishEvent(session, execution.recipeId(), execution.stepIndex(), finishedStep.getName(),
+            log.info("Проект {}: шаг {} процедуры {} завершён",
+                    project.getProjectId(), finishedStep.getName(), execution.recipeId());
+            publishEvent(project, execution.recipeId(), execution.stepIndex(), finishedStep.getName(),
                     ProcedureEvent.Kind.STEP_COMPLETED, null);
             int next = execution.stepIndex() + 1;
             if (next >= steps.size()) {
                 execution.markCompleted();
-                publishEvent(session, execution.recipeId(), null, null, ProcedureEvent.Kind.COMPLETED, null);
+                stateRepository.deleteByProjectIdAndRecipeId(project.getProjectId(), execution.recipeId());
+                log.info("Проект {}: процедура {} выполнена целиком", project.getProjectId(), execution.recipeId());
+                publishEvent(project, execution.recipeId(), null, null, ProcedureEvent.Kind.COMPLETED, null);
                 return;
             }
-            enterStep(session, recipe, execution, next);
+            enterStep(project, recipe, execution, next);
         }
     }
 
-    private void enterStep(RuntimeSession session, EditorRecipeDto recipe, ProcedureExecution execution, int index) {
-        enterStep(session, recipe, execution, index, recipe.getSteps().get(index).getAction());
+    private void enterStep(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution, int index) {
+        enterStep(project, recipe, execution, index, recipe.getSteps().get(index).getAction());
     }
 
-    private void enterStep(RuntimeSession session, EditorRecipeDto recipe, ProcedureExecution execution, int index,
+    private void enterStep(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution, int index,
                            List<EditorRecipeStepActionDto> actions) {
         execution.enterStep(index);
         EditorRecipeStepDto step = recipe.getSteps().get(index);
-        applyAction(session, recipe, execution.recipeId(), step, actions);
-        publishEvent(session, execution.recipeId(), index, step.getName(), ProcedureEvent.Kind.STEP_STARTED, null);
+        applyAction(project, recipe, execution.recipeId(), step, actions);
+        // Состояние пишется после применения действий: восстановление должно поднимать шаг,
+        // который реально применён в ПЛК, а не тот, куда мы только собирались войти.
+        save(project.getProjectId(), recipe, execution);
+        log.info("Проект {}: процедура {} вошла в шаг {}",
+                project.getProjectId(), execution.recipeId(), step.getName());
+        publishEvent(project, execution.recipeId(), index, step.getName(), ProcedureEvent.Kind.STEP_STARTED, null);
     }
 
-    private void applyAction(RuntimeSession session, EditorRecipeDto recipe, String recipeId, EditorRecipeStepDto step,
+    private void applyAction(ProjectRuntime project, EditorRecipeDto recipe, String recipeId, EditorRecipeStepDto step,
                              List<EditorRecipeStepActionDto> actions) {
         if (actions == null) {
             return;
@@ -301,10 +406,13 @@ public class ProcedureExecutionService {
                         recipeId, step.getName(), entry.getTag());
                 continue;
             }
-            String idNode = session.getIndex().resolveTagPath(path);
+            String idNode = project.getIndex().resolveTagPath(path);
             commandProducer.send(idNode, entry.getValue()).thenAccept(outcome -> {
                 if (!outcome.applied()) {
-                    publishEvent(session, recipeId, null, step.getName(), ProcedureEvent.Kind.WRITE_FAILED,
+                    // Без наблюдателей отказ шлюза некому показать — значит, он обязан быть в логе.
+                    log.warn("Проект {}: запись тега '{}' на шаге '{}' не применена: {}",
+                            project.getProjectId(), entry.getTag(), step.getName(), outcome.message());
+                    publishEvent(project, recipeId, null, step.getName(), ProcedureEvent.Kind.WRITE_FAILED,
                             "Тег '" + entry.getTag() + "': " + outcome.message());
                 }
             });
@@ -320,13 +428,13 @@ public class ProcedureExecutionService {
         return null;
     }
 
-    private boolean evaluateCondition(RuntimeSession session, EditorRecipeStepDto step, long elapsedMs, boolean confirmed) {
+    private boolean evaluateCondition(ProjectRuntime project, EditorRecipeStepDto step, long elapsedMs, boolean confirmed) {
         try {
             return scriptEngineService.runCondition(step.getCondition_script(), elapsedMs, confirmed,
                     path -> TagValueRouter.coerceTagValue(
-                            tagValueRouter.lastValue(session.getIndex().resolveTagPath(path))),
-                    (componentName, propertyName) -> readProjectProperty(session, step, componentName, propertyName),
-                    session.getProjectData());
+                            tagValueRouter.lastValue(project.getIndex().resolveTagPath(path))),
+                    (componentName, propertyName) -> readProjectProperty(project, step, componentName, propertyName),
+                    project.getProjectData());
         } catch (Exception e) {
             log.warn("Recipe step '{}' condition_script failed: {}", step.getName(), e.getMessage());
             return false;
@@ -340,21 +448,29 @@ public class ProcedureExecutionService {
      * процедуре дальше, и чужое одноимённое свойство здесь хуже, чем {@code null}. Лог — debug:
      * условие пересчитывается каждый тик, и warn на опечатке в адресе заливал бы лог.
      */
-    private Object readProjectProperty(RuntimeSession session, EditorRecipeStepDto step,
+    private Object readProjectProperty(ProjectRuntime project, EditorRecipeStepDto step,
                                        String componentName, String propertyName) {
-        List<Long> ids = session.getIndex().propertyIdsByComponentName(componentName, propertyName);
+        List<Long> ids = project.getIndex().propertyIdsByComponentName(componentName, propertyName);
         if (ids.size() != 1) {
             log.debug("Recipe step '{}': readProjectProperty('{}', '{}') — {}", step.getName(), componentName,
                     propertyName, ids.isEmpty() ? "no such property" : "ambiguous across " + ids.size() + " components");
             return null;
         }
-        Object value = session.getProject().getPropertyValues().get(ids.get(0));
+        Object value = project.getPropertyValues().get(ids.get(0));
         return value instanceof String s ? TagValueRouter.coerceTagValue(s) : value;
     }
 
-    private void publishEvent(RuntimeSession session, String recipeId, Integer stepIndex, String stepName,
+    /**
+     * Событие уходит всем наблюдателям проекта. Их может не быть вовсе — тогда доставлять
+     * некому, и единственным следом остаётся лог: копить события «на будущее» нельзя, мойка,
+     * набивающая очередь сутками, — это утечка.
+     */
+    private void publishEvent(ProjectRuntime project, String recipeId, Integer stepIndex, String stepName,
                               ProcedureEvent.Kind kind, String message) {
-        session.getOutboundBuffer().offerProcedureEvent(new ProcedureEvent(recipeId, stepIndex, stepName, kind, message));
+        ProcedureEvent event = new ProcedureEvent(recipeId, stepIndex, stepName, kind, message);
+        for (RuntimeSession session : project.sessions()) {
+            session.getOutboundBuffer().offerProcedureEvent(event);
+        }
     }
 
     // Отклонение от буквального текста брифа Задачи 9: там toStatus(execution) отдаёт
@@ -368,11 +484,4 @@ public class ProcedureExecutionService {
                 execution.elapsedMs(), execution.confirmed(), execution.completed(), execution.stalledNotified());
     }
 
-    private RuntimeSession requireSession(String sessionId) {
-        RuntimeSession session = sessionStore.get(sessionId);
-        if (session == null) {
-            throw new IllegalStateException("Session not found: " + sessionId);
-        }
-        return session;
-    }
 }
