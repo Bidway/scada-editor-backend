@@ -3,6 +3,7 @@ package com.example.runtime.ws;
 import com.example.runtime.kafka.AutomationStateConsumer;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.project.ProjectRuntime;
+import com.example.runtime.project.ProjectRuntimeStore;
 import com.example.runtime.recipe.ProcedureExecutionService;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionService;
@@ -34,15 +35,17 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
     private final AutomationStateConsumer automationState;
     private final TagValueRouter tagValueRouter;
     private final ProcedureExecutionService procedures;
+    private final ProjectRuntimeStore projectStore;
 
     public RuntimeWebSocketHandler(RuntimeSessionService sessionService, ObjectMapper objectMapper,
                                    AutomationStateConsumer automationState, TagValueRouter tagValueRouter,
-                                   ProcedureExecutionService procedures) {
+                                   ProcedureExecutionService procedures, ProjectRuntimeStore projectStore) {
         this.sessionService = sessionService;
         this.objectMapper = objectMapper;
         this.automationState = automationState;
         this.tagValueRouter = tagValueRouter;
         this.procedures = procedures;
+        this.projectStore = projectStore;
     }
 
     @Override
@@ -62,6 +65,13 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         ProjectRuntime project = session.getProject();
+        if (projectStore.get(project.getProjectId()) != project) {
+            // Сессию создали до того, как проект выключили (или выключили и включили снова):
+            // подписка на такой объект не получила бы ни одного кадра.
+            sessionService.closeSession(sessionId);
+            closeQuietly(wsSession, CloseStatus.GOING_AWAY.withReason(RuntimeSessionService.PROJECT_DEACTIVATED_REASON));
+            return;
+        }
         // Порядок не менять. Сначала подписка, потом снимок: обратный порядок терял бы изменения,
         // случившиеся между ними. Возможный дубль безвреден — фронт перезаписывает значение по ключу.
         // Соединение привязывается к сессии последним: пока его нет, OutboundFlusher сессию

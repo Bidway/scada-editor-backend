@@ -11,6 +11,8 @@ import com.example.runtime.project.ProjectRuntimeStore;
 import com.example.runtime.recipe.ProjectNotInOperationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.WebSocketSession;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,6 +78,35 @@ public class RuntimeSessionService {
         // и всё состояние остаются у проекта, поэтому мойка продолжает идти.
         session.getProject().removeObserver(sessionId);
         log.info("Runtime session {} closed", sessionId);
+    }
+
+    /** Причина закрытия WS у мониторов выключенного проекта — фронт покажет её оператору. */
+    public static final String PROJECT_DEACTIVATED_REASON = "Проект выведен из эксплуатации";
+
+    /**
+     * Закрывает все сессии проекта — и подключённые, и созданные по REST, но ещё без WebSocket.
+     * Сессия держит ссылку на объект проекта, а повторное включение создаёт новый объект: без
+     * закрытия монитор оставался подключён к мёртвому объекту и молча замирал — ни значений, ни
+     * признака, что пора переподключиться (scada-m6mh). Закрытое соединение фронт переоткрывает
+     * новым POST и получает либо 409, либо сессию на живом объекте.
+     */
+    public void closeSessionsOf(ProjectRuntime project) {
+        for (RuntimeSession session : sessionStore.all()) {
+            if (session.getProject() != project) {
+                continue;
+            }
+            sessionStore.remove(session.getId());
+            project.removeObserver(session.getId());
+            WebSocketSession ws = session.getWebSocketSession();
+            if (ws != null && ws.isOpen()) {
+                try {
+                    ws.close(CloseStatus.GOING_AWAY.withReason(PROJECT_DEACTIVATED_REASON));
+                } catch (Exception e) {
+                    log.warn("Не удалось закрыть WebSocket сессии {}: {}", session.getId(), e.getMessage());
+                }
+            }
+            log.info("Runtime session {} closed: project {} deactivated", session.getId(), project.getProjectId());
+        }
     }
 
     public RuntimeSession getSession(String sessionId) {

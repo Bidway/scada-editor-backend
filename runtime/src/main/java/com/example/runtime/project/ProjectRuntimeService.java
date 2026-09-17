@@ -5,6 +5,7 @@ import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.persistence.DriverLeaseService;
 import com.example.runtime.recipe.ProcedureExecutionService;
+import com.example.runtime.session.RuntimeSessionService;
 import com.example.runtime.session.TagSubscriptionIndex;
 import com.example.scriptcore.ProjectData;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class ProjectRuntimeService {
     private final ProjectRuntimeStore store;
     private final DriverLeaseService leases;
     private final ProcedureExecutionService procedures;
+    private final RuntimeSessionService sessions;
 
     public void activate(Long projectId) {
         if (store.get(projectId) != null) {
@@ -70,6 +72,9 @@ public class ProjectRuntimeService {
         }
         procedures.persistAll(projectId);
         tagValueRouter.unregisterProject(project);
+        // Мониторы отпускаются явно: иначе они остались бы подключены к этому объекту, а
+        // повторное включение создаст новый, и экран молча замрёт.
+        sessions.closeSessionsOf(project);
         log.info("Проект {} выведен из эксплуатации", projectId);
     }
 }
