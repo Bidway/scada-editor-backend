@@ -19,11 +19,16 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 /**
- * Читает {@code automation.definitions} целиком: все партиции, без группы, с начала. Раньше
+ * Читает {@code automation.definitions} целиком: все партиции, без группы, с начала. При каждом
+ * подключении сначала догоняет конец топика и применяет только <b>итог</b> по каждому проекту, затем
+ * читает поток. Раньше
  * топик делили экземпляры сервиса automation через группу Kafka; теперь какие проекты исполнять,
  * решает runtime (проект поднят), а определения нужны все.
  * <p>
@@ -82,6 +87,7 @@ public class AutomationDefinitionsConsumer {
                 c.assign(partitions);
                 c.seekToBeginning(partitions);
                 log.info("Читаю определения фоновых задач из '{}': {} партиций", topic, partitions.size());
+                catchUp(c, partitions);
                 while (running) {
                     for (ConsumerRecord<String, String> record : c.poll(POLL)) {
                         apply(record);
@@ -97,10 +103,60 @@ public class AutomationDefinitionsConsumer {
     }
 
     /**
-     * История топика применяется по порядку: определения не гасят поднятый проект, а лишь
-     * перезапускают его задачи, и промежуточная версия безвредна. Определения могут прийти раньше,
-     * чем реестр проектов поднимет проект, — тогда движок только запоминает их, а задачи запустит
-     * подъём проекта.
+     * Догнать конец топика и применить итог по каждому проекту. Применённая по порядку, история
+     * перезапускала задачи поднятого проекта на каждой старой версии: проект поднимается назначением
+     * сразу после старта, раньше, чем чтение доходит до конца (scada-hssy, на стенде 7 перезапусков
+     * подряд, регулятор стартовал с устаревших определений).
+     */
+    private void catchUp(KafkaConsumer<String, String> c, List<TopicPartition> partitions) {
+        Map<TopicPartition, Long> ends = c.endOffsets(partitions);
+        List<ConsumerRecord<String, String>> history = new ArrayList<>();
+        while (running && !reachedEnd(c, ends)) {
+            // Пустой poll не означает конец: признак конца — только позиции, дошедшие до endOffsets.
+            for (ConsumerRecord<String, String> record : c.poll(POLL)) {
+                history.add(record);
+            }
+        }
+        Map<Long, ProjectDefinitions> latest = latestDefinitions(history);
+        latest.forEach(this::applyDefinitions);
+        log.info("Определения фоновых задач прочитаны: {} записей, {} проектов", history.size(), latest.size());
+    }
+
+    /**
+     * Последние читаемые определения каждого проекта; {@code null} — tombstone. Нечитаемая запись
+     * не затирает прежнюю версию, как и в потоке.
+     */
+    Map<Long, ProjectDefinitions> latestDefinitions(List<ConsumerRecord<String, String>> records) {
+        Map<Long, ProjectDefinitions> latest = new LinkedHashMap<>();
+        for (ConsumerRecord<String, String> record : records) {
+            Long projectId = parseProjectId(record.key());
+            if (projectId == null) {
+                continue;
+            }
+            if (record.value() == null) {
+                latest.put(projectId, null);
+                continue;
+            }
+            ProjectDefinitions definitions = parse(projectId, record);
+            if (definitions != null) {
+                latest.put(projectId, definitions);
+            }
+        }
+        return latest;
+    }
+
+    private static boolean reachedEnd(KafkaConsumer<String, String> c, Map<TopicPartition, Long> ends) {
+        for (Map.Entry<TopicPartition, Long> entry : ends.entrySet()) {
+            if (c.position(entry.getKey()) < entry.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Запись потока после догонки. Определения могут прийти раньше, чем проект поднимется, — тогда
+     * движок только запоминает их, а задачи запустит подъём проекта.
      */
     private void apply(ConsumerRecord<String, String> record) {
         Long projectId = parseProjectId(record.key());
@@ -109,14 +165,26 @@ public class AutomationDefinitionsConsumer {
         }
         ProjectDefinitions definitions = null;
         if (record.value() != null) {
-            try {
-                definitions = mapper.readValue(record.value(), ProjectDefinitions.class);
-            } catch (Exception e) {
-                log.error("Проект {}: определения на смещении {} не читаются, оставляю прежние: {}",
-                        projectId, record.offset(), e.getMessage());
+            definitions = parse(projectId, record);
+            if (definitions == null) {
                 return;
             }
         }
+        applyDefinitions(projectId, definitions);
+    }
+
+    /** @return {@code null}, если определения не читаются — прежние остаются */
+    private ProjectDefinitions parse(long projectId, ConsumerRecord<String, String> record) {
+        try {
+            return mapper.readValue(record.value(), ProjectDefinitions.class);
+        } catch (Exception e) {
+            log.error("Проект {}: определения на смещении {} не читаются, оставляю прежние: {}",
+                    projectId, record.offset(), e.getMessage());
+            return null;
+        }
+    }
+
+    private void applyDefinitions(Long projectId, ProjectDefinitions definitions) {
         try {
             engine.definitionsChanged(projectId, definitions);
         } catch (Exception e) {

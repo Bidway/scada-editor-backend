@@ -66,6 +66,12 @@ public class AutomationEngine {
 
     /** Новая версия определений проекта; {@code null} — определения удалены (tombstone). */
     public synchronized void definitionsChanged(long projectId, ProjectDefinitions projectDefinitions) {
+        // Те же определения ещё раз (переподключение потребителя догоняет топик заново) — задачи
+        // не перезапускаются: перезапуск сбрасывал бы такт и писал контрольные точки впустую.
+        if (projectDefinitions != null && running.containsKey(projectId)
+                && projectDefinitions.equals(definitions.get(projectId))) {
+            return;
+        }
         stop(projectId);
         if (projectDefinitions == null) {
             definitions.remove(projectId);
