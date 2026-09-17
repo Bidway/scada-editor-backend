@@ -3,6 +3,7 @@ package com.example.runtime.controller;
 import com.example.runtime.dto.CreateSessionRequest;
 import com.example.runtime.dto.SessionResponse;
 import com.example.runtime.dto.TagSnapshot;
+import com.example.runtime.instance.InstanceIdentity;
 import com.example.runtime.session.RuntimeSessionService;
 
 import java.util.List;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 public class RuntimeController {
 
     private final RuntimeSessionService sessionService;
+    private final InstanceIdentity identity;
 
 
     @ApiResponse(responseCode = "200", description = "Сессия создана")
@@ -35,7 +37,8 @@ public class RuntimeController {
         RuntimeSessionService.SessionBootstrap bootstrap = sessionService.createSession(request.getProjectId());
         SessionResponse response = new SessionResponse(
                 bootstrap.session().getId(),
-                "/ws/runtime/" + bootstrap.session().getId(),
+                // Имя экземпляра в пути: по нему gateway соединяет WebSocket с экземпляром, где живёт сессия.
+                "/ws/runtime/" + identity.instanceId() + "/" + bootstrap.session().getId(),
                 bootstrap.projectTree());
         return ResponseEntity.ok(response);
     }

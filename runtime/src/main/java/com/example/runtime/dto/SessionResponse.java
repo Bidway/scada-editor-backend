@@ -16,7 +16,7 @@ public class SessionResponse {
     @Schema(description = "UUID сессии", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
     private String sessionId;
 
-    @Schema(description = "Путь WebSocket (подключаться напрямую к runtime:8085)", example = "/ws/runtime/3fa85f64-5717-4562-b3fc-2c963f66afa6")
+    @Schema(description = "Путь WebSocket (подключаться напрямую к runtime:8085)", example = "/ws/runtime/runtime-1/runtime-1.3fa85f64-5717-4562-b3fc-2c963f66afa6")
     private String wsPath;
 
     @Schema(description = "Полное дерево проекта из editor")

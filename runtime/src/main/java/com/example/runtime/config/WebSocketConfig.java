@@ -10,7 +10,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 
 /**
  * Сырой (без STOMP/SockJS) WebSocket — минимальный протокольный оверхед для
- * канала, где ожидается большой поток обновлений тегов. Путь: /ws/runtime/{sessionId}.
+ * канала, где ожидается большой поток обновлений тегов. Путь: /ws/runtime/{instanceId}/{sessionId}.
  */
 @Configuration
 @EnableWebSocket
@@ -22,7 +22,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(runtimeWebSocketHandler, "/ws/runtime/*")
+        registry.addHandler(runtimeWebSocketHandler, "/ws/runtime/*/*")
                 .addInterceptors(handshakeInterceptor)
                 .setAllowedOriginPatterns("*");
     }

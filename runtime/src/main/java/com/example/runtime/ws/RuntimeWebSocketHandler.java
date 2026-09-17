@@ -1,6 +1,7 @@
 package com.example.runtime.ws;
 
 import com.example.runtime.automation.AutomationStateBridge;
+import com.example.runtime.instance.InstanceIdentity;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.project.ProjectRuntimeStore;
@@ -36,10 +37,13 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
     private final TagValueRouter tagValueRouter;
     private final ProcedureExecutionService procedures;
     private final ProjectRuntimeStore projectStore;
+    private final InstanceIdentity identity;
 
     public RuntimeWebSocketHandler(RuntimeSessionService sessionService, ObjectMapper objectMapper,
                                    AutomationStateBridge automationState, TagValueRouter tagValueRouter,
-                                   ProcedureExecutionService procedures, ProjectRuntimeStore projectStore) {
+                                   ProcedureExecutionService procedures, ProjectRuntimeStore projectStore,
+                                   InstanceIdentity identity) {
+        this.identity = identity;
         this.sessionService = sessionService;
         this.objectMapper = objectMapper;
         this.automationState = automationState;
@@ -50,6 +54,12 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession wsSession) {
+        String pathInstance = extractInstanceId(wsSession);
+        if (!identity.instanceId().equals(pathInstance)) {
+            // gateway соединил не с тем экземпляром — сессии здесь нет и быть не может.
+            closeQuietly(wsSession, CloseStatus.NOT_ACCEPTABLE.withReason("Session belongs to instance " + pathInstance));
+            return;
+        }
         String sessionId = extractSessionId(wsSession);
         RuntimeSession session = sessionService.getSession(sessionId);
         if (session == null) {
@@ -184,6 +194,12 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
         } finally {
             session.getSendLock().unlock();
         }
+    }
+
+    private String extractInstanceId(WebSocketSession wsSession) {
+        String path = wsSession.getUri() != null ? wsSession.getUri().getPath() : "";
+        String[] parts = path.split("/");
+        return parts.length >= 2 ? parts[parts.length - 2] : "";
     }
 
     private String extractSessionId(WebSocketSession wsSession) {

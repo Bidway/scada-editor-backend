@@ -2,6 +2,7 @@ package com.example.runtime.session;
 
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.dto.TagSnapshot;
+import com.example.runtime.instance.InstanceIdentity;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
@@ -31,13 +32,16 @@ public class RuntimeSessionService {
     private final TagCommandService tagCommandService;
     private final ActionDedupGuard actionDedupGuard;
     private final ProjectRuntimeStore projectStore;
+    private final InstanceIdentity identity;
 
     public RuntimeSessionService(RuntimeSessionStore sessionStore,
                                   ProjectRuntimeStore projectStore,
                                   TagValueRouter tagValueRouter,
                                   ScriptEngineService scriptEngineService,
                                   TagCommandService tagCommandService,
-                                  ActionDedupGuard actionDedupGuard) {
+                                  ActionDedupGuard actionDedupGuard,
+                                  InstanceIdentity identity) {
+        this.identity = identity;
         this.sessionStore = sessionStore;
         this.projectStore = projectStore;
         this.tagValueRouter = tagValueRouter;
@@ -59,7 +63,9 @@ public class RuntimeSessionService {
             throw new ProjectNotInOperationException(projectId);
         }
 
-        String sessionId = UUID.randomUUID().toString();
+        // Имя экземпляра в самом id: запрос по сессии без проекта (snapshot, DELETE) фильтр переадресации
+        // отправит владельцу, не держа общего хранилища сессий. Точка в имени экземпляра запрещена.
+        String sessionId = identity.instanceId() + "." + UUID.randomUUID();
         RuntimeSession session = new RuntimeSession(sessionId, project);
         sessionStore.put(session);
 

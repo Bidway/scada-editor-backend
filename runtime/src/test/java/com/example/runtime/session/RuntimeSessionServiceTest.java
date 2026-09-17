@@ -48,7 +48,8 @@ class RuntimeSessionServiceTest {
 
         RuntimeSessionService service = new RuntimeSessionService(sessions, mock(ProjectRuntimeStore.class),
                 mock(TagValueRouter.class), mock(ScriptEngineService.class), mock(TagCommandService.class),
-                mock(ActionDedupGuard.class));
+                mock(ActionDedupGuard.class),
+                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"));
 
         service.closeSessionsOf(project);
 
