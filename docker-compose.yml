@@ -125,7 +125,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-      KAFKA_TAGS_TOPIC: ${KAFKA_TAGS_TOPIC:-scada.tags}
+      # Имя и адрес экземпляра обязательны (этап 2Б); топики и проекты назначаются через API.
+      RUNTIME_INSTANCE_ID: runtime-compose
+      RUNTIME_ADVERTISED_URL: http://runtime:8085
       EDITOR_HOST: editor
       EDITOR_PORT: 8083
       # JWT_SECRET здесь больше не нужен: runtime не разбирает токены — личность на

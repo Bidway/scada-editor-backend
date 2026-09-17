@@ -723,7 +723,13 @@ if ($Mode -eq 'host') {
             continue
         }
         Info "  -> $($s.Name) (порт $($s.Port))"
-        Start-InWindow $s.Name $ProjectRoot ".\gradlew :$($s.Name):bootRun"
+        $cmd = ".\gradlew :$($s.Name):bootRun"
+        if ($s.Name -eq 'runtime') {
+            # Без имени и адреса экземпляра runtime не стартует (этап 2Б). Топики и проекты ему
+            # назначаются через PUT /api/runtime/instances/runtime-1/... — без назначений он ничего не крутит.
+            $cmd = "`$env:RUNTIME_INSTANCE_ID='runtime-1'; `$env:RUNTIME_ADVERTISED_URL='http://localhost:8085'; $cmd"
+        }
+        Start-InWindow $s.Name $ProjectRoot $cmd
         Start-Sleep -Seconds 2
     }
 }
