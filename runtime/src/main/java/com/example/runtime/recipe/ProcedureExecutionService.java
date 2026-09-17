@@ -55,12 +55,11 @@ public class ProcedureExecutionService {
 
     private final Map<ExecutionKey, ProcedureExecution> executions = new ConcurrentHashMap<>();
 
-    // Тот же приём, что OnChangeDispatcher в TagValueRouter: onSessionTagChanged приходит
+    // Тот же приём, что OnChangeDispatcher в TagValueRouter: onProjectTagChanged приходит
     // синхронно с треда kafka-tags-consumer (Spring ApplicationEventPublisher по умолчанию
-    // синхронный), а тело обработчика делает блокирующий HTTP-вызов editorClient.getRecipe(...)
-    // и прогоняет GraalVM-условие. Без выноса на отдельный пул просевший/недоступный editor
-    // останавливал бы приём телеметрии для всех сессий на этом треде/партиции — не только для
-    // сессий с активными процедурами. final-поле со своим инициализатором, а не параметр
+    // синхронный), а тело обработчика прогоняет GraalVM-условие и после перезапуска runtime
+    // один раз читает рецепт из editor по HTTP. Без выноса на отдельный пул это останавливало
+    // бы приём телеметрии для всех проектов на этом треде/партиции. final-поле со своим инициализатором, а не параметр
     // конструктора: @RequiredArgsConstructor его не тронет (как уже сделано для `executions`),
     // и не придётся менять уже закрытый в Задаче 9 тестовый конструктор.
     private final ExecutorService onTagChangeExecutor = Executors.newFixedThreadPool(2, r -> {
@@ -87,18 +86,23 @@ public class ProcedureExecutionService {
         EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
         ExecutionKey key = new ExecutionKey(projectId, recipeId);
 
-        ProcedureExecution running = executions.get(key);
-        if (running != null && !running.completed()) {
-            synchronized (running) {
-                throw new ProcedureAlreadyRunningException(projectId, recipeId, toStatus(recipe, running));
-            }
-        }
-
         ProcedureExecution execution = new ProcedureExecution(recipeId);
-        // Лок берётся до публикации в executions: иначе в окне между put и началом обработки
-        // другой поток мог бы подхватить наполовину инициализированное исполнение.
+        execution.useRecipe(recipe);
+        // Лок берётся до публикации в executions: иначе в окне между публикацией и началом
+        // обработки другой поток мог бы подхватить наполовину инициализированное исполнение.
         synchronized (execution) {
-            executions.put(key, execution);
+            // Проверка «уже идёт» и публикация — одной атомарной операцией. Раньше это были get
+            // и put: два оператора, нажавшие «Запустить» одновременно, оба проходили проверку, и
+            // действия шага 0 уходили в ПЛК дважды (scada-9bv). Ключ общий на проект, поэтому
+            // такое совпадение — не теория.
+            ProcedureExecution owner = executions.compute(key, (k, existing) ->
+                    existing != null && !existing.completed() ? existing : execution);
+            if (owner != execution) {
+                synchronized (owner) {
+                    throw new ProcedureAlreadyRunningException(projectId, recipeId,
+                            toStatus(recipeOf(owner), owner));
+                }
+            }
             log.info("Проект {}: процедура {} запущена пользователем {}", projectId, recipeId, username);
             Initiator initiator = new Initiator(username, sessionId);
             enterStep(project, recipe, execution, 0, initiator);
@@ -108,8 +112,8 @@ public class ProcedureExecutionService {
     }
 
     public ProcedureStatusDto status(Long projectId, String recipeId) {
-        EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
         ProcedureExecution execution = requireExecution(projectId, recipeId);
+        EditorRecipeDto recipe = recipeOf(execution);
         synchronized (execution) {
             return toStatus(recipe, execution);
         }
@@ -118,8 +122,8 @@ public class ProcedureExecutionService {
     public ProcedureStatusDto confirm(Long projectId, String recipeId, Integer expectedStepIndex,
                                       String sessionId, String username) {
         ProjectRuntime project = requireProject(projectId);
-        EditorRecipeDto recipe = editorClient.getRecipe(recipeId);
         ProcedureExecution execution = requireExecution(projectId, recipeId);
+        EditorRecipeDto recipe = recipeOf(execution);
         synchronized (execution) {
             // stepIndex необязателен. Если фронт его прислал — это шаг, который оператор видел
             // на экране; несовпадение означает, что шаг успели закрыть, и подтверждать нужно
@@ -145,7 +149,7 @@ public class ProcedureExecutionService {
     // jump — ручной оверрайд оператора: он не должен молча "доездить" вперёд по цепочке
     // тривиальных условий у него на глазах. Переоценка условия шага, на который прыгнули,
     // всё равно случится — по следующему тику (tick()) или изменению тега
-    // (onSessionTagChanged), так же, как для только что подтверждённого/начатого шага.
+    // (onProjectTagChanged), так же, как для только что подтверждённого/начатого шага.
     public ProcedureStatusDto jump(Long projectId, String recipeId, int stepIndex,
                                    String sessionId, String username) {
         ProjectRuntime project = requireProject(projectId);
@@ -156,6 +160,9 @@ public class ProcedureExecutionService {
         ProcedureExecution execution = executions.computeIfAbsent(
                 new ExecutionKey(projectId, recipeId), k -> new ProcedureExecution(recipeId));
         synchronized (execution) {
+            // Прыжок — ручное действие оператора, поэтому рецепт берётся свежий: это штатный
+            // способ продолжить мойку по исправленному рецепту.
+            execution.useRecipe(recipe);
             log.info("Проект {}: процедура {} переведена на шаг {} пользователем {}",
                     projectId, recipeId, stepIndex, username);
             enterStep(project, recipe, execution, stepIndex, accumulatedActions(recipe, stepIndex),
@@ -213,7 +220,7 @@ public class ProcedureExecutionService {
                 return;
             }
             try {
-                EditorRecipeDto recipe = editorClient.getRecipe(key.recipeId());
+                EditorRecipeDto recipe = recipeOf(execution);
                 synchronized (execution) {
                     result.add(toStatus(recipe, execution));
                 }
@@ -247,7 +254,7 @@ public class ProcedureExecutionService {
                 return;
             }
             synchronized (execution) {
-                EditorRecipeDto recipe = editorClient.getRecipe(key.recipeId());
+                EditorRecipeDto recipe = recipeOf(execution);
                 save(projectId, recipe, execution, null);
                 log.warn("Проект {} выводится из эксплуатации с незавершённой процедурой {} на шаге {}",
                         projectId, key.recipeId(), execution.stepIndex());
@@ -306,7 +313,7 @@ public class ProcedureExecutionService {
                 if (!entry.getKey().projectId().equals(event.projectId()) || entry.getValue().completed()) {
                     continue;
                 }
-                EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
+                EditorRecipeDto recipe = recipeOf(entry.getValue());
                 synchronized (entry.getValue()) {
                     advanceWhileConditionMet(project, recipe, entry.getValue(), Initiator.RUNTIME);
                 }
@@ -324,7 +331,7 @@ public class ProcedureExecutionService {
         // Тело тика уводится на onTagChangeExecutor по той же причине, что и обработка события
         // изменения тега: spring.task.scheduling.pool.size не задан, значит у всех @Scheduled
         // runtime один общий тред, и на нём же сидит OutboundFlusher.flush() (WS-кадры всех
-        // сессий каждые 40 мс). Блокирующий editorClient.getRecipe(...) и прогон GraalVM на
+        // сессий каждые 40 мс). Прогон GraalVM (и первое чтение рецепта после перезапуска) на
         // этом треде задерживали бы доставку WS всем сессиям, а не только тем, где есть процедуры.
         onTagChangeExecutor.submit(this::runTick);
     }
@@ -341,7 +348,7 @@ public class ProcedureExecutionService {
                 if (project == null) {
                     continue;
                 }
-                EditorRecipeDto recipe = editorClient.getRecipe(entry.getKey().recipeId());
+                EditorRecipeDto recipe = recipeOf(execution);
                 synchronized (execution) {
                     advanceWhileConditionMet(project, recipe, execution, Initiator.RUNTIME);
                     checkStalled(project, recipe, entry.getKey().recipeId(), execution);
@@ -366,6 +373,16 @@ public class ProcedureExecutionService {
             publishEvent(project, recipeId, execution.stepIndex(), stepName,
                     ProcedureEvent.Kind.STALLED, null, Initiator.RUNTIME);
         }
+    }
+
+    /** Рецепт процедуры: из исполнения, а после перезапуска runtime — один запрос в editor. */
+    private EditorRecipeDto recipeOf(ProcedureExecution execution) {
+        EditorRecipeDto recipe = execution.recipe();
+        if (recipe == null) {
+            recipe = editorClient.getRecipe(execution.recipeId());
+            execution.useRecipe(recipe);
+        }
+        return recipe;
     }
 
     private ProcedureExecution requireExecution(Long projectId, String recipeId) {

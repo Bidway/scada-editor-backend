@@ -46,6 +46,7 @@ class TagValueRouterTest {
     private RuntimeSession session;
     private SessionOutboundBuffer buffer;
     private TagValueRouter router;
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @BeforeEach
     void setUp() {
@@ -67,12 +68,26 @@ class TagValueRouterTest {
         ProjectRuntimeStore projectStore = mock(ProjectRuntimeStore.class);
         when(projectStore.get(PROJECT)).thenReturn(project);
 
+        eventPublisher = mock(org.springframework.context.ApplicationEventPublisher.class);
         router = new TagValueRouter(sessionStore, projectStore, mock(ScriptEngineService.class),
-                mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper(),
-                mock(org.springframework.context.ApplicationEventPublisher.class));
+                mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper(), eventPublisher);
         router.registerProject(project);
         // Начальные кадры «нет данных» раздаёт теперь не регистрация, а снимок для наблюдателя.
         router.snapshot(project).forEach(buffer::offerTag);
+    }
+
+    @Test
+    @DisplayName("пересчёт процедур — на изменение значения или качества, а не на каждое сообщение")
+    void procedureRecalculationOnlyOnChange() {
+        // Шлюз шлёт каждый тег каждый цикл опроса: ~320 сообщений/с на проект стенда. Событие на
+        // каждое из них ставило пересчёт процедур с HTTP-запросом рецепта в очередь без предела.
+        router.onMessage(message("true", "GOOD", "2026-08-05T09:14:22.183Z"));
+        router.onMessage(message("true", "GOOD", "2026-08-05T09:14:24.183Z"));
+        router.onMessage(message("true", "GOOD", "2026-08-05T09:14:26.183Z"));
+        router.onMessage(message(null, "BAD", "2026-08-05T09:14:28.183Z"));
+
+        org.mockito.Mockito.verify(eventPublisher, org.mockito.Mockito.times(2))
+                .publishEvent(org.mockito.ArgumentMatchers.any(ProjectTagChangedEvent.class));
     }
 
     @Test

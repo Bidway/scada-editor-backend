@@ -16,6 +16,14 @@ class ProcedureExecution {
     private boolean confirmed;
     private boolean completed;
     private boolean stalledNotified;
+    /**
+     * Определение рецепта, по которому идёт процедура. Читается из editor один раз на запуск:
+     * условия пересчитываются на каждое изменение тега и каждый тик, и HTTP-запрос на каждый
+     * пересчёт нагружал editor сотнями запросов в секунду. Заодно процедура доходит до конца по
+     * той версии рецепта, с которой её запустили, даже если рецепт правят посреди мойки.
+     * После перезапуска runtime поле пустое и заполняется при первом обращении.
+     */
+    private volatile com.example.runtime.client.dto.EditorRecipeDto recipe;
 
     ProcedureExecution(String recipeId) {
         this.recipeId = recipeId;
@@ -33,6 +41,14 @@ class ProcedureExecution {
         execution.stepStartedAt = stepStartedAt;
         execution.confirmed = confirmed;
         return execution;
+    }
+
+    com.example.runtime.client.dto.EditorRecipeDto recipe() {
+        return recipe;
+    }
+
+    void useRecipe(com.example.runtime.client.dto.EditorRecipeDto recipe) {
+        this.recipe = recipe;
     }
 
     Instant stepStartedAt() {

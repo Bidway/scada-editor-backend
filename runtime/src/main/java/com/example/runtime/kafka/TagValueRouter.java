@@ -168,18 +168,20 @@ public class TagValueRouter {
         // недостоверности скрипты не запускались, поэтому состояние компонента всё это
         // время и отражало это самое значение — пересчитывать нечего.
         boolean valueChanged = !java.util.Objects.equals(previous.value(), snapshot.value());
+        boolean qualityChanged = previous.good() != snapshot.good();
 
         for (Long projectId : state.projectIds) {
             ProjectRuntime project = projectStore.get(projectId);
             if (project == null) {
                 continue;
             }
-            dispatchToProject(project, tagId, snapshot, valueChanged);
+            dispatchToProject(project, tagId, snapshot, valueChanged, qualityChanged);
         }
     }
 
     private void dispatchToProject(ProjectRuntime project, String tagId,
-                                   TagRuntimeState.Snapshot snapshot, boolean valueChanged) {
+                                   TagRuntimeState.Snapshot snapshot, boolean valueChanged,
+                                   boolean qualityChanged) {
         // Лёгкая часть остаётся на треде consumer'а: запись в буфер — это добавление в
         // очередь, доли микросекунды, и оно должно происходить как можно ближе к моменту
         // приёма, чтобы значение на экране было свежим. Наблюдателей может не быть вовсе —
@@ -187,11 +189,16 @@ public class TagValueRouter {
         TagUpdate update = toUpdate(tagId, snapshot);
         for (RuntimeSession session : project.sessions()) {
             session.getOutboundBuffer().offerTag(update);
-            eventPublisher.publishEvent(new SessionTagChangedEvent(session.getId()));
         }
         // Событие проекта публикуется независимо от наблюдателей: условия процедур обязаны
-        // пересчитываться и тогда, когда монитор не открыт ни у кого.
-        eventPublisher.publishEvent(new ProjectTagChangedEvent(project.getProjectId()));
+        // пересчитываться и тогда, когда монитор не открыт ни у кого. Но только на изменение:
+        // шлюз шлёт каждый тег каждый цикл опроса (~320 сообщений/с на проект стенда), и
+        // событие на каждое ставило пересчёт процедур в очередь без предела. Условие, которое
+        // не изменилось при тех же значениях, пересчитывать незачем, а условия на времени
+        // ловит тик. Смена качества считается изменением: потеря связи — событие процесса.
+        if (valueChanged || qualityChanged) {
+            eventPublisher.publishEvent(new ProjectTagChangedEvent(project.getProjectId()));
+        }
 
         // Недостоверное значение до скриптов не доходит вообще. Значение тега не
         // «изменилось» — оно стало неизвестным, а это не событие процесса, на которое

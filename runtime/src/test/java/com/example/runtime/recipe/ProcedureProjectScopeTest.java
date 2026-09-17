@@ -50,11 +50,12 @@ class ProcedureProjectScopeTest {
     private ScriptEngineService scriptEngineService;
     private ProcedureExecutionService service;
     private ProcedureStateRepository states;
+    private EditorClient editorClient;
     private final List<String> sent = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        EditorClient editorClient = mock(EditorClient.class);
+        editorClient = mock(EditorClient.class);
         when(editorClient.getRecipe(RECIPE)).thenReturn(recipe());
 
         commandProducer = mock(CommandProducer.class);
@@ -136,6 +137,50 @@ class ProcedureProjectScopeTest {
         // После перезапуска runtime это единственный след того, кто запустил мойку.
         assertThat(states.findByProjectIdAndRecipeId(PROJECT, RECIPE))
                 .get().extracting(ProcedureStateEntity::getStartedBy).isEqualTo("tester");
+    }
+
+    @Test
+    void рецепт_читается_из_editor_один_раз_на_запуск() {
+        service.start(PROJECT, RECIPE, null, "tester");
+        for (int i = 0; i < 5; i++) {
+            service.status(PROJECT, RECIPE);
+        }
+        service.confirm(PROJECT, RECIPE, null, null, "tester");
+
+        // Пересчёт условий идёт на каждое изменение тега и каждый тик; HTTP-запрос рецепта на
+        // каждый пересчёт нагружал editor сотнями запросов в секунду, пока идёт мойка.
+        org.mockito.Mockito.verify(editorClient, org.mockito.Mockito.times(1)).getRecipe(RECIPE);
+    }
+
+    @Test
+    void одновременный_старт_двумя_операторами_пишет_в_плк_один_раз() throws Exception {
+        java.util.concurrent.CyclicBarrier bothLoadedRecipe = new java.util.concurrent.CyclicBarrier(2);
+        when(editorClient.getRecipe(RECIPE)).thenAnswer(invocation -> {
+            // Оба потока проходят чтение рецепта вместе и только потом доходят до проверки
+            // «уже идёт» — ровно то окно, в котором get-then-put пропускал обоих.
+            bothLoadedRecipe.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            return recipe();
+        });
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            List<java.util.concurrent.Future<?>> starts = List.of(
+                    pool.submit(() -> service.start(PROJECT, RECIPE, null, "alice")),
+                    pool.submit(() -> service.start(PROJECT, RECIPE, null, "bob")));
+            int rejected = 0;
+            for (java.util.concurrent.Future<?> start : starts) {
+                try {
+                    start.get(10, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (java.util.concurrent.ExecutionException e) {
+                    assertThat(e.getCause()).isInstanceOf(ProcedureAlreadyRunningException.class);
+                    rejected++;
+                }
+            }
+            assertThat(rejected).isEqualTo(1);
+            // Шаг 0 пишет один тег: вторая запись значила бы, что действия применились дважды.
+            assertThat(sent).hasSize(1);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private static EditorRecipeDto recipe() {
