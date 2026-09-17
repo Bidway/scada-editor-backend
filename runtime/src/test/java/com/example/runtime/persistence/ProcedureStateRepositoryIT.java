@@ -55,4 +55,28 @@ class ProcedureStateRepositoryIT {
         assertThat(found.get().getStepIndex()).isEqualTo(12);
         assertThat(found.get().getAccumulatedActions().get(0).get("tag").asText()).isEqualTo("V0");
     }
+
+    /**
+     * Удаление зовётся из сервиса вне транзакции — так же, как в abort и на завершении процедуры.
+     * Без транзакции на самом методе Spring Data отказывается удалять, и прерванная мойка
+     * оживала после перезапуска runtime (scada-pkgd).
+     */
+    @Test
+    @org.springframework.transaction.annotation.Transactional(propagation =
+            org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void удаляет_состояние_вне_транзакции_вызывающего() throws Exception {
+        ProcedureStateEntity state = new ProcedureStateEntity();
+        state.setProjectId(8502L);
+        state.setRecipeId("abort-me");
+        state.setStepIndex(3);
+        state.setStepEnteredAt(Instant.now());
+        state.setConfirmed(false);
+        state.setAccumulatedActions(new ObjectMapper().readTree("[]"));
+        state.setStartedAt(Instant.now());
+        repository.save(state);
+
+        repository.deleteByProjectIdAndRecipeId(8502L, "abort-me");
+
+        assertThat(repository.findByProjectIdAndRecipeId(8502L, "abort-me")).isEmpty();
+    }
 }

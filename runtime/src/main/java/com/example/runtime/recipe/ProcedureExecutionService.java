@@ -130,7 +130,7 @@ public class ProcedureExecutionService {
             execution.confirm();
             log.info("Проект {}: шаг {} процедуры {} подтверждён пользователем {}",
                     projectId, execution.stepIndex(), recipeId, username);
-            save(projectId, recipe, execution);
+            save(projectId, recipe, execution, username);
             advanceWhileConditionMet(project, recipe, execution, new Initiator(username, sessionId));
             return toStatus(recipe, execution);
         }
@@ -187,8 +187,10 @@ public class ProcedureExecutionService {
     }
 
     public void abort(Long projectId, String recipeId, String sessionId, String username) {
+        // Сначала база, потом память: если удаление из базы упадёт, процедура останется живой и
+        // видимой, а не исчезнет из памяти, чтобы молча воскреснуть после перезапуска.
+        stateRepository.deleteByProjectIdAndRecipeId(projectId, recipeId);
         if (executions.remove(new ExecutionKey(projectId, recipeId)) != null) {
-            stateRepository.deleteByProjectIdAndRecipeId(projectId, recipeId);
             ProjectRuntime project = projectStore.get(projectId);
             if (project != null) {
                 publishEvent(project, recipeId, null, null, ProcedureEvent.Kind.ABORTED, null,
@@ -246,7 +248,7 @@ public class ProcedureExecutionService {
             }
             synchronized (execution) {
                 EditorRecipeDto recipe = editorClient.getRecipe(key.recipeId());
-                save(projectId, recipe, execution);
+                save(projectId, recipe, execution, null);
                 log.warn("Проект {} выводится из эксплуатации с незавершённой процедурой {} на шаге {}",
                         projectId, key.recipeId(), execution.stepIndex());
             }
@@ -262,7 +264,7 @@ public class ProcedureExecutionService {
      * Снимок состояния процедуры в БД. Пишется на каждом переходе шага: у «Дезинфекции» это
      * 28 шагов за 36 минут, то есть единицы записей в секунду в пике — нормальная частота.
      */
-    private void save(Long projectId, EditorRecipeDto recipe, ProcedureExecution execution) {
+    private void save(Long projectId, EditorRecipeDto recipe, ProcedureExecution execution, String startedBy) {
         ProcedureStateEntity row = stateRepository
                 .findByProjectIdAndRecipeId(projectId, execution.recipeId())
                 .orElseGet(() -> {
@@ -270,6 +272,9 @@ public class ProcedureExecutionService {
                     created.setProjectId(projectId);
                     created.setRecipeId(execution.recipeId());
                     created.setStartedAt(java.time.Instant.now());
+                    // Только при создании строки: на переходах шагов автор запуска не меняется,
+                    // иначе «кто запустил» превратилось бы в «кто нажал последним».
+                    created.setStartedBy(startedBy);
                     return created;
                 });
         row.setStepIndex(execution.stepIndex());
@@ -418,7 +423,7 @@ public class ProcedureExecutionService {
         applyAction(project, recipe, execution.recipeId(), step, actions, initiator);
         // Состояние пишется после применения действий: восстановление должно поднимать шаг,
         // который реально применён в ПЛК, а не тот, куда мы только собирались войти.
-        save(project.getProjectId(), recipe, execution);
+        save(project.getProjectId(), recipe, execution, initiator.by());
         log.info("Проект {}: процедура {} вошла в шаг {}",
                 project.getProjectId(), execution.recipeId(), step.getName());
         publishEvent(project, execution.recipeId(), index, step.getName(), ProcedureEvent.Kind.STEP_STARTED, null, initiator);

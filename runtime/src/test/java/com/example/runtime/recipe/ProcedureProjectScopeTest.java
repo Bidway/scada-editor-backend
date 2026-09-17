@@ -128,6 +128,16 @@ class ProcedureProjectScopeTest {
         assertThat(sent).hasSize(writesAfterStart);
     }
 
+    @Test
+    void автор_запуска_не_перезаписывается_подтверждением() {
+        service.start(PROJECT, RECIPE, null, "tester");
+        service.confirm(PROJECT, RECIPE, null, null, "second-operator");
+
+        // После перезапуска runtime это единственный след того, кто запустил мойку.
+        assertThat(states.findByProjectIdAndRecipeId(PROJECT, RECIPE))
+                .get().extracting(ProcedureStateEntity::getStartedBy).isEqualTo("tester");
+    }
+
     private static EditorRecipeDto recipe() {
         EditorRecipeTagDto tag = new EditorRecipeTagDto();
         tag.setName("V0");
