@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Связывает две стороны разговора со шлюзом, которые идут через разные топики:
  * {@link CommandProducer} кладёт команду в {@code scada-commands} и регистрирует здесь
- * ожидание, {@link CommandResultConsumer} читает {@code scada-command-results} и этим
+ * ожидание, {@link TopicConnections} читает {@code scada-command-results} и этим
  * ожиданием разрешает. Корреляция — по {@code commandId}, который генерирует продюсер.
  * <p>
  * <b>Почему у каждой записи свой таймер.</b> Ответа может не быть вовсе: шлюз лежит,

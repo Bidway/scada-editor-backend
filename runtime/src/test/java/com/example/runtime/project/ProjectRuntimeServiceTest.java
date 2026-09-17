@@ -25,10 +25,12 @@ class ProjectRuntimeServiceTest {
         when(editor.isInOperation(8501L)).thenReturn(false);
         ProjectRuntimeStore store = new ProjectRuntimeStore();
         ProcedureExecutionService procedures = mock(ProcedureExecutionService.class);
+        com.example.runtime.assignment.AssignmentState assignments = new com.example.runtime.assignment.AssignmentState();
+        assignments.update(java.util.List.of(), java.util.Set.of(8501L));
         ProjectRuntimeService service = new ProjectRuntimeService(editor, mock(TagValueRouter.class), store,
                 procedures,
                 mock(com.example.runtime.session.RuntimeSessionService.class),
-                mock(com.example.runtime.automation.engine.AutomationEngine.class));
+                mock(com.example.runtime.automation.engine.AutomationEngine.class), assignments);
 
         service.activate(8501L);
 

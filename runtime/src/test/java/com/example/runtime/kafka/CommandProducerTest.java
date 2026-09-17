@@ -15,7 +15,7 @@ class CommandProducerTest {
         KafkaProperties properties = new KafkaProperties();
         // init() не вызывается: producer не создан, и отказ обязан случиться до обращения к нему.
         CommandProducer producer = new CommandProducer(properties, new ObjectMapper(),
-                new PendingCommandRegistry(properties));
+                new PendingCommandRegistry(properties), new com.example.runtime.assignment.AssignmentState());
 
         CommandOutcome outcome = producer.send("@var.line1.mode", 1).join();
 

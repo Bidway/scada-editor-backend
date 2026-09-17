@@ -1,5 +1,6 @@
 package com.example.runtime.kafka;
 
+import com.example.runtime.assignment.AssignmentState;
 import com.example.runtime.config.KafkaProperties;
 import com.example.runtime.session.VariableTags;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,8 +21,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Обратное направление: запись значения тега в ПЛК. Команда уходит в топик команд
- * ({@link KafkaProperties#getCommandsTopic()}), откуда её забирает шлюз и пишет в
+ * Обратное направление: запись значения тега в ПЛК. Команда уходит в командный топик из
+ * назначений ({@code AssignmentState.commandsTopicFor}), откуда её забирает шлюз и пишет в
  * контроллер тем протоколом, которым этот тег читается. OPC UA или Modbus — решает
  * шлюз по своей конфигурации тега; здесь это принципиально неважно, протокол наружу
  * не торчит.
@@ -57,15 +58,18 @@ public class CommandProducer {
     private final KafkaProperties kafkaProperties;
     private final ObjectMapper objectMapper;
     private final PendingCommandRegistry pendingCommands;
+    private final AssignmentState assignments;
 
     private KafkaProducer<String, String> producer;
 
     public CommandProducer(KafkaProperties kafkaProperties,
                            ObjectMapper objectMapper,
-                           PendingCommandRegistry pendingCommands) {
+                           PendingCommandRegistry pendingCommands,
+                           AssignmentState assignments) {
         this.kafkaProperties = kafkaProperties;
         this.objectMapper = objectMapper;
         this.pendingCommands = pendingCommands;
+        this.assignments = assignments;
     }
 
     @PostConstruct
@@ -81,7 +85,7 @@ public class CommandProducer {
         props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 2000);
         props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 2000);
         this.producer = new KafkaProducer<>(props);
-        log.info("CommandProducer initialized for topic '{}'", kafkaProperties.getCommandsTopic());
+        log.info("CommandProducer initialized; topics come from assignments");
     }
 
     @PreDestroy
@@ -122,7 +126,13 @@ public class CommandProducer {
             return CompletableFuture.completedFuture(CommandOutcome.failure(CommandOutcome.REJECTED_VARIABLE,
                     "Переменная проекта недоступна для записи: её пишет только automation"));
         }
-        String topic = kafkaProperties.getCommandsTopic();
+        java.util.Optional<String> topicForPath = assignments.commandsTopicFor(idNode);
+        if (topicForPath.isEmpty()) {
+            // Слать наугад нельзя: команда в чужой шлюз либо потеряется, либо выполнится не там.
+            return CompletableFuture.completedFuture(CommandOutcome.failure(CommandOutcome.NO_TOPIC,
+                    "Путь не покрыт топиками экземпляра: " + idNode));
+        }
+        String topic = topicForPath.get();
         String commandId = UUID.randomUUID().toString();
         try {
             Map<String, Object> command = new LinkedHashMap<>();

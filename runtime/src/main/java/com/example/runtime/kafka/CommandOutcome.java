@@ -33,6 +33,9 @@ public record CommandOutcome(boolean applied, String status, String message) {
     /** Отправлять нечего: свойство не привязано к тегу. Локальный статус. */
     public static final String NO_TAG = "NO_TAG";
 
+    /** Путь не покрыт префиксами топиков экземпляра: неизвестно, в какой шлюз слать. Локальный статус. */
+    public static final String NO_TOPIC = "NO_TOPIC";
+
     /**
      * Адрес — переменная проекта ({@code @var.*}): её пишет только сервис automation, из
      * монитора и скриптов runtime запись запрещена. Локальный статус.

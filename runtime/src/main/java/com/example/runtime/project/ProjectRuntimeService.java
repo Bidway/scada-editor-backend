@@ -1,5 +1,6 @@
 package com.example.runtime.project;
 
+import com.example.runtime.assignment.AssignmentState;
 import com.example.runtime.automation.engine.AutomationEngine;
 import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
@@ -28,9 +29,15 @@ public class ProjectRuntimeService {
     private final ProcedureExecutionService procedures;
     private final RuntimeSessionService sessions;
     private final AutomationEngine automation;
+    private final AssignmentState assignments;
 
     public void activate(Long projectId) {
         if (store.get(projectId) != null) {
+            return;
+        }
+        // Флаг «в эксплуатации» приходит всем экземплярам; поднимает проект только тот, кому он назначен.
+        if (!assignments.isAssigned(projectId)) {
+            log.debug("Проект {} не назначен этому экземпляру — не поднимаю", projectId);
             return;
         }
         // Запись в топике — только повод проверить. Решает таблица editor: иначе застрявшая в

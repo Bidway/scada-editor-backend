@@ -1,7 +1,7 @@
 package com.example.runtime.kafka;
 
 /**
- * Публикуется {@link TagKafkaConsumer} на каждое прочитанное сообщение единого
+ * Публикуется {@link TopicConnections} на каждое прочитанное сообщение единого
  * Kafka-топика проекта. {@code key} — это {@code Node.idNode} узла-источника значения.
  * <p>
  * {@code rawValue} — <b>нераспакованное</b> тело сообщения. Распаковка (конверт драйвера
