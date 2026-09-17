@@ -4,7 +4,6 @@ import com.example.runtime.automation.engine.AutomationEngine;
 import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.kafka.TagValueRouter;
-import com.example.runtime.persistence.DriverLeaseService;
 import com.example.runtime.recipe.ProcedureExecutionService;
 import com.example.runtime.session.RuntimeSessionService;
 import com.example.runtime.session.TagSubscriptionIndex;
@@ -26,7 +25,6 @@ public class ProjectRuntimeService {
     private final EditorClient editorClient;
     private final TagValueRouter tagValueRouter;
     private final ProjectRuntimeStore store;
-    private final DriverLeaseService leases;
     private final ProcedureExecutionService procedures;
     private final RuntimeSessionService sessions;
     private final AutomationEngine automation;
@@ -51,17 +49,9 @@ public class ProjectRuntimeService {
         ProjectData projectData = ProjectData.parse(editorClient.getProjectData(projectId));
         ProjectRuntime project = new ProjectRuntime(projectId, tree, index, projectData);
 
-        for (String driver : project.getDrivers()) {
-            if (!leases.tryAcquire(driver)) {
-                log.warn("Проект {} не поднят: драйвер {} занят другим экземпляром", projectId, driver);
-                return;
-            }
-        }
-
         store.put(project);
         tagValueRouter.registerProject(project);
-        log.info("Проект {} поднят: {} тегов, драйверы {}",
-                projectId, index.getAllTagIds().size(), project.getDrivers());
+        log.info("Проект {} поднят: {} тегов", projectId, index.getAllTagIds().size());
         // Незавершённые мойки продолжаются с сохранённого шага. Действия шага не
         // переприменяются: объект уже в этом состоянии.
         procedures.restore(projectId);

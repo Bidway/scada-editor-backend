@@ -42,3 +42,6 @@ ALTER TABLE automation.task_status ADD COLUMN IF NOT EXISTS last_lag_ms bigint;
 ALTER TABLE automation.task_checkpoint DROP COLUMN IF EXISTS epoch;
 ALTER TABLE automation.variable_value DROP COLUMN IF EXISTS epoch;
 DROP TABLE IF EXISTS automation.partition_epoch;
+
+-- Аренда драйверов этапа 1 заменена назначениями (этап 2Б).
+DROP TABLE IF EXISTS runtime.driver_lease;

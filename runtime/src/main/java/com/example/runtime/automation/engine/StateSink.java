@@ -3,7 +3,7 @@ package com.example.runtime.automation.engine;
 import com.example.runtime.automation.AutomationEngineProperties;
 import com.example.runtime.automation.AutomationStateBridge;
 import com.example.runtime.automation.store.AutomationStore;
-import com.example.runtime.persistence.DriverLeaseService;
+import com.example.runtime.instance.InstanceIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -35,7 +35,7 @@ public class StateSink implements TaskObserver {
     private final AutomationStore store;
     private final AutomationStateBridge bridge;
     private final AutomationEngineProperties properties;
-    private final DriverLeaseService leases;
+    private final InstanceIdentity identity;
 
     private final Map<String, AutomationStore.CheckpointRow> checkpoints = new HashMap<>();
     private final Map<String, AutomationStore.VariableRow> variables = new HashMap<>();
@@ -58,9 +58,9 @@ public class StateSink implements TaskObserver {
             lastPublished.put(key, update);
             statuses.put(key, new AutomationStore.StatusRow(update.projectId(), update.taskId(), update.name(),
                     update.state().name(), update.lastRunAtMs(), update.lastDurationMs(), update.lastError(),
-                    update.errorCount(), leases.instanceId(), update.lastLagMs()));
+                    update.errorCount(), identity.instanceId(), update.lastLagMs()));
         }
-        bridge.publishStatus(update, leases.instanceId());
+        bridge.publishStatus(update, identity.instanceId());
     }
 
     @Override

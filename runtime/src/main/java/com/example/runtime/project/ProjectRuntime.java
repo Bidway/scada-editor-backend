@@ -8,7 +8,6 @@ import lombok.Getter;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -33,8 +32,6 @@ public class ProjectRuntime {
     private final EditorComponentDto tree;
     private final TagSubscriptionIndex index;
     private final ProjectData projectData;
-    /** Драйверы проекта — первые сегменты путей его тегов. Единица владения. */
-    private final Set<String> drivers;
     private final Map<Long, Object> propertyValues;
 
     private final Map<String, RuntimeSession> observers = new ConcurrentHashMap<>();
@@ -50,7 +47,6 @@ public class ProjectRuntime {
         this.tree = tree;
         this.index = index;
         this.projectData = projectData;
-        this.drivers = DriverNames.of(index.getAllTagIds());
         this.propertyValues = new ConcurrentHashMap<>(index.getInitialPropertyValues());
     }
 

@@ -2,7 +2,6 @@ package com.example.runtime.project;
 
 import com.example.runtime.client.EditorClient;
 import com.example.runtime.kafka.TagValueRouter;
-import com.example.runtime.persistence.DriverLeaseService;
 import com.example.runtime.recipe.ProcedureExecutionService;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +26,7 @@ class ProjectRuntimeServiceTest {
         ProjectRuntimeStore store = new ProjectRuntimeStore();
         ProcedureExecutionService procedures = mock(ProcedureExecutionService.class);
         ProjectRuntimeService service = new ProjectRuntimeService(editor, mock(TagValueRouter.class), store,
-                mock(DriverLeaseService.class), procedures,
+                procedures,
                 mock(com.example.runtime.session.RuntimeSessionService.class),
                 mock(com.example.runtime.automation.engine.AutomationEngine.class));
 
