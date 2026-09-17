@@ -1,5 +1,6 @@
 package com.example.runtime.project;
 
+import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.TagSubscriptionIndex;
 import com.example.scriptcore.ProjectData;
@@ -24,6 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ProjectRuntime {
 
     private final Long projectId;
+    /**
+     * Дерево компонентов, из которого построен индекс. Отдаётся открывающему монитор: индекс и
+     * экран обязаны быть построены из одной версии проекта, а повторный запрос в editor мог бы
+     * вернуть уже пересохранённую.
+     */
+    private final EditorComponentDto tree;
     private final TagSubscriptionIndex index;
     private final ProjectData projectData;
     /** Драйверы проекта — первые сегменты путей его тегов. Единица владения. */
@@ -32,8 +39,15 @@ public class ProjectRuntime {
 
     private final Map<String, RuntimeSession> observers = new ConcurrentHashMap<>();
 
+    /** Для тестов, которым дерево не нужно. */
     public ProjectRuntime(Long projectId, TagSubscriptionIndex index, ProjectData projectData) {
+        this(projectId, null, index, projectData);
+    }
+
+    public ProjectRuntime(Long projectId, EditorComponentDto tree, TagSubscriptionIndex index,
+                          ProjectData projectData) {
         this.projectId = projectId;
+        this.tree = tree;
         this.index = index;
         this.projectData = projectData;
         this.drivers = DriverNames.of(index.getAllTagIds());

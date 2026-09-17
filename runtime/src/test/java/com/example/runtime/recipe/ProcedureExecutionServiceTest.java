@@ -190,7 +190,7 @@ class ProcedureExecutionServiceTest {
         when(editorClient.getRecipe(RECIPE_ID)).thenReturn(twoStepRecipe());
         service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
 
-        service.abort(PROJECT_ID, RECIPE_ID);
+        service.abort(PROJECT_ID, RECIPE_ID, null, "operator");
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.status(PROJECT_ID, RECIPE_ID))
                 .isInstanceOf(IllegalStateException.class);

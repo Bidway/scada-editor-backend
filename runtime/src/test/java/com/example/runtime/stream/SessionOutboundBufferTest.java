@@ -10,7 +10,7 @@ class SessionOutboundBufferTest {
     void offerProcedureEvent_isDrainedAlongsideTagsAndProperties() {
         SessionOutboundBuffer buffer = new SessionOutboundBuffer();
         ProcedureEvent event = new ProcedureEvent("r1", 0, "Шаг 1",
-                ProcedureEvent.Kind.STEP_STARTED, null);
+                ProcedureEvent.Kind.STEP_STARTED, null, "operator", "s1");
 
         buffer.offerProcedureEvent(event);
 

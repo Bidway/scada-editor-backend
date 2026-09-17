@@ -1,6 +1,9 @@
 package com.example.runtime.ws;
 
 import com.example.runtime.kafka.AutomationStateConsumer;
+import com.example.runtime.kafka.TagValueRouter;
+import com.example.runtime.project.ProjectRuntime;
+import com.example.runtime.recipe.ProcedureExecutionService;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionService;
 import com.example.runtime.stream.PropertyUpdate;
@@ -12,7 +15,9 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Один WS-канал на сессию мониторинга: сюда пишутся батчи тегов/свойств
@@ -27,12 +32,17 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
     private final RuntimeSessionService sessionService;
     private final ObjectMapper objectMapper;
     private final AutomationStateConsumer automationState;
+    private final TagValueRouter tagValueRouter;
+    private final ProcedureExecutionService procedures;
 
     public RuntimeWebSocketHandler(RuntimeSessionService sessionService, ObjectMapper objectMapper,
-                                   AutomationStateConsumer automationState) {
+                                   AutomationStateConsumer automationState, TagValueRouter tagValueRouter,
+                                   ProcedureExecutionService procedures) {
         this.sessionService = sessionService;
         this.objectMapper = objectMapper;
         this.automationState = automationState;
+        this.tagValueRouter = tagValueRouter;
+        this.procedures = procedures;
     }
 
     @Override
@@ -51,8 +61,48 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
             closeQuietly(wsSession, CloseStatus.NOT_ACCEPTABLE.withReason("Session already has an active connection"));
             return;
         }
+        ProjectRuntime project = session.getProject();
+        // Порядок не менять. Сначала подписка, потом снимок: обратный порядок терял бы изменения,
+        // случившиеся между ними. Возможный дубль безвреден — фронт перезаписывает значение по ключу.
+        // Соединение привязывается к сессии последним: пока его нет, OutboundFlusher сессию
+        // пропускает, и накопленные после подписки UPDATE гарантированно уедут после SNAPSHOT,
+        // а не перед ним — иначе снимок затёр бы на экране более свежие значения.
+        project.addObserver(session);
+        SnapshotMessage snapshot = new SnapshotMessage(
+                tagValueRouter.snapshot(project),
+                propertiesOf(project),
+                procedures.activeStatuses(project.getProjectId()));
+        sendDirect(wsSession, snapshot);
         session.setWebSocketSession(wsSession);
-        log.info("WebSocket connected for runtime session {}", sessionId);
+        // Переменные automation публикуются как телеметрия и дойдут через буфер наблюдателя.
+        automationState.replayVariables(session);
+        log.info("WebSocket connected for runtime session {}: SNAPSHOT {} tags, {} procedures",
+                sessionId, snapshot.tags().size(), snapshot.procedures().size());
+    }
+
+    /** Копия общего состояния свойств проекта в том же виде, в каком их шлёт UPDATE. */
+    private static List<PropertyUpdate> propertiesOf(ProjectRuntime project) {
+        long ts = System.currentTimeMillis();
+        List<PropertyUpdate> result = new ArrayList<>();
+        for (Map.Entry<Long, Object> entry : project.getPropertyValues().entrySet()) {
+            String name = project.getIndex().propertyName(entry.getKey());
+            if (name != null) {
+                result.add(new PropertyUpdate(entry.getKey(), name, entry.getValue(), ts));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Отправка до привязки соединения к сессии: лок сессии не нужен, других отправителей у этого
+     * соединения ещё нет. Сбой не рвёт подключение — дальше экран догонится обычными UPDATE.
+     */
+    private void sendDirect(WebSocketSession wsSession, Object message) {
+        try {
+            wsSession.sendMessage(new TextMessage(objectMapper.writeValueAsString(message)));
+        } catch (Exception e) {
+            log.warn("Failed to send SNAPSHOT: {}", e.getMessage());
+        }
     }
 
     @Override

@@ -1,16 +1,14 @@
 package com.example.runtime.session;
 
-import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.dto.TagSnapshot;
-import com.example.runtime.kafka.AutomationStateConsumer;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.stream.PropertyUpdate;
 import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.project.ProjectRuntimeStore;
-import com.example.scriptcore.ProjectData;
+import com.example.runtime.recipe.ProjectNotInOperationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -25,70 +23,48 @@ import java.util.UUID;
 @Slf4j
 public class RuntimeSessionService {
 
-    private final EditorClient editorClient;
     private final RuntimeSessionStore sessionStore;
     private final TagValueRouter tagValueRouter;
     private final ScriptEngineService scriptEngineService;
     private final TagCommandService tagCommandService;
     private final ActionDedupGuard actionDedupGuard;
-    private final AutomationStateConsumer automationState;
     private final ProjectRuntimeStore projectStore;
 
-    public RuntimeSessionService(EditorClient editorClient,
-                                  RuntimeSessionStore sessionStore,
+    public RuntimeSessionService(RuntimeSessionStore sessionStore,
                                   ProjectRuntimeStore projectStore,
                                   TagValueRouter tagValueRouter,
                                   ScriptEngineService scriptEngineService,
                                   TagCommandService tagCommandService,
-                                  ActionDedupGuard actionDedupGuard,
-                                  AutomationStateConsumer automationState) {
-        this.editorClient = editorClient;
+                                  ActionDedupGuard actionDedupGuard) {
         this.sessionStore = sessionStore;
         this.projectStore = projectStore;
         this.tagValueRouter = tagValueRouter;
         this.scriptEngineService = scriptEngineService;
         this.tagCommandService = tagCommandService;
         this.actionDedupGuard = actionDedupGuard;
-        this.automationState = automationState;
     }
 
     /**
-     * Обращения к editor — только здесь, при старте сессии: дерево проекта и таблицы данных.
-     * Это не горячий путь: происходит один раз на сессию, а не на каждое обновление тега. Дерево
-     * уже приходит со связями: ComponentProperty.tagId — это путь узла базы каналов, он же
-     * Kafka-key, поэтому резолвить его где-то ещё не нужно.
+     * Сессия ничего не поднимает: проект уже работает по флагу «в эксплуатации», и сессия лишь
+     * берёт его дерево для экрана. В наблюдатели она попадает только при подключении WebSocket
+     * (см. {@code RuntimeWebSocketHandler}) — до этого слать кадры некуда, и копить их в буфере
+     * сессии, которая может так и не подключиться, незачем.
      */
     public SessionBootstrap createSession(Long projectId) {
-        EditorComponentDto tree = editorClient.getProjectTree(projectId);
-        if (tree == null) {
-            throw new IllegalArgumentException("Project not found: " + projectId);
-        }
-        TagSubscriptionIndex index = TagSubscriptionIndex.build(tree, projectId);
-        ProjectData projectData = ProjectData.parse(editorClient.getProjectData(projectId));
-
-        // Проект, поднятый по флагу «в эксплуатации», — источник индекса, данных и общего
-        // состояния свойств. Пока такого проекта нет, сессия работает на временном проекте:
-        // это сохраняет сегодняшнее поведение «открыл монитор — увидел». Отказ для проекта
-        // не в эксплуатации появится вместе с кадром SNAPSHOT, отдельной задачей.
         ProjectRuntime project = projectStore.get(projectId);
         if (project == null) {
-            project = new ProjectRuntime(projectId, index, projectData);
-            tagValueRouter.registerProject(project);
+            // Не «пустой экран без объяснения»: выключенный проект должен быть видимым состоянием.
+            throw new ProjectNotInOperationException(projectId);
         }
 
         String sessionId = UUID.randomUUID().toString();
         RuntimeSession session = new RuntimeSession(sessionId, project);
         sessionStore.put(session);
-        project.addObserver(session);
-        // Раньше эти кадры раздавала регистрация сессии в роутере; теперь интерес к тегам
-        // держит проект, поэтому начальное состояние отдаётся наблюдателю явно.
-        tagValueRouter.snapshot(project).forEach(session.getOutboundBuffer()::offerTag);
-        automationState.replayVariables(session);
 
         log.info("Runtime session {} started for project {} ({} tags)",
-                sessionId, projectId, index.getAllTagIds().size());
+                sessionId, projectId, project.getIndex().getAllTagIds().size());
 
-        return new SessionBootstrap(session, tree);
+        return new SessionBootstrap(session, project.getTree());
     }
 
     public void closeSession(String sessionId) {

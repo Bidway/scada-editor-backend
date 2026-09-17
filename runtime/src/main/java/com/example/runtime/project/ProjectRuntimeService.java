@@ -38,7 +38,7 @@ public class ProjectRuntimeService {
         }
         TagSubscriptionIndex index = TagSubscriptionIndex.build(tree, projectId);
         ProjectData projectData = ProjectData.parse(editorClient.getProjectData(projectId));
-        ProjectRuntime project = new ProjectRuntime(projectId, index, projectData);
+        ProjectRuntime project = new ProjectRuntime(projectId, tree, index, projectData);
 
         for (String driver : project.getDrivers()) {
             if (!leases.tryAcquire(driver)) {

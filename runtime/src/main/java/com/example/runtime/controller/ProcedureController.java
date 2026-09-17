@@ -67,7 +67,8 @@ public class ProcedureController {
 
     @Operation(summary = "Прервать выполнение процедуры")
     @PostMapping("/{id}/abort")
-    public void abort(@PathVariable String id, @Valid @RequestBody ProcedureProjectRequest request) {
-        service.abort(request.getProjectId(), id);
+    public void abort(@PathVariable String id, @Valid @RequestBody ProcedureProjectRequest request,
+                      @RequestHeader(value = "X-Username", required = false) String username) {
+        service.abort(request.getProjectId(), id, request.getSessionId(), username);
     }
 }
