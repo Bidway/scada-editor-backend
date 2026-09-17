@@ -1,5 +1,6 @@
 package com.example.runtime.exception;
 
+import com.example.runtime.assignment.AssignmentConflictException;
 import com.example.runtime.recipe.ProcedureAlreadyRunningException;
 import com.example.runtime.recipe.ProcedureStepMismatchException;
 import com.example.runtime.recipe.ProjectNotInOperationException;
@@ -14,6 +15,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
@@ -53,6 +55,33 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ProjectNotInOperationException.class)
     public ResponseEntity<Map<String, Object>> handleNotInOperation(ProjectNotInOperationException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** 409: назначение противоречит уже существующим; в теле — непокрытые пути, если дело в них. */
+    @ExceptionHandler(AssignmentConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleAssignmentConflict(AssignmentConflictException ex) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("error", HttpStatus.CONFLICT.getReasonPhrase());
+        body.put("message", ex.getMessage());
+        if (!ex.uncoveredPaths().isEmpty()) {
+            body.put("uncoveredPaths", ex.uncoveredPaths());
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /** Гонка двух назначений: второе упёрлось в первичный или уникальный ключ. */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        return buildResponse(HttpStatus.CONFLICT, "Назначение уже занято другим экземпляром — обновите список и повторите");
+    }
+
+    /** Явный статус из сервиса, например 404 на неизвестный экземпляр. */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException ex) {
+        return buildResponse(HttpStatus.valueOf(ex.getStatusCode().value()),
+                ex.getReason() == null ? "" : ex.getReason());
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
