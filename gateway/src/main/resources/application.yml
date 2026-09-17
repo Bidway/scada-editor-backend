@@ -42,16 +42,9 @@ spring:
           predicates:
             - Path=/api/automation/**
 
-        # WebSocket мониторинга. Апгрейд распознаётся по заголовку Upgrade, схема
-        # http -> ws подставляется автоматически (WebsocketRoutingFilter), тело кадров
-        # не разбирается — gateway их только пересылает.
-        - id: runtime-ws
-          uri: http://${RUNTIME_HOST:localhost}:8085
-          predicates:
-            - Path=/ws/runtime/**
-
-        # STOMP/SockJS канала. Порядок важен: /ws/** перекрывает /ws/runtime/**,
-        # поэтому маршрут разбирается последним.
+        # WebSocket мониторинга маршрутизирует RuntimeInstanceRoutes по имени экземпляра в пути
+        # (/ws/runtime/<instanceId>/…, этап 2Б). Порядок важен: /ws/** разбирается последним.
+        # STOMP/SockJS канала.
         - id: channel-ws
           uri: http://${CHANNEL_HOST:localhost}:8082
           order: 1
