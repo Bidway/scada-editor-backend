@@ -1,5 +1,6 @@
 package com.example.runtime.automation.store;
 
+import com.example.runtime.instance.InstanceIdentity;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,8 +15,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Рабочее состояние фоновых задач в схеме {@code automation}. Защиты от устаревших записей здесь нет:
- * на этапе 2А экземпляр runtime один; на этапе 2Б записи получат условие назначения проекта экземпляру.
+ * Рабочее состояние фоновых задач в схеме {@code automation}. Записи идут только для проектов,
+ * назначенных этому экземпляру ({@code runtime.instance_project}): экземпляр, у которого проект сняли,
+ * пока он висел, ничего не допишет.
  */
 @Component
 @RequiredArgsConstructor
@@ -26,6 +28,11 @@ public class AutomationStore {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final InstanceIdentity identity;
+
+    /** Проект всё ещё назначен этому экземпляру. Параметры: project_id, instance_id. */
+    private static final String OWNED = "WHERE EXISTS (SELECT 1 FROM runtime.instance_project ip "
+            + "WHERE ip.project_id = ? AND ip.instance_id = ?)";
 
     public record CheckpointRow(long projectId, long taskId, String definitionHash, Map<String, Object> state) {
     }
@@ -59,7 +66,9 @@ public class AutomationStore {
     public void saveCheckpoints(List<CheckpointRow> rows) {
         jdbc.batchUpdate("""
                 INSERT INTO automation.task_checkpoint (project_id, task_id, definition_hash, state, updated_at)
-                VALUES (?, ?, ?, ?::jsonb, now())
+                SELECT ?, ?, ?, ?::jsonb, now()
+                """ + OWNED + """
+
                 ON CONFLICT (project_id, task_id) DO UPDATE
                 SET definition_hash = EXCLUDED.definition_hash, state = EXCLUDED.state, updated_at = now()""",
                 rows, rows.size(), (ps, row) -> {
@@ -67,19 +76,25 @@ public class AutomationStore {
                     ps.setLong(2, row.taskId());
                     ps.setString(3, row.definitionHash());
                     ps.setString(4, write(row.state()));
+                    ps.setLong(5, row.projectId());
+                    ps.setString(6, identity.instanceId());
                 });
     }
 
     public void saveVariables(List<VariableRow> rows) {
         jdbc.batchUpdate("""
                 INSERT INTO automation.variable_value (project_id, name, value, quality, updated_at)
-                VALUES (?, ?, ?::jsonb, 'GOOD', now())
+                SELECT ?, ?, ?::jsonb, 'GOOD', now()
+                """ + OWNED + """
+
                 ON CONFLICT (project_id, name) DO UPDATE
                 SET value = EXCLUDED.value, updated_at = now()""",
                 rows, rows.size(), (ps, row) -> {
                     ps.setLong(1, row.projectId());
                     ps.setString(2, row.name());
                     ps.setString(3, write(row.value()));
+                    ps.setLong(4, row.projectId());
+                    ps.setString(5, identity.instanceId());
                 });
     }
 
@@ -87,7 +102,9 @@ public class AutomationStore {
         jdbc.batchUpdate("""
                 INSERT INTO automation.task_status (project_id, task_id, name, state, last_run_at, last_duration_ms,
                                                     last_error, error_count, owner_instance, last_lag_ms, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now()
+                """ + OWNED + """
+
                 ON CONFLICT (project_id, task_id) DO UPDATE
                 SET name = EXCLUDED.name, state = EXCLUDED.state, last_run_at = EXCLUDED.last_run_at,
                     last_duration_ms = EXCLUDED.last_duration_ms, last_error = EXCLUDED.last_error,
@@ -116,6 +133,8 @@ public class AutomationStore {
                     } else {
                         ps.setLong(10, row.lastLagMs());
                     }
+                    ps.setLong(11, row.projectId());
+                    ps.setString(12, identity.instanceId());
                 });
     }
 
