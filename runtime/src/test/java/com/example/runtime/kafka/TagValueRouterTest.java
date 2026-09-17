@@ -46,6 +46,8 @@ class TagValueRouterTest {
     private RuntimeSession session;
     private SessionOutboundBuffer buffer;
     private TagValueRouter router;
+    private final com.example.runtime.automation.engine.TagCache automationTags =
+            new com.example.runtime.automation.engine.TagCache();
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @BeforeEach
@@ -70,7 +72,8 @@ class TagValueRouterTest {
 
         eventPublisher = mock(org.springframework.context.ApplicationEventPublisher.class);
         router = new TagValueRouter(sessionStore, projectStore, mock(ScriptEngineService.class),
-                mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper(), eventPublisher);
+                mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper(), eventPublisher,
+                automationTags);
         router.registerProject(project);
         // Начальные кадры «нет данных» раздаёт теперь не регистрация, а снимок для наблюдателя.
         router.snapshot(project).forEach(buffer::offerTag);
@@ -88,6 +91,22 @@ class TagValueRouterTest {
 
         org.mockito.Mockito.verify(eventPublisher, org.mockito.Mockito.times(2))
                 .publishEvent(org.mockito.ArgumentMatchers.any(ProjectTagChangedEvent.class));
+    }
+
+    @Test
+    @DisplayName("вход фоновой задачи вне дерева проекта разбирается тем же приёмом телеметрии")
+    void automationInputOutsideProjectTreeReachesTagCache() {
+        String pumpFlow = "Барановичи-1.BN1_MCA1.FQT_ST.LINE1FQT1.F";
+        automationTags.watch(List.of(pumpFlow));
+
+        router.onMessage(new KafkaTagMessageEvent(pumpFlow,
+                "{\"value\":28.5,\"quality\":\"GOOD\",\"timestamp\":1785935496272}"));
+
+        // Раньше этот тег читал отдельный сервис automation; теперь читатель один, и вход
+        // регулятора не должен потеряться только потому, что его нет на мнемосхеме.
+        assertThat(automationTags.read(pumpFlow)).isNotNull();
+        assertThat(automationTags.read(pumpFlow).value()).isEqualTo(28.5);
+        assertThat(automationTags.read(pumpFlow).good()).isTrue();
     }
 
     @Test

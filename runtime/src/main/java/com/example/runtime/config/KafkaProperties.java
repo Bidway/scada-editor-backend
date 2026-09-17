@@ -24,9 +24,6 @@ public class KafkaProperties {
     /** Топик исходов команд: шлюз отвечает сюда, применилась запись в ПЛК или нет. */
     private String commandResultsTopic = "scada-command-results";
 
-    /** Переменные проекта и статусы задач сервиса automation (compacted). */
-    private String automationStateTopic = "automation.state";
-
     /**
      * Сколько ждать ответа шлюза на команду, прежде чем считать исход неизвестным.
      * <p>
@@ -100,14 +97,6 @@ public class KafkaProperties {
 
     public void setCommandResultsTopic(String commandResultsTopic) {
         this.commandResultsTopic = commandResultsTopic;
-    }
-
-    public String getAutomationStateTopic() {
-        return automationStateTopic;
-    }
-
-    public void setAutomationStateTopic(String automationStateTopic) {
-        this.automationStateTopic = automationStateTopic;
     }
 
     public long getCommandTimeoutMs() {

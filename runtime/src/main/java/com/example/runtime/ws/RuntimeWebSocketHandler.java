@@ -1,6 +1,6 @@
 package com.example.runtime.ws;
 
-import com.example.runtime.kafka.AutomationStateConsumer;
+import com.example.runtime.automation.AutomationStateBridge;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.project.ProjectRuntimeStore;
@@ -32,13 +32,13 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
 
     private final RuntimeSessionService sessionService;
     private final ObjectMapper objectMapper;
-    private final AutomationStateConsumer automationState;
+    private final AutomationStateBridge automationState;
     private final TagValueRouter tagValueRouter;
     private final ProcedureExecutionService procedures;
     private final ProjectRuntimeStore projectStore;
 
     public RuntimeWebSocketHandler(RuntimeSessionService sessionService, ObjectMapper objectMapper,
-                                   AutomationStateConsumer automationState, TagValueRouter tagValueRouter,
+                                   AutomationStateBridge automationState, TagValueRouter tagValueRouter,
                                    ProcedureExecutionService procedures, ProjectRuntimeStore projectStore) {
         this.sessionService = sessionService;
         this.objectMapper = objectMapper;
@@ -142,7 +142,7 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
             RuntimeSession session = sessionService.getSession(sessionId);
             if (session != null) {
                 session.setTasksSubscribed(true);
-                // Полный список при подписке, дальше — изменения из AutomationStateConsumer.
+                // Полный список при подписке, дальше — изменения из AutomationStateBridge.
                 automationState.statusesOf(session.getProjectId()).forEach(session.getOutboundBuffer()::offerTask);
             }
         } else if ("UNSUBSCRIBE_TASKS".equalsIgnoreCase(inbound.getType())) {

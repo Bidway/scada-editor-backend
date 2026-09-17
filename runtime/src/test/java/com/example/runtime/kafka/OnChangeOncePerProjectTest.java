@@ -71,7 +71,7 @@ class OnChangeOncePerProjectTest {
 
         TagValueRouter router = new TagValueRouter(mock(RuntimeSessionStore.class), projectStore,
                 scripts, mock(TagCommandService.class), dispatcher, new ObjectMapper(),
-                mock(ApplicationEventPublisher.class));
+                mock(ApplicationEventPublisher.class), new com.example.runtime.automation.engine.TagCache());
         router.registerProject(project);
 
         router.onMessage(new KafkaTagMessageEvent(TAG,

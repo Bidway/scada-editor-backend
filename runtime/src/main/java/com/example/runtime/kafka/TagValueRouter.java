@@ -1,5 +1,6 @@
 package com.example.runtime.kafka;
 
+import com.example.runtime.automation.engine.TagCache;
 import com.example.runtime.script.OnChangeDispatcher;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.OnChangeBinding;
@@ -46,6 +47,8 @@ public class TagValueRouter {
     private final OnChangeDispatcher onChangeDispatcher;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    /** Входы фоновых задач: разбираются тем же приёмом, возраст считается по часам сервиса. */
+    private final TagCache automationTags;
 
     /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последний проект. */
     private final Map<String, TagRuntimeState> tagStates = new ConcurrentHashMap<>();
@@ -56,7 +59,8 @@ public class TagValueRouter {
                           TagCommandService tagCommandService,
                           OnChangeDispatcher onChangeDispatcher,
                           ObjectMapper objectMapper,
-                          ApplicationEventPublisher eventPublisher) {
+                          ApplicationEventPublisher eventPublisher,
+                          TagCache automationTags) {
         this.sessionStore = sessionStore;
         this.projectStore = projectStore;
         this.scriptEngineService = scriptEngineService;
@@ -64,6 +68,7 @@ public class TagValueRouter {
         this.onChangeDispatcher = onChangeDispatcher;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.automationTags = automationTags;
     }
 
     /**
@@ -135,12 +140,21 @@ public class TagValueRouter {
         // JSON до этой проверки был бы работой впустую для подавляющего большинства
         // сообщений — это самая горячая точка приёма телеметрии.
         TagRuntimeState state = tagStates.get(tagId);
-        if (state == null) {
+        // Входы фоновых задач могут не входить ни в одно дерево проекта: их подписку держит TagCache.
+        boolean automationInput = automationTags.isWatched(tagId);
+        if (state == null && !automationInput) {
             return;
         }
         TelemetryEnvelope envelope = TelemetryEnvelope.parse(objectMapper, event.rawValue(),
                 // Раньше битый конверт молча уезжал оператору на экран как значение тега.
                 e -> log.warn("Tag '{}': malformed message envelope, using raw payload: {}", tagId, e.getMessage()));
+        if (automationInput) {
+            // Время приёма по часам сервиса, а не метка ПЛК: от него задача считает возраст входа.
+            automationTags.update(tagId, envelope, System.currentTimeMillis());
+        }
+        if (state == null) {
+            return;
+        }
 
         // Недостоверное чтение НЕ затирает последнее хорошее значение — оно лишь снимает
         // с него признак актуальности. Иначе обрыв связи стирал бы с мнемосхемы всё, что

@@ -80,6 +80,14 @@ public class PendingCommandRegistry {
      * молча игнорируется: это либо дубль, либо ответ на команду другого потребителя
      * того же топика (у Monitor Srv свои команды), либо ответ, пришедший после таймаута.
      */
+    /** Когда шлюз последний раз ответил на команду этого экземпляра, epoch ms; 0 — ещё не отвечал. */
+    private volatile long lastSettledAtMs;
+
+    /** Для watchdog фоновых задач: счётчик растёт, только пока шлюз отвечает на команды. */
+    public long lastSettledAtMs() {
+        return lastSettledAtMs;
+    }
+
     public void complete(String commandId, CommandOutcome outcome) {
         settle(commandId, outcome);
     }
@@ -94,6 +102,10 @@ public class PendingCommandRegistry {
             return false;
         }
         p.timer.cancel(false);
+        // Таймаут ожидания тоже приходит сюда с NO_CONFIRMATION — ответом шлюза он не считается.
+        if (outcome.isKnown()) {
+            lastSettledAtMs = System.currentTimeMillis();
+        }
         return p.future.complete(outcome);
     }
 
