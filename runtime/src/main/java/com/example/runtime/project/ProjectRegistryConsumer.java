@@ -1,14 +1,13 @@
 package com.example.runtime.project;
 
 import com.example.runtime.config.KafkaProperties;
-import com.example.runtime.persistence.DriverLeaseService;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -17,10 +16,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 /**
  * Читает компактный топик активных проектов, который пишет editor, и поднимает/гасит проекты.
@@ -29,8 +29,8 @@ import java.util.Set;
  * секунды runtime крутил бы неполный набор проектов, и мойка, идущая на непрочитанном
  * проекте, осталась бы без хозяина.
  * <p>
- * Группа уникальна для экземпляра: топик читают все экземпляры целиком, а не делят между
- * собой — распределение проектов задаёт аренда драйверов, а не партиции.
+ * Партиции назначаются руками, без группы: топик читают все экземпляры целиком, а не делят
+ * между собой — распределение проектов задаёт аренда драйверов, а не партиции.
  */
 @Component
 @RequiredArgsConstructor
@@ -41,7 +41,6 @@ public class ProjectRegistryConsumer {
 
     private final KafkaProperties kafkaProperties;
     private final ProjectRuntimeService projectRuntimeService;
-    private final DriverLeaseService leases;
 
     private volatile boolean running = true;
     private volatile KafkaConsumer<String, String> consumer;
@@ -77,15 +76,18 @@ public class ProjectRegistryConsumer {
      */
     private void run() {
         String topic = kafkaProperties.getProjectsTopic();
-        Properties props = consumerProperties();
 
         while (running) {
-            try (KafkaConsumer<String, String> c = new KafkaConsumer<>(props)) {
+            try (KafkaConsumer<String, String> c = new KafkaConsumer<>(consumerProperties())) {
                 this.consumer = c;
-                c.subscribe(List.of(topic));
-                log.info("Читаю реестр активных проектов из '{}', группа '{}'",
-                        topic, props.getProperty(ConsumerConfig.GROUP_ID_CONFIG));
-                catchUp(c);
+                List<TopicPartition> partitions = partitionsOf(c, topic);
+                // assign, а не subscribe: реестр нужен каждому экземпляру целиком, делить его
+                // между экземплярами нечего. С subscribe новая группа при каждом старте ждала
+                // назначения партиций десятки секунд, и догонка успевала решить, что топик пуст.
+                c.assign(partitions);
+                c.seekToBeginning(partitions);
+                log.info("Читаю реестр активных проектов из '{}': {} партиций", topic, partitions.size());
+                catchUp(c, partitions);
                 consumeUntilStopped(c);
             } catch (WakeupException ignored) {
                 // штатная остановка через stop()
@@ -96,29 +98,49 @@ public class ProjectRegistryConsumer {
         }
     }
 
-    /** Догнать конец топика: только после этого набор проектов считается полным. */
-    private void catchUp(KafkaConsumer<String, String> c) {
-        c.poll(Duration.ZERO);
-        Set<TopicPartition> partitions = c.assignment();
-        if (partitions.isEmpty()) {
-            // Партиции ещё не назначены — дождёмся назначения обычным poll.
-            c.poll(POLL);
-            partitions = c.assignment();
+    private static List<TopicPartition> partitionsOf(KafkaConsumer<String, String> c, String topic) {
+        List<PartitionInfo> infos = c.partitionsFor(topic);
+        if (infos == null || infos.isEmpty()) {
+            // Топик ещё не размечен editor-ом. Бросаем в надзорный цикл: он повторит через 5 с.
+            throw new IllegalStateException("Топик " + topic + " ещё не создан");
         }
-        c.seekToBeginning(partitions);
+        return infos.stream().map(info -> new TopicPartition(topic, info.partition())).toList();
+    }
+
+    /**
+     * Догнать конец топика и применить <b>итог</b> по каждому проекту. До компактации в топике
+     * лежит вся история переключений; применённая по порядку, она поднимала, гасила и снова
+     * поднимала проект — с записью состояния процедур и снятием тегов посреди старта.
+     */
+    private void catchUp(KafkaConsumer<String, String> c, List<TopicPartition> partitions) {
         Map<TopicPartition, Long> ends = c.endOffsets(partitions);
-        int applied = 0;
+        List<ConsumerRecord<String, String>> history = new ArrayList<>();
         while (running && !reachedEnd(c, ends)) {
-            ConsumerRecords<String, String> records = c.poll(POLL);
-            if (records.isEmpty()) {
-                break;
-            }
-            for (ConsumerRecord<String, String> record : records) {
-                apply(record);
-                applied++;
+            // Пустой poll не означает конец: брокер может отдать данные следующим вызовом.
+            // Признак конца — только позиции, дошедшие до endOffsets.
+            for (ConsumerRecord<String, String> record : c.poll(POLL)) {
+                history.add(record);
             }
         }
-        log.info("Реестр активных проектов прочитан: {} записей применено", applied);
+        Map<Long, Boolean> latest = latestStates(history);
+        latest.forEach(this::apply);
+        log.info("Реестр активных проектов прочитан: {} записей, {} проектов, в эксплуатации {}",
+                history.size(), latest.size(), latest.values().stream().filter(Boolean::booleanValue).count());
+    }
+
+    /**
+     * Последнее состояние каждого проекта в порядке первого появления: запись с телом — в
+     * эксплуатации, tombstone — выведен. Ключ, не являющийся числом, пропускается.
+     */
+    static Map<Long, Boolean> latestStates(List<ConsumerRecord<String, String>> records) {
+        Map<Long, Boolean> latest = new LinkedHashMap<>();
+        for (ConsumerRecord<String, String> record : records) {
+            Long projectId = parseProjectId(record.key());
+            if (projectId != null) {
+                latest.put(projectId, record.value() != null);
+            }
+        }
+        return latest;
     }
 
     private boolean reachedEnd(KafkaConsumer<String, String> c, Map<TopicPartition, Long> ends) {
@@ -133,25 +155,21 @@ public class ProjectRegistryConsumer {
     private void consumeUntilStopped(KafkaConsumer<String, String> c) {
         while (running) {
             for (ConsumerRecord<String, String> record : c.poll(POLL)) {
-                apply(record);
+                Long projectId = parseProjectId(record.key());
+                if (projectId != null) {
+                    apply(projectId, record.value() != null);
+                }
             }
         }
     }
 
-    /**
-     * Запись с телом — проект в эксплуатации, tombstone (value = null) — выведен из неё.
-     * Тело намеренно не разбирается: сам факт наличия записи и есть признак.
-     */
-    private void apply(ConsumerRecord<String, String> record) {
-        Long projectId = parseProjectId(record.key());
-        if (projectId == null) {
-            return;
-        }
+    /** Тело записи намеренно не разбирается: сам факт наличия записи и есть признак. */
+    private void apply(Long projectId, boolean inOperation) {
         try {
-            if (record.value() == null) {
-                projectRuntimeService.deactivate(projectId);
-            } else {
+            if (inOperation) {
                 projectRuntimeService.activate(projectId);
+            } else {
+                projectRuntimeService.deactivate(projectId);
             }
         } catch (Exception e) {
             log.error("Не удалось применить запись реестра для проекта {}: {}", projectId, e.toString(), e);
@@ -170,11 +188,10 @@ public class ProjectRegistryConsumer {
     private Properties consumerProperties() {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
-        // Уникальная группа: реестр нужен каждому экземпляру целиком, делить его партициями нельзя.
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "runtime-projects-" + leases.instanceId());
+        // Без group.id: партиции назначаются руками (assign), офсеты не коммитятся —
+        // реестр каждый старт читается с начала.
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         return props;
     }
