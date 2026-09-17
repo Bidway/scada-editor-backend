@@ -11,6 +11,12 @@ spring:
     properties:
       hibernate:
         default_schema: runtime
+  sql:
+    init:
+      # Схемы runtime и automation: CREATE … IF NOT EXISTS и доработка старой базы automation.
+      mode: always
+      schema-locations: classpath:automation-schema.sql
+      continue-on-error: false
 
 springdoc:
   api-docs:
@@ -22,6 +28,15 @@ server:
   port: 8085
 
 runtime:
+  automation:
+    # Фоновые задачи проектов (бывший сервис automation). Потоки — свои, отдельно от onChange,
+    # процедур и отправки кадров мониторам: такт регулятора не стоит с ними в одной очереди.
+    worker-threads: 4
+    context-pool-size: 4
+    checkpoint-flush-ms: 1000
+    status-refresh-ms: 10000
+    data-retry-min-ms: 5000
+    data-retry-max-ms: 60000
   # Имя этого экземпляра в аренде драйверов. По умолчанию — имя хоста.
   instance-id: ${RUNTIME_INSTANCE_ID:}
   # Разовое (не горячий путь) обращение к editor — только при старте сессии мониторинга.
