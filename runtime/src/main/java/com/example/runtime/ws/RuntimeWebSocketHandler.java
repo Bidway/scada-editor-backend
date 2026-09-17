@@ -134,6 +134,10 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
                     send(session, new OutboundMessage(null, changed, null));
                 }
             }
+        } else if ("PING".equalsIgnoreCase(inbound.getType())) {
+            // Фронт шлёт PING раз в 20 с, чтобы соединение не закрыли прокси по простою. Ответа он
+            // не ждёт, а WARN «неизвестный тип» на каждый засорял лог пропорционально числу мониторов.
+            return;
         } else if ("SUBSCRIBE_TASKS".equalsIgnoreCase(inbound.getType())) {
             RuntimeSession session = sessionService.getSession(sessionId);
             if (session != null) {
