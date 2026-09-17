@@ -1,6 +1,6 @@
-package com.example.automation.api;
+package com.example.runtime.automation.api;
 
-import com.example.automation.store.AutomationStore;
+import com.example.runtime.automation.store.AutomationStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** Статусы задач проекта из общей базы — отвечает любой экземпляр, не только владелец. */
+/** Статусы фоновых задач проекта из базы. Путь прежний — фронт не меняется. */
 @RestController
 @RequestMapping("/api/automation/projects/{projectId}/tasks")
 @RequiredArgsConstructor

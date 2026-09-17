@@ -36,8 +36,9 @@ spring:
           predicates:
             - Path=/api/runtime/**
 
+        # Фоновые задачи исполняет runtime (этап 2А, 17.09.2026); путь /api/automation/** сохранён ради фронта.
         - id: automation-service
-          uri: http://${AUTOMATION_HOST:localhost}:8086
+          uri: http://${RUNTIME_HOST:localhost}:8085
           predicates:
             - Path=/api/automation/**
 

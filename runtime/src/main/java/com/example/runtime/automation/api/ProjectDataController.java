@@ -1,6 +1,6 @@
-package com.example.automation.api;
+package com.example.runtime.automation.api;
 
-import com.example.automation.engine.ProjectRegistry;
+import com.example.runtime.automation.engine.AutomationEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,24 +11,22 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * Перечитать таблицы данных проекта из editor. Отвечает только экземпляр, который исполняет
- * проект: при нескольких экземплярах gateway может попасть не в него (спека, «Отложено»).
- */
+/** Перечитать таблицы данных проекта из editor для его фоновых задач. Путь прежний. */
 @RestController
 @RequestMapping("/api/automation/projects/{projectId}/data")
 @RequiredArgsConstructor
 public class ProjectDataController {
 
-    private final ProjectRegistry registry;
+    private final AutomationEngine engine;
 
     @PostMapping("/reload")
     public ResponseEntity<Map<String, String>> reload(@PathVariable long projectId) {
-        if (registry.reloadData(projectId)) {
+        if (engine.reloadData(projectId)) {
             return ResponseEntity.accepted().build();
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                 "error", "project_not_running",
-                "message", "Проект " + projectId + " не исполняется этим экземпляром automation"));
+                "message", "Фоновые задачи проекта " + projectId
+                        + " не исполняются: проект не поднят или у него нет задач"));
     }
 }

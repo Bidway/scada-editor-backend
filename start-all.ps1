@@ -97,7 +97,6 @@ $Services = @(
     @{ Name = 'channel'; Port = 8082 },
     @{ Name = 'editor';  Port = 8083 },
     @{ Name = 'runtime'; Port = 8085 },
-    @{ Name = 'automation'; Port = 8086 },
     @{ Name = 'gateway'; Port = 8080 }   # единственный вход снаружи
 )
 
@@ -400,7 +399,6 @@ if ($Status) {
         @{ N = 'channel';             P = 8082 },
         @{ N = 'editor';              P = 8083 },
         @{ N = 'runtime';             P = 8085 },
-        @{ N = 'automation';          P = 8086 },
         @{ N = 'frontend';            P = $FrontendPort }
     )
     foreach ($c in $checks) {
@@ -521,7 +519,7 @@ if ($Mode -eq 'docker') {
     }
 
     Info 'Поднимаю сервисы ...'
-    & docker compose @composeArgs up -d --build auth channel editor runtime automation gateway
+    & docker compose @composeArgs up -d --build auth channel editor runtime gateway
     Pop-Location
 
     Wait-Port 8080 'gateway (вход снаружи)' 120 | Out-Null
@@ -765,7 +763,7 @@ Write-Host '  Вход снаружи : http://localhost:8080'
 Write-Host '  Фронтенд     : http://localhost:' -NoNewline; Write-Host $FrontendPort
 Write-Host '  Шлюз ПЛК     : http://localhost:8888/actuator/health'
 if ($Mode -eq 'host') {
-    Write-Host '  Swagger      : auth :8081 / channel :8082 / editor :8083  (runtime :8085, automation :8086)'
+    Write-Host '  Swagger      : auth :8081 / channel :8082 / editor :8083  (runtime :8085)'
 } else {
     Write-Host '  Порты сервисов наружу не публикуются — только через gateway:8080'
 }
