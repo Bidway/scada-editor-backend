@@ -163,7 +163,9 @@ public class OwnerForwardingFilter extends OncePerRequestFilter {
         String url = owner.get().getBaseUrl() + request.getRequestURI() + query;
         try {
             RestClient.RequestBodySpec spec = client.method(HttpMethod.valueOf(request.getMethod()))
-                    .uri(url)
+                    // URI из запроса уже закодирован (кириллица в id рецепта): строка ушла бы в RestClient
+                    // на повторное кодирование, и владелец получил бы %25D1… вместо %D1….
+                    .uri(java.net.URI.create(url))
                     .headers(headers -> {
                         for (String name : Collections.list(request.getHeaderNames())) {
                             if (COPIED_HEADERS.contains(name.toLowerCase())) {

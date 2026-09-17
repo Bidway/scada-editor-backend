@@ -49,14 +49,16 @@ class OwnerForwardingFilterTest {
 
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://runtime-2:8085/api/runtime/recipes/r1/confirm"))
+        server.expect(requestTo("http://runtime-2:8085/api/runtime/recipes/%D1%82%D0%B0%D0%BD%D0%BA/confirm"))
                 .andExpect(header("X-Runtime-Forwarded", "runtime-1"))
                 .andRespond(withSuccess("{\"stepIndex\":3}", MediaType.APPLICATION_JSON));
 
         OwnerForwardingFilter filter = new OwnerForwardingFilter(new InstanceIdentity("runtime-1", "http://runtime-1:8085"),
                 instances, projects, mock(InstanceTopicPrefixRepository.class), mock(InstanceTopicRepository.class), builder);
 
-        MockHttpServletRequest request = new MockHttpServletRequest(HttpMethod.POST.name(), "/api/runtime/recipes/r1/confirm");
+        // id рецепта — кириллический слаг: путь приходит закодированным и не должен кодироваться повторно.
+        MockHttpServletRequest request = new MockHttpServletRequest(HttpMethod.POST.name(),
+                "/api/runtime/recipes/%D1%82%D0%B0%D0%BD%D0%BA/confirm");
         request.setContentType(MediaType.APPLICATION_JSON_VALUE);
         request.setContent("{\"projectId\":9000}".getBytes(StandardCharsets.UTF_8));
         MockHttpServletResponse response = new MockHttpServletResponse();
