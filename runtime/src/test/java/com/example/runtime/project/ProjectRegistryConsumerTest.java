@@ -30,6 +30,17 @@ class ProjectRegistryConsumerTest {
         assertThat(latest).containsExactly(Map.entry(8501L, true), Map.entry(7L, false));
     }
 
+    @Test
+    void поднятый_проект_без_записи_в_топике_гасится() {
+        // Потребитель реестра пересоздан надзорным циклом, а tombstone выключенного за это время
+        // проекта уже вычистила компактация: ключа в топике нет вовсе (scada-dkz1).
+        Map<Long, Boolean> latest = Map.of(8501L, true);
+
+        Map<Long, Boolean> toApply = ProjectRegistryConsumer.withVanished(latest, List.of(8501L, 42L));
+
+        assertThat(toApply).containsExactlyInAnyOrderEntriesOf(Map.of(8501L, true, 42L, false));
+    }
+
     private static ConsumerRecord<String, String> record(String key, String value) {
         return new ConsumerRecord<>("runtime.projects", 0, 0L, key, value);
     }

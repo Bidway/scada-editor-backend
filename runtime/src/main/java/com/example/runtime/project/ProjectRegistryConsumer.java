@@ -41,6 +41,7 @@ public class ProjectRegistryConsumer {
 
     private final KafkaProperties kafkaProperties;
     private final ProjectRuntimeService projectRuntimeService;
+    private final ProjectRuntimeStore projectStore;
 
     private volatile boolean running = true;
     private volatile KafkaConsumer<String, String> consumer;
@@ -123,9 +124,24 @@ public class ProjectRegistryConsumer {
             }
         }
         Map<Long, Boolean> latest = latestStates(history);
-        latest.forEach(this::apply);
+        List<Long> running = projectStore.all().stream().map(ProjectRuntime::getProjectId).toList();
+        withVanished(latest, running).forEach(this::apply);
         log.info("Реестр активных проектов прочитан: {} записей, {} проектов, в эксплуатации {}",
                 history.size(), latest.size(), latest.values().stream().filter(Boolean::booleanValue).count());
+    }
+
+    /**
+     * Итог догонки плюс выключение поднятых проектов, о которых в топике не осталось ни одной
+     * записи. Догонка идёт не только на старте: надзорный цикл пересоздаёт потребителя после
+     * сбоя, и если за время простоя проект выключили, а компактация уже вычистила его tombstone,
+     * ключа в топике нет вовсе — без этого проект продолжал бы крутиться выключенным (scada-dkz1).
+     */
+    static Map<Long, Boolean> withVanished(Map<Long, Boolean> latest, java.util.Collection<Long> running) {
+        Map<Long, Boolean> result = new LinkedHashMap<>(latest);
+        for (Long projectId : running) {
+            result.putIfAbsent(projectId, false);
+        }
+        return result;
     }
 
     /**
