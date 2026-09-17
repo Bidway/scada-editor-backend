@@ -18,6 +18,9 @@ public class KafkaProperties {
 
     /** Компактный топик активных проектов: его пишет editor, ключ — projectId. */
     private String projectsTopic = "runtime.projects";
+
+    /** Компактный топик определений фоновых задач: пишет editor, ключ — projectId. */
+    private String automationDefinitionsTopic = "automation.definitions";
     /** Топик команд шлюза (обратное направление: запись тега в ПЛК). Имя задаёт шлюз. */
     private String commandsTopic = "scada-commands";
 
@@ -65,6 +68,14 @@ public class KafkaProperties {
 
     public void setConsumerGroupId(String consumerGroupId) {
         this.consumerGroupId = consumerGroupId;
+    }
+
+    public String getAutomationDefinitionsTopic() {
+        return automationDefinitionsTopic;
+    }
+
+    public void setAutomationDefinitionsTopic(String automationDefinitionsTopic) {
+        this.automationDefinitionsTopic = automationDefinitionsTopic;
     }
 
     public String getProjectsTopic() {

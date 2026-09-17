@@ -28,7 +28,8 @@ class ProjectRuntimeServiceTest {
         ProcedureExecutionService procedures = mock(ProcedureExecutionService.class);
         ProjectRuntimeService service = new ProjectRuntimeService(editor, mock(TagValueRouter.class), store,
                 mock(DriverLeaseService.class), procedures,
-                mock(com.example.runtime.session.RuntimeSessionService.class));
+                mock(com.example.runtime.session.RuntimeSessionService.class),
+                mock(com.example.runtime.automation.engine.AutomationEngine.class));
 
         service.activate(8501L);
 

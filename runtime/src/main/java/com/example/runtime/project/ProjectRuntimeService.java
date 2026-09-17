@@ -1,5 +1,6 @@
 package com.example.runtime.project;
 
+import com.example.runtime.automation.engine.AutomationEngine;
 import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.kafka.TagValueRouter;
@@ -28,6 +29,7 @@ public class ProjectRuntimeService {
     private final DriverLeaseService leases;
     private final ProcedureExecutionService procedures;
     private final RuntimeSessionService sessions;
+    private final AutomationEngine automation;
 
     public void activate(Long projectId) {
         if (store.get(projectId) != null) {
@@ -63,6 +65,8 @@ public class ProjectRuntimeService {
         // Незавершённые мойки продолжаются с сохранённого шага. Действия шага не
         // переприменяются: объект уже в этом состоянии.
         procedures.restore(projectId);
+        // Фоновые задачи — часть проекта: поднимаются вместе с ним, если есть определения.
+        automation.projectActivated(projectId);
     }
 
     public void deactivate(Long projectId) {
@@ -70,6 +74,9 @@ public class ProjectRuntimeService {
         if (project == null) {
             return;
         }
+        // Сначала задачи: проект уже убран из стора, такты больше ничего не пишут, а память задач
+        // сбрасывается в базу до снятия тегов.
+        automation.projectDeactivated(projectId);
         procedures.persistAll(projectId);
         tagValueRouter.unregisterProject(project);
         // Мониторы отпускаются явно: иначе они остались бы подключены к этому объекту, а
