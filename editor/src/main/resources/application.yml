@@ -54,3 +54,5 @@ editor:
     # один Kafka-кластер на сервис, топик отдельный, компактный.
     topic: ${RUNTIME_PROJECTS_TOPIC:runtime.projects}
     resync-interval-ms: 60000
+    # false — флаг хранится, но в топик не публикуется (тестовый профиль).
+    publish-enabled: true

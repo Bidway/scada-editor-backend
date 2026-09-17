@@ -31,6 +31,13 @@ public class ProjectRuntimeService {
         if (store.get(projectId) != null) {
             return;
         }
+        // Запись в топике — только повод проверить. Решает таблица editor: иначе застрявшая в
+        // компактном топике запись поднимала бы проект, который никто не включал.
+        if (!editorClient.isInOperation(projectId)) {
+            log.warn("Проект {} в реестре runtime.projects помечен в эксплуатацию, но в editor выключен — не поднимаю",
+                    projectId);
+            return;
+        }
         EditorComponentDto tree = editorClient.getProjectTree(projectId);
         if (tree == null) {
             log.warn("Проект {} помечен в эксплуатацию, но editor его не отдаёт — пропускаю", projectId);

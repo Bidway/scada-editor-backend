@@ -43,6 +43,18 @@ public class EditorClient {
                 .body(EditorComponentDto.class);
     }
 
+    /**
+     * Введён ли проект в эксплуатацию — по таблице editor, а не по топику. Топик только сигнал:
+     * в нём может остаться запись, которой в editor уже нет (scada-ocqj).
+     */
+    public boolean isInOperation(Long projectId) {
+        JsonNode flag = restClient.get()
+                .uri("/api/editor/projects/{id}/runtime", projectId)
+                .retrieve()
+                .body(JsonNode.class);
+        return flag != null && flag.path("inOperation").asBoolean(false);
+    }
+
     /** Таблицы данных проекта — ответ {@code GET /api/editor/projects/{id}/data} как есть. */
     public JsonNode getProjectData(Long projectId) {
         log.debug("Fetching project data {} from editor", projectId);

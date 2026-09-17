@@ -34,17 +34,20 @@ public class RuntimeProjectsPublisher {
     private final AutomationKafkaProperties kafkaProperties;
     private final KafkaProducer<String, String> producer;
     private final String topic;
+    private final boolean enabled;
 
     // producer собирается так же, как в AutomationDefinitionsPublisher: тот же набор свойств
     // и тот же жизненный цикл (создаётся с бином, закрывается перед уничтожением).
     public RuntimeProjectsPublisher(ProjectRuntimeFlagRepository repository,
                                      AutomationTopicInitializer topicInitializer,
                                      AutomationKafkaProperties kafkaProperties,
-                                     @Value("${editor.runtime-projects.topic}") String topic) {
+                                     @Value("${editor.runtime-projects.topic}") String topic,
+                                     @Value("${editor.runtime-projects.publish-enabled:true}") boolean enabled) {
         this.repository = repository;
         this.topicInitializer = topicInitializer;
         this.kafkaProperties = kafkaProperties;
         this.topic = topic;
+        this.enabled = enabled;
 
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
@@ -66,6 +69,11 @@ public class RuntimeProjectsPublisher {
     }
 
     public void publish(Long projectId, boolean inOperation) {
+        // Выключается в тестовом профиле: тесты editor поднимают контекст с настоящим адресом
+        // брокера, и прогон ProjectRuntimeApiIT включал проект 8501 на стенде (scada-ocqj).
+        if (!enabled) {
+            return;
+        }
         // Топик размечается тем же способом, что automation.definitions (AutomationTopicInitializer):
         // на стенде включено автосоздание топиков, и первый же send без явной разметки создал бы
         // runtime.projects с одной партицией и без compact.

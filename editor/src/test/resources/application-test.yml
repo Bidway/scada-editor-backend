@@ -18,3 +18,7 @@ editor:
     retention-cron: "0 0 0 29 2 ?"
   recipes:
     storage-path: ./build/test-data/recipes
+  runtime-projects:
+    # Тесты не должны публиковать флаги «в эксплуатации» в Kafka: адрес брокера в тестах —
+    # настоящий localhost:9092, и runtime на стенде поднимал бы проекты из тестовой базы.
+    publish-enabled: false
