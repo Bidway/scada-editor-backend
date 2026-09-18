@@ -317,8 +317,11 @@ public class ScriptEngineService {
         if (scriptSource == null || scriptSource.isBlank()) {
             return props;
         }
-        Source source = sourceCache.computeIfAbsent(scriptSource,
-                s -> Source.create("js", s));
+        // Своя область видимости, как у runCondition: контексты пула переиспользуются, и const/let
+        // верхнего уровня оставались в глобальной области — повторный запуск в том же контексте
+        // падал «Variable "x" has already been declared» (scada-7khg). Заодно разрешён return.
+        String wrapped = "(function(){ " + scriptSource + "\n})()";
+        Source source = sourceCache.computeIfAbsent(wrapped, s -> Source.create("js", s));
 
         ScriptWriteSinks sinks = writeSinks != null ? writeSinks : ScriptWriteSinks.NOOP;
         Borrowed borrowed = borrow(forAction);

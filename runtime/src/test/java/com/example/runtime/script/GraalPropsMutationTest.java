@@ -31,6 +31,7 @@ class GraalPropsMutationTest {
     void setUp() {
         RuntimeProperties properties = new RuntimeProperties();
         properties.getScript().setContextPoolSize(1);
+        properties.getScript().setActionReservePoolSize(1);
         properties.getScript().setOnChangeThreads(1);
         engine = new ScriptEngineService(properties);
         engine.initPool();
@@ -116,5 +117,32 @@ class GraalPropsMutationTest {
         assertThat(original)
                 .as("прежний список отвязан от props и меняться не должен")
                 .containsExactly(1, 2, 3);
+    }
+
+    @Test
+    @DisplayName("Object.keys и JSON.stringify по props видят ключи (scada-yk3)")
+    void keysOfProps_areVisibleToScript() {
+        Map<String, Object> props = new LinkedHashMap<>();
+        props.put("obj", new LinkedHashMap<>(Map.of("a", 1)));
+
+        engine.runAction("props.keys = Object.keys(props.obj).join(','); props.json = JSON.stringify(props.obj);",
+                props, ScriptWriteSinks.NOOP);
+
+        assertThat(props.get("keys")).isEqualTo("a");
+        assertThat(props.get("json")).isEqualTo("{\"a\":1}");
+    }
+
+    @Test
+    @DisplayName("const на верхнем уровне переживает повторный запуск в том же контексте (scada-7khg)")
+    void topLevelConst_survivesSecondRunInSameContext() {
+        // Резерв ACTION из одного контекста: второй запуск гарантированно идёт в тот же — ровно
+        // так повторное нажатие кнопки падало с «Variable "x" has already been declared».
+        String script = "const x = 1; props.v = (props.v || 0) + x;";
+        Map<String, Object> props = new LinkedHashMap<>();
+
+        engine.runAction(script, props, ScriptWriteSinks.NOOP);
+        engine.runAction(script, props, ScriptWriteSinks.NOOP);
+
+        assertThat(((Number) props.get("v")).intValue()).isEqualTo(2);
     }
 }
