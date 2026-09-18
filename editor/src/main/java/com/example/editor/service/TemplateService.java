@@ -44,7 +44,7 @@ public class TemplateService {
         templateRepository.save(template);
 
         TemplateResponseDto response = toResponse(template);
-        response.setVersion_no(snapshot(template.getId(), userName, kind));
+        response.setVersion_no(snapshot(template.getId(), userName, kind, null));
         return response;
     }
 
@@ -86,7 +86,9 @@ public class TemplateService {
         templateRepository.save(template);
 
         TemplateResponseDto response = toResponse(template);
-        response.setVersion_no(snapshot(templateId, userName, kind));
+        // Восстановление пишет поверх текущей без базы клиента — как у сцен.
+        Integer base = kind == VersionKind.RESTORE ? null : dto.getBased_on_version();
+        response.setVersion_no(snapshot(templateId, userName, kind, base));
         return response;
     }
 
@@ -95,9 +97,10 @@ public class TemplateService {
         return updateTemplate(templateId, dto, userName, VersionKind.MANUAL);
     }
 
-    private Integer snapshot(Long templateId, String userName, VersionKind kind) {
+    /** {@code basedOnVersion} ложится в историю, как у сцен (scada-8nz); у создания базы нет. */
+    private Integer snapshot(Long templateId, String userName, VersionKind kind, Integer basedOnVersion) {
         return versionService.record(DocumentType.TEMPLATE, templateId,
-                templateDocumentSource.contentOf(templateId), userName, kind, null).getVersionNo();
+                templateDocumentSource.contentOf(templateId), userName, kind, null, basedOnVersion).getVersionNo();
     }
 
     public void deleteTemplate(Long templateId, String userName) {

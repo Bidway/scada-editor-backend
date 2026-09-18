@@ -192,4 +192,18 @@ class TemplateVersionIT extends EditorApiTestSupport {
                         .content(treeWithSaveKind("20", "RESTORE")))
                 .andExpect(status().isBadRequest());
     }
+
+    /** scada-8nz: у сцен based_on_version в истории заполнен, у шаблонов был всегда null. */
+    @Test
+    void updateRecordsItsBaseVersion() throws Exception {
+        long templateId = createTemplate(tree("10"));
+
+        mockMvc.perform(put("/api/editor/templates/" + templateId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(treeWithBase("20", 1)))
+                .andExpect(status().isOk());
+
+        assertThat(versionsOf(templateId).get(0).getBasedOnVersion()).isEqualTo(1);
+    }
 }
