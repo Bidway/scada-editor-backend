@@ -371,4 +371,32 @@ class SceneMergerTreeTest {
                 .as("моя правка обязана остаться моей, а не подмениться чужой строкой")
                 .contains("МОЁ();");
     }
+
+    /**
+     * scada-bnr: моя одноимённая копия без id получает в byKey свой ключ, а order() выдавал ей
+     * ключ оригинала — список порядка с дублем и ложный конфликт children_order при чужой
+     * перестановке, которой я не противоречил.
+     */
+    @Test
+    void sameNamedRowWithoutId_doesNotFakeOrderConflict() {
+        List<ComponentCreateDto> base = List.of(component(5L, "X"), component(6L, "Y"));
+        List<ComponentCreateDto> mine = List.of(component(5L, "X"), component(null, "X"), component(6L, "Y"));
+        List<ComponentCreateDto> theirs = List.of(component(6L, "Y"), component(5L, "X"));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.isClean()).as("порядок я не трогал — конфликта порядка быть не может").isTrue();
+    }
+
+    /** scada-ksa: строка без id, добавленная выше существующей, после слияния уезжала вниз. */
+    @Test
+    void newRowAboveExistingOne_keepsMyOrder() {
+        List<ComponentCreateDto> base = List.of(component(3L, "Y"));
+        List<ComponentCreateDto> mine = List.of(component(null, "X"), component(3L, "Y"));
+        List<ComponentCreateDto> theirs = List.of(component(3L, "Y"));
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.merged()).extracting(ComponentCreateDto::getName).containsExactly("X", "Y");
+    }
 }

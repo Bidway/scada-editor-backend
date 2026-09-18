@@ -236,25 +236,40 @@ public class SceneMerger {
      * сторонах, то есть остаётся тем, чем и выглядит: отдельным добавлением.
      */
     private <T> Map<String, T> byKey(List<T> rows, RowSpec<T> spec, Map<String, String> alias) {
+        List<T> list = nullToEmpty(rows);
+        List<String> keys = keysInOrder(list, spec, alias);
         Map<String, T> byKey = new java.util.LinkedHashMap<>();
-        Set<String> claimed = new java.util.HashSet<>();
-        for (T row : nullToEmpty(rows)) {
-            if (spec.idOf().apply(row) != null) {
-                String key = keyOf(row, spec, alias);
-                byKey.put(key, row);
-                claimed.add(key);
-            }
-        }
-        for (T row : nullToEmpty(rows)) {
-            if (spec.idOf().apply(row) != null) {
-                continue;
-            }
-            String nameKey = "name:" + nameKeyOf(row, spec);
-            String aliased = aliasFor(alias, nameKey);
-            String key = aliased != null && claimed.add(aliased) ? aliased : freeKey(nameKey, claimed);
-            byKey.put(key, row);
+        for (int i = 0; i < list.size(); i++) {
+            byKey.put(keys.get(i), list.get(i));
         }
         return byKey;
+    }
+
+    /**
+     * Ключи строк в их исходном порядке. Раздаются в два прохода — сначала строки с id, потом без
+     * (см. {@link #byKey}), — но результат выровнен по списку: карта в два прохода переставляла мою
+     * новую строку без id под строки с id (scada-ksa). Этим же ключам следует и {@link #order}:
+     * он считал их заново, без защиты от столкновения, и одноимённая копия получала ключ оригинала
+     * — дубль в порядке и ложный конфликт children_order (scada-bnr).
+     */
+    private <T> List<String> keysInOrder(List<T> rows, RowSpec<T> spec, Map<String, String> alias) {
+        String[] keys = new String[rows.size()];
+        Set<String> claimed = new java.util.HashSet<>();
+        for (int i = 0; i < rows.size(); i++) {
+            if (spec.idOf().apply(rows.get(i)) != null) {
+                keys[i] = keyOf(rows.get(i), spec, alias);
+                claimed.add(keys[i]);
+            }
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            if (keys[i] != null) {
+                continue;
+            }
+            String nameKey = "name:" + nameKeyOf(rows.get(i), spec);
+            String aliased = aliasFor(alias, nameKey);
+            keys[i] = aliased != null && claimed.add(aliased) ? aliased : freeKey(nameKey, claimed);
+        }
+        return java.util.Arrays.asList(keys);
     }
 
     /** Первый незанятый ключ на основе имени: сама строка, а не её однофамилец. */
@@ -620,8 +635,6 @@ public class SceneMerger {
     }
 
     private List<String> order(List<ComponentCreateDto> components, Map<String, String> alias) {
-        return nullToEmpty(components).stream()
-                .map(component -> keyOf(component, COMPONENTS, alias))
-                .collect(Collectors.toList());
+        return new ArrayList<>(keysInOrder(nullToEmpty(components), COMPONENTS, alias));
     }
 }
