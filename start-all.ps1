@@ -300,7 +300,8 @@ function Start-GatewayNative([string]$DbUrl, [switch]$ForceRestart) {
     }
     $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
                -ErrorAction SilentlyContinue |
-           Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+           Where-Object { $_.Name -notmatch 'sources|javadoc' } |
+               Sort-Object LastWriteTime -Descending | Select-Object -First 1  # свежий, а не первый по алфавиту (scada-c9t)
     $jdk = $null
     # controllers.yaml лежит в ресурсах jar: правка тегов или адреса контроллера без пересборки
     # молча не применяется. 15.09.2026 так шлюз после переноса PAC на 10001 ходил на старый 10000,
@@ -326,7 +327,8 @@ function Start-GatewayNative([string]$DbUrl, [switch]$ForceRestart) {
         $env:JAVA_HOME = $saved
         $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
                    -ErrorAction SilentlyContinue |
-               Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+               Where-Object { $_.Name -notmatch 'sources|javadoc' } |
+               Sort-Object LastWriteTime -Descending | Select-Object -First 1  # свежий, а не первый по алфавиту (scada-c9t)
     }
     if (-not $jar) {
         Err 'Сборка шлюза не дала jar — смотри вывод maven выше'
@@ -489,7 +491,8 @@ if ($Mode -eq 'docker') {
         # Образ шлюза тоже копирует готовый jar — собираем его тем же правилом.
         $jar = Get-ChildItem -Path (Join-Path $GatewayDir 'SCADA-gateway\target') -Filter 'SCADA-gateway-*.jar' `
                    -ErrorAction SilentlyContinue |
-               Where-Object { $_.Name -notmatch 'sources|javadoc' } | Select-Object -First 1
+               Where-Object { $_.Name -notmatch 'sources|javadoc' } |
+               Sort-Object LastWriteTime -Descending | Select-Object -First 1  # свежий, а не первый по алфавиту (scada-c9t)
         if (-not $jar) {
             $jdk = Resolve-Jdk21
             if (-not $jdk) {
