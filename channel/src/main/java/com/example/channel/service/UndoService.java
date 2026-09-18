@@ -50,8 +50,7 @@ public class UndoService {
      */
     @Transactional
     public void undoBatch(UUID batchId, String userName) {
-        List<CommandLog> logs = commandLogRepository
-                .findByBatchIdAndUndoneAtIsNullOrderBySequenceDescIdDesc(batchId);
+        List<CommandLog> logs = commandLogRepository.findByBatchIdForUpdate(batchId);
 
         if (logs.isEmpty()) {
             throw new NotFoundException("Batch not found or already undone: " + batchId);

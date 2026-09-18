@@ -34,7 +34,7 @@ class UndoExecutor {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void undoOne(Long logId, String userName) {
-        CommandLog log = commandLogRepository.findById(logId)
+        CommandLog log = commandLogRepository.findByIdForUpdate(logId)
                 .orElseThrow(() -> new IllegalStateException("Log not found: " + logId));
         if (log.getUndoneAt() != null) {
             throw new IllegalStateException("Log already undone: " + log.getId());
