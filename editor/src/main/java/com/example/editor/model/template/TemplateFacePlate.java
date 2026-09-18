@@ -1,5 +1,7 @@
 package com.example.editor.model.template;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,6 +25,8 @@ public class TemplateFacePlate {
     private String type;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "root_component_id")
+    @JoinColumn(name = "root_component_id")
+    // Правило удаления из рабочей базы — в коде, чтобы чистая схема его повторяла (scada-854).
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private TemplateComponent rootComponent;
 }

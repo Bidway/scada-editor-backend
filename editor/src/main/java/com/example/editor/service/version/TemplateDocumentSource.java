@@ -1,5 +1,6 @@
 package com.example.editor.service.version;
 
+import com.example.editor.exception.NotFoundException;
 import com.example.editor.dto.template.TemplateCreateDto;
 import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
@@ -49,7 +50,7 @@ public class TemplateDocumentSource implements DocumentSource {
     @Transactional(readOnly = true)
     public JsonNode contentOf(Long templateId) {
         TemplateFacePlate template = templateRepository.findById(templateId)
-                .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId));
+                .orElseThrow(() -> new NotFoundException("Template not found: " + templateId));
 
         TemplateResponseDto dto = new TemplateResponseDto();
         dto.setId(template.getId());

@@ -1,5 +1,6 @@
 package com.example.editor.service;
 
+import com.example.editor.exception.NotFoundException;
 import com.example.editor.dto.template.TemplateCreateDto;
 import com.example.editor.dto.template.TemplateResponseDto;
 import com.example.editor.mapper.TemplateComponentMapper;
@@ -67,7 +68,7 @@ public class TemplateService {
             versionService.requireBase(DocumentType.TEMPLATE, templateId, dto.getBased_on_version());
         }
         TemplateFacePlate template = templateRepository.findById(templateId)
-                .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId));
+                .orElseThrow(() -> new NotFoundException("Template not found: " + templateId));
 
         template.setName(dto.getName());
         template.setType(dto.getType());
@@ -109,7 +110,7 @@ public class TemplateService {
 
     public TemplateResponseDto getTemplateById(Long templateId) {
         return toResponse(templateRepository.findById(templateId)
-                .orElseThrow(() -> new IllegalStateException("Template not found: " + templateId)));
+                .orElseThrow(() -> new NotFoundException("Template not found: " + templateId)));
     }
 
     /**

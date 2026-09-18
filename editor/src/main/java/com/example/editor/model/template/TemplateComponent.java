@@ -1,5 +1,7 @@
 package com.example.editor.model.template;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,14 +50,18 @@ public class TemplateComponent {
     private List<TemplateComponentEvent> events = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "template_id", nullable = false)
+    @JoinColumn(name = "template_id", nullable = false)
+    // Правило удаления из рабочей базы — в коде, чтобы чистая схема его повторяла (scada-854).
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private TemplateFacePlate template;
 
     @Column(name = "template_id", insertable = false, updatable = false)
     private Long templateId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
+    @JoinColumn(name = "parent_id")
+    // Правило удаления из рабочей базы — в коде, чтобы чистая схема его повторяла (scada-854).
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private TemplateComponent parent;
 
     @Column(name = "parent_id", insertable = false, updatable = false)

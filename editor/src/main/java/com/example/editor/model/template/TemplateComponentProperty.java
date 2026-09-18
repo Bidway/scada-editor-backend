@@ -1,5 +1,7 @@
 package com.example.editor.model.template;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,7 +19,9 @@ public class TemplateComponentProperty {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "component_id", nullable = false)
+    @JoinColumn(name = "component_id", nullable = false)
+    // Без каскада на чистой схеме удаление шаблона падает на FK (scada-854).
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private TemplateComponent component;
 
     private String tagId;

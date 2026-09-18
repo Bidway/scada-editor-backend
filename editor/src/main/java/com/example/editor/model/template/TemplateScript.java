@@ -1,5 +1,7 @@
 package com.example.editor.model.template;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,7 +18,9 @@ public class TemplateScript {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "component_id", nullable = false)
+    @JoinColumn(name = "component_id", nullable = false)
+    // Правило удаления из рабочей базы — в коде, чтобы чистая схема его повторяла (scada-854).
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private TemplateComponent component;
 
     @Column(nullable = false)

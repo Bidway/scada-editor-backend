@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -218,5 +219,19 @@ class TemplateSaveIT extends EditorApiTestSupport {
         JsonNode afterEvent = afterRoot.get("events").get(0);
         assertThat(afterEvent.get("id").asLong()).isEqualTo(eventId);
         assertThat(afterEvent.get("script").asText()).isEqualTo("runScript('Открыть клапан v2');");
+    }
+
+    /**
+     * scada-854: удаление шаблона держится на ON DELETE CASCADE внешних ключей свойств и состояний.
+     * В рабочей базе он был выставлен руками; на чистой (Testcontainers, новый стенд) ddl-auto
+     * создавал FK без каскада, и удаление шаблона со свойствами и состояниями падало.
+     */
+    @Test
+    void deletingTemplateWithPropertiesAndStates_worksOnFreshSchema() throws Exception {
+        long templateId = createTemplate(tree("10", "return 1;")).get("id").asLong();
+
+        mockMvc.perform(delete("/api/editor/templates/" + templateId).header("X-Username", USER))
+                .andExpect(status().is2xxSuccessful());
+        mockMvc.perform(get("/api/editor/templates/" + templateId)).andExpect(status().isNotFound());
     }
 }
