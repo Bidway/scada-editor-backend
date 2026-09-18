@@ -336,6 +336,7 @@ public class ScriptEngineService {
                 ctx.getBindings("js").putMember("writeProjectTag", writeTagFunction(sinks.byProjectTag()));
                 // Контекст общий с runCondition: без сброса скрипту компонента достался бы ридер,
                 // замкнутый на сессию чужой процедуры (readProjectTag — тот же случай, scada-re9).
+                ctx.getBindings("js").putMember("readProjectTag", null);
                 ctx.getBindings("js").putMember("readProjectProperty", null);
                 ctx.getBindings("js").putMember("data", new DataFunction(data));
                 ctx.eval(source);

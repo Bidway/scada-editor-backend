@@ -133,6 +133,19 @@ class GraalPropsMutationTest {
     }
 
     @Test
+    @DisplayName("on_change не видит readProjectTag, оставленный в контексте условием шага (scada-re9)")
+    void onChange_doesNotInheritConditionTagReader() {
+        // Пул из одного контекста: on_change гарантированно берёт тот, где только что было условие.
+        engine.runCondition("return readProjectTag('X') === 1;", 0, false, path -> 1, (c, p) -> null);
+        Map<String, Object> props = new LinkedHashMap<>();
+
+        engine.runOnChange("props.leaked = typeof readProjectTag === 'function';", null, props,
+                ScriptWriteSinks.NOOP, com.example.scriptcore.ProjectData.EMPTY);
+
+        assertThat(props.get("leaked")).isEqualTo(false);
+    }
+
+    @Test
     @DisplayName("const на верхнем уровне переживает повторный запуск в том же контексте (scada-7khg)")
     void topLevelConst_survivesSecondRunInSameContext() {
         // Резерв ACTION из одного контекста: второй запуск гарантированно идёт в тот же — ровно
