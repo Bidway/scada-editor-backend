@@ -61,4 +61,43 @@ class RuntimeSessionServiceTest {
         assertThat(sessions.get("foreign")).isNotNull();
         assertThat(project.sessions()).isEmpty();
     }
+
+    /**
+     * scada-d76n: значения свойств общие на проект, но изменение от кнопки уходило только
+     * нажавшему — второй оператор видел старое до переподключения. Нажавшему его шлёт сам
+     * обработчик ACTION сразу, остальным — буфер, как у on_change.
+     */
+    @Test
+    void изменение_свойства_от_кнопки_видят_все_наблюдатели_проекта() {
+        TagSubscriptionIndex index = mock(TagSubscriptionIndex.class);
+        when(index.getInitialPropertyValues()).thenReturn(Map.of());
+        when(index.getScript(5L)).thenReturn(new ScriptEntry(5L, 10L, "Режим", "props.mode = 1;"));
+        when(index.propertyIdsOfComponent(10L)).thenReturn(java.util.List.of(100L));
+        when(index.propertyName(100L)).thenReturn("mode");
+        ProjectRuntime project = new ProjectRuntime(8501L, index, null);
+        RuntimeSessionStore sessions = new RuntimeSessionStore();
+        RuntimeSession pressing = new RuntimeSession("pressing", project);
+        RuntimeSession watching = new RuntimeSession("watching", project);
+        project.addObserver(pressing);
+        project.addObserver(watching);
+        sessions.put(pressing);
+        sessions.put(watching);
+        ScriptEngineService engine = mock(ScriptEngineService.class);
+        when(engine.runAction(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Map.of("mode", 1));
+        ActionDedupGuard dedup = mock(ActionDedupGuard.class);
+        when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        RuntimeSessionService service = new RuntimeSessionService(sessions, mock(ProjectRuntimeStore.class),
+                mock(TagValueRouter.class), engine, mock(TagCommandService.class), dedup,
+                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"));
+
+        assertThat(service.handleAction("pressing", 5L)).hasSize(1);
+
+        assertThat(watching.getOutboundBuffer().drainAll().properties())
+                .extracting(com.example.runtime.stream.PropertyUpdate::value).containsExactly(1);
+        assertThat(pressing.getOutboundBuffer().isEmpty())
+                .as("нажавшему обработчик шлёт сразу — второй раз из буфера не нужно")
+                .isTrue();
+    }
 }

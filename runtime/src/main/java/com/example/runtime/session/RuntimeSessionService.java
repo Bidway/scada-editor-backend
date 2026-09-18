@@ -175,6 +175,13 @@ public class RuntimeSessionService {
                 changed.add(new PropertyUpdate(propertyId, name, newValue, ts));
             }
         }
+        // Значения свойств общие на проект: остальным наблюдателям — через буфер, как у on_change.
+        // Нажавшему обработчик ACTION шлёт возвращённый список сразу (scada-d76n).
+        for (RuntimeSession other : session.getProject().sessions()) {
+            if (other != session) {
+                changed.forEach(other.getOutboundBuffer()::offerProperty);
+            }
+        }
         return changed;
     }
 
