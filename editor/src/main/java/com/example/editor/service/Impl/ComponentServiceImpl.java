@@ -376,11 +376,10 @@ public class ComponentServiceImpl implements ComponentService {
             Component component = repository.findById(id).orElse(null);
             if (component == null) {
                 // id не резолвится: компонент уже удалён (кем-то ещё, например) или никогда не
-                // существовал. Гарда для него нет и не может быть — без строки нечего сверять
-                // по версии. DELETE по такому id сегодня тихо ничего не делает (deleteById не
-                // находит строку) и отвечает 200 без всякой проверки — известная дыра, не эта
-                // задача её чинит (scada-crk).
-                continue;
+                // существовал. Раньше это был тихий 200 без проверки версии — клиент с
+                // устаревшей картиной не узнавал, что удалять нечего (scada-crk). Отказ идёт до
+                // любой записи, поэтому остальные id запроса тоже остаются на месте.
+                throw new NotFoundException("Component not found: " + id);
             }
             Long sceneId = SceneRootResolver.sceneRootIdOf(component);
             if (sceneId == null) {

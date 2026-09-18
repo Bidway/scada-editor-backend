@@ -33,4 +33,22 @@ class SceneDeleteIT extends EditorApiTestSupport {
         deleteComponents(List.of(sceneId), null)
                 .andExpect(status().isOk());
     }
+
+    /**
+     * scada-crk: удалять нечего — клиент должен это узнать, а не получить 200 без проверки версии.
+     * Отказ целиком: существующий компонент из того же запроса тоже остаётся на месте.
+     */
+    @Test
+    void deletingMissingId_answers404_andDeletesNothing() throws Exception {
+        long sceneId = newScene();
+        long pumpId = saveComponents("[{\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":"
+                + sceneId + "}]").get(0).get("id").asLong();
+
+        deleteComponents(List.of(pumpId, 999_999_999L), currentVersion(sceneId, "scenes"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/editor/components/" + pumpId))
+                .andExpect(status().isOk());
+    }
 }
