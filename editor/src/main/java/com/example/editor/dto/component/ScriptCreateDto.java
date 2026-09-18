@@ -13,5 +13,10 @@ public class ScriptCreateDto {
     private Long id;
     private String name;
     private String script;
-    private Boolean displayed;
+    /**
+     * Дефолт {@code false} совпадает с дефолтом сущности {@code Script}. Без него клиент, не
+     * приславший поле, даёт {@code null}, а снимок версии хранит {@code false} — слияние сцены
+     * считало такой скрипт изменённым и отвечало ложным {@code merge_conflict}.
+     */
+    private Boolean displayed = false;
 }
