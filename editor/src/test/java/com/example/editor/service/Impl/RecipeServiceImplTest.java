@@ -64,6 +64,30 @@ class RecipeServiceImplTest {
                 .hasMessageContaining("P_VRAB");
     }
 
+    /** scada-91r: пустой путь тега всплывал только в runtime — NPE в tagPath() вместо отказа здесь. */
+    @Test
+    void create_rejectsManifestTagWithoutPath(@TempDir Path dir) {
+        RecipeServiceImpl service = service(dir);
+        RecipeCreateDto dto = recipeWithAction("P_VRAB", 500);
+        dto.getTags().get(0).setTag(" ");
+
+        assertThatThrownBy(() -> service.create(dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("P_VRAB");
+    }
+
+    /** scada-91r: второй тег с тем же именем молча затирал первый в HashMap. */
+    @Test
+    void create_rejectsDuplicateManifestName(@TempDir Path dir) {
+        RecipeServiceImpl service = service(dir);
+        RecipeCreateDto dto = recipeWithAction("P_VRAB", 500);
+        dto.setTags(List.of(tag("P_VRAB", "number"), tag("P_VRAB", "number")));
+
+        assertThatThrownBy(() -> service.create(dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("P_VRAB");
+    }
+
     @Test
     void create_acceptsMatchingAction(@TempDir Path dir) {
         RecipeServiceImpl service = service(dir);

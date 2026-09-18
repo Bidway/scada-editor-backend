@@ -74,7 +74,17 @@ public class RecipeServiceImpl implements RecipeService {
     private void validate(RecipeResponseDto recipe) {
         Map<String, RecipeTagDto> tagsByName = new HashMap<>();
         for (RecipeTagDto tag : recipe.getTags()) {
-            tagsByName.put(tag.getName(), tag);
+            // Без этих проверок пустое имя или путь доезжали до runtime и падали там NPE в
+            // tagPath(), а дубль имени молча затирал первый тег (scada-91r).
+            if (tag.getName() == null || tag.getName().isBlank()) {
+                throw new IllegalArgumentException("Manifest tag without 'name': " + tag.getTag());
+            }
+            if (tag.getTag() == null || tag.getTag().isBlank()) {
+                throw new IllegalArgumentException("Manifest tag '" + tag.getName() + "' has no 'tag' path");
+            }
+            if (tagsByName.put(tag.getName(), tag) != null) {
+                throw new IllegalArgumentException("Manifest tag name '" + tag.getName() + "' is declared twice");
+            }
         }
         Set<String> unknown = new HashSet<>();
         for (RecipeStepDto step : recipe.getSteps()) {
