@@ -417,18 +417,24 @@ public class ComponentServiceImpl implements ComponentService {
         }
         ids.stream().filter(sceneIds::contains).forEach(vanishing::add);
         snapshotScenes(vanishing, userName, kind, basedOnVersion);
-        ids.forEach(repository::deleteById);
-        // Флаш обязателен здесь: удаление идёт через repository.deleteById,
-        // в обход графа сущностей (в отличие от deleteMissing/restore, которые чистят через
-        // orphanRemoval у живого родителя). Пока удаление не сброшено в базу, ниже
-        // sceneDocumentSource.contentOf(sceneId) лениво подгружает scene.children тем же
-        // запросом впервые за транзакцию — и, не будь явного флаша, отложенный DELETE рискует
-        // проиграть гонку каскаду cascade=ALL: Hibernate видит компонент снова в живой коллекции
-        // родителя и на очередном флаше воскрешает его вместо удаления (тот же эффект, от
-        // которого предостерегает комментарий в SceneDocumentSource.restore, только здесь на
-        // входе, а не на выходе). Явный flush() ставит DELETE в базу до этого чтения.
+        // Удаление через граф, как в deleteMissing/restore (scada-4e1): компонент выбывает из
+        // коллекции детей живого родителя, и orphanRemoval уносит его с поддеревом. Прямой
+        // deleteById шёл в обход графа: стоило чему-то в той же транзакции поднять children
+        // родителя до сброса DELETE в базу, каскад cascade=ALL воскрешал компонент на flush.
+        // У проекта родителя нет — он удаляется сам.
+        for (Long id : ids) {
+            repository.findById(id).ifPresent(component -> {
+                Component parent = component.getParent();
+                if (parent != null) {
+                    parent.getChildren().removeIf(child -> child == component);
+                } else {
+                    repository.delete(component);
+                }
+            });
+        }
+        // Флаш здесь, а не на коммите: ниже снимок сцены читает её детей из базы.
         repository.flush();
-        // Определения автоматизации лежат без FK на проект: deleteById идёт в обход графа. Чистим их
+        // Определения автоматизации лежат без FK на проект, граф компонентов их не видит. Чистим их
         // здесь же и ставим tombstone в outbox — automation остановит задачи удалённого проекта.
         projectIds.forEach(automationService::onProjectDeleted);
         projectIds.forEach(projectDataService::onProjectDeleted);
