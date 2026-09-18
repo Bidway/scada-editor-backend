@@ -233,4 +233,25 @@ class DocumentVersionApiIT extends EditorApiTestSupport {
                 .as("нижняя граница в будущем — в окно не попадает ничего")
                 .isEmpty();
     }
+
+    /** scada-qpd: границы теперь прямые сравнения — проверяем и верхнюю, и обе сразу. */
+    @Test
+    void versionList_filtersByUpperBoundAndWindow() throws Exception {
+        long sceneId = newScene();
+        saveComponents(pumpJson(sceneId, "10"));
+        String past = LocalDateTime.now().minusDays(1).toString();
+        String future = LocalDateTime.now().plusDays(1).toString();
+
+        String beforeAll = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("to", past))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(beforeAll)).as("верхняя граница в прошлом").isEmpty();
+
+        String window = mockMvc.perform(get("/api/editor/scenes/" + sceneId + "/versions")
+                        .param("from", past).param("to", future))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(window)).as("окно вокруг «сейчас»").hasSize(1);
+    }
 }

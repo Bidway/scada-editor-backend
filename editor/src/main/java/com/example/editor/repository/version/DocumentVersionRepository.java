@@ -33,28 +33,26 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
             VersionKind kind, LocalDateTime createdBefore);
 
     /**
-     * Список версий документа с необязательными фильтрами. Запрос один, а не четыре перегрузки:
-     * {@code coalesce(:from, v.createdAt)} даёт планировщику один план и избавляет от
-     * Specification ради трёх условий.
+     * Список версий документа с фильтрами. Границы периода обязательны: «не задано» вызывающий
+     * заменяет крайними датами (см. {@code DocumentVersionService.list}).
      * <p>
-     * Границы периода собраны через {@code coalesce}, а не {@code :from is null or ...}: у
-     * PostgreSQL параметр, который встречается только в сравнении с {@code null}, не имеет
-     * типового контекста — драйвер падает с «could not determine data type of parameter».
-     * {@code coalesce(:from, v.createdAt)} привязывает тип параметра к типу колонки, и при
-     * {@code from = null} условие вырождается в {@code createdAt >= createdAt}, то есть в
-     * «всегда истина» ({@code createdAt} — {@code NOT NULL}).
+     * Прежний вариант — {@code v.createdAt >= coalesce(:from, v.createdAt)} — был несаргируемым:
+     * выражение над колонкой не даёт PostgreSQL свести диапазон к index range-scan по
+     * {@code document_version_created_idx (target_type, target_id, created_at)}, и период
+     * фильтровался постфактум (scada-qpd). Идиома {@code :from is null or ...} тоже не годится —
+     * параметр, который встречается только в сравнении с {@code null}, PgJDBC не типизирует
+     * («could not determine data type of parameter»). Прямое сравнение с параметром решает оба.
      * <p>
      * У {@code kinds} проверки на null нет намеренно: пустой или null список в {@code in}
      * биндить нельзя — Hibernate сгенерирует {@code in ()} и запрос упадёт. Вместо этого
-     * вызывающий подставляет все значения перечисления, когда фильтр не задан (см.
-     * {@code DocumentVersionService.list}).
+     * вызывающий подставляет все значения перечисления, когда фильтр не задан.
      */
     @Query("""
             select v from DocumentVersion v
             where v.targetType = :targetType
               and v.targetId = :targetId
-              and v.createdAt >= coalesce(:from, v.createdAt)
-              and v.createdAt <= coalesce(:to, v.createdAt)
+              and v.createdAt >= :from
+              and v.createdAt <= :to
               and v.kind in :kinds
             order by v.versionNo desc
             """)

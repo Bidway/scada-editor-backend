@@ -208,6 +208,14 @@ public class DocumentVersionService {
         return list(targetType, targetId, null, null, null, null);
     }
 
+    /**
+     * Крайние даты вместо «граница не задана»: запрос сравнивает колонку с параметром напрямую,
+     * чтобы период шёл в диапазон индекса (scada-qpd). Обе с запасом внутри диапазона timestamp
+     * PostgreSQL.
+     */
+    private static final LocalDateTime NO_LOWER_BOUND = LocalDateTime.of(1970, 1, 1, 0, 0);
+    private static final LocalDateTime NO_UPPER_BOUND = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
     @Transactional(readOnly = true)
     public List<DocumentVersionDto> list(DocumentType targetType, Long targetId,
                                          LocalDateTime from, LocalDateTime to,
@@ -222,7 +230,8 @@ public class DocumentVersionService {
                 ? List.of(VersionKind.values())
                 : kinds;
         return repository
-                .findFiltered(targetType, targetId, from, to, effectiveKinds,
+                .findFiltered(targetType, targetId,
+                        from == null ? NO_LOWER_BOUND : from, to == null ? NO_UPPER_BOUND : to, effectiveKinds,
                         PageRequest.of(0, effectiveLimit))
                 .stream()
                 .map(v -> new DocumentVersionDto(v.getVersionNo(), v.getKind(), v.getUserName(),
