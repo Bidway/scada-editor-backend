@@ -2,6 +2,8 @@ package com.example.runtime.automation.engine;
 
 import com.example.runtime.automation.AutomationEngineProperties;
 import com.example.runtime.automation.definition.ProjectDefinitions;
+import com.example.runtime.automation.definition.TaskDefinition;
+import com.example.runtime.automation.definition.VariableDefinition;
 import com.example.runtime.automation.store.AutomationStore;
 import com.example.scriptcore.SandboxExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,6 +22,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongPredicate;
+import java.util.stream.Collectors;
 
 /**
  * Какие проекты исполняют фоновые задачи. Проект исполняет задачи, только когда выполнены оба
@@ -73,6 +78,10 @@ public class AutomationEngine {
             return;
         }
         stop(projectId);
+        // После stop: его сброс уже унёс накопленное. Такт, начавшийся до stop, ещё может дописать
+        // статус удалённой задачи — окно в длительность одного такта; такую строку уберёт следующая
+        // смена набора или перезапуск (определения догоняются из топика заново).
+        context.observer().retain(projectId, taskIdsOf(projectDefinitions), variableNamesOf(projectDefinitions));
         if (projectDefinitions == null) {
             definitions.remove(projectId);
             return;
@@ -127,6 +136,22 @@ public class AutomationEngine {
             project.stop();
             log.error("Проект {}: фоновые задачи не запущены: {}", projectId, e.getMessage(), e);
         }
+    }
+
+    private static Set<Long> taskIdsOf(ProjectDefinitions projectDefinitions) {
+        if (projectDefinitions == null) {
+            return Set.of();
+        }
+        return projectDefinitions.tasksOrEmpty().stream().map(TaskDefinition::id).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
+
+    private static Set<String> variableNamesOf(ProjectDefinitions projectDefinitions) {
+        if (projectDefinitions == null) {
+            return Set.of();
+        }
+        return projectDefinitions.variablesOrEmpty().stream().map(VariableDefinition::name)
+                .collect(Collectors.toSet());
     }
 
     /** Остановить задачи проекта и сбросить в базу всё накопленное по нему. */

@@ -7,12 +7,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Рабочее состояние фоновых задач в схеме {@code automation}. Записи идут только для проектов,
@@ -96,6 +98,32 @@ public class AutomationStore {
                     ps.setLong(4, row.projectId());
                     ps.setString(5, identity.instanceId());
                 });
+    }
+
+    /**
+     * Удалить статусы, память и значения задач и переменных проекта, которых нет в текущем наборе
+     * (scada-e17). Под тем же условием владения, что и запись: чужой проект экземпляр не трогает.
+     */
+    public void deleteObsolete(long projectId, Set<Long> taskIds, Set<String> variableNames) {
+        String owned = " AND EXISTS (SELECT 1 FROM runtime.instance_project ip "
+                + "WHERE ip.project_id = ? AND ip.instance_id = ?)";
+        for (String table : List.of("automation.task_status", "automation.task_checkpoint")) {
+            deleteExcept("DELETE FROM " + table + " WHERE project_id = ? AND NOT (task_id = ANY (?))" + owned,
+                    projectId, "bigint", taskIds.toArray());
+        }
+        deleteExcept("DELETE FROM automation.variable_value WHERE project_id = ? AND NOT (name = ANY (?))" + owned,
+                projectId, "text", variableNames.toArray());
+    }
+
+    private void deleteExcept(String sql, long projectId, String elementType, Object[] keep) {
+        jdbc.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setLong(1, projectId);
+            statement.setArray(2, connection.createArrayOf(elementType, keep));
+            statement.setLong(3, projectId);
+            statement.setString(4, identity.instanceId());
+            return statement;
+        });
     }
 
     public void saveStatuses(List<StatusRow> rows) {

@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.ToLongFunction;
 
 /**
@@ -76,6 +77,27 @@ public class StateSink implements TaskObserver {
             variables.put(projectId + ":" + name, new AutomationStore.VariableRow(projectId, name, value));
         }
         bridge.publishVariable(projectId, name, value);
+    }
+
+    /**
+     * Сначала буферы, потом база: иначе накопленный статус удалённой задачи ушёл бы следующим
+     * сбросом уже после удаления и призрак вернулся бы (scada-e17).
+     */
+    @Override
+    public void retain(long projectId, Set<Long> taskIds, Set<String> variableNames) {
+        synchronized (this) {
+            checkpoints.values().removeIf(row -> row.projectId() == projectId && !taskIds.contains(row.taskId()));
+            statuses.values().removeIf(row -> row.projectId() == projectId && !taskIds.contains(row.taskId()));
+            lastPublished.values().removeIf(update -> update.projectId() == projectId
+                    && !taskIds.contains(update.taskId()));
+            variables.values().removeIf(row -> row.projectId() == projectId && !variableNames.contains(row.name()));
+        }
+        try {
+            store.deleteObsolete(projectId, taskIds, variableNames);
+        } catch (Exception e) {
+            log.warn("Проект {}: строки удалённых задач не вычищены, останутся до следующей смены набора: {}",
+                    projectId, e.getMessage());
+        }
     }
 
     @Scheduled(fixedDelayString = "${runtime.automation.checkpoint-flush-ms:1000}")
