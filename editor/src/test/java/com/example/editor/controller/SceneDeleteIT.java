@@ -35,6 +35,27 @@ class SceneDeleteIT extends EditorApiTestSupport {
     }
 
     /**
+     * scada-5ko: один based_on_version не может описывать две сцены с независимыми счётчиками —
+     * такой DELETE отвергается целиком, как PUT, который несёт ровно одну сцену.
+     */
+    @Test
+    void deletingAcrossTwoScenes_answers400_andDeletesNothing() throws Exception {
+        long first = newScene();
+        long second = newScene();
+        long a = saveComponents("[{\"name\":\"A\",\"type\":\"valve\",\"parent_id\":" + first + "}]")
+                .get(0).get("id").asLong();
+        long b = saveComponents("[{\"name\":\"B\",\"type\":\"valve\",\"parent_id\":" + second + "}]")
+                .get(0).get("id").asLong();
+
+        deleteComponents(List.of(a, b), currentVersion(first, "scenes"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/editor/components/" + a))
+                .andExpect(status().isOk());
+    }
+
+    /**
      * scada-crk: удалять нечего — клиент должен это узнать, а не получить 200 без проверки версии.
      * Отказ целиком: существующий компонент из того же запроса тоже остаётся на месте.
      */

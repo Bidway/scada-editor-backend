@@ -396,6 +396,13 @@ public class ComponentServiceImpl implements ComponentService {
             }
             sceneIds.add(sceneId);
         }
+        // Один based_on_version не описывает две сцены: счётчики у них независимые, и номер
+        // совпадал разве что случайно — тогда удаление проходило, ничего не проверив (scada-5ko).
+        // Тот же принцип, что у PUT: запрос несёт ровно одну сцену.
+        if (sceneIds.size() > 1) {
+            throw new IllegalArgumentException("DELETE touches scenes " + sceneIds
+                    + ": based_on_version describes one scene, send one request per scene");
+        }
         for (Long sceneId : sceneIds) {
             versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
         }
