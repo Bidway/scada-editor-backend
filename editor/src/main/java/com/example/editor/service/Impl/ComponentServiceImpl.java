@@ -78,8 +78,9 @@ public class ComponentServiceImpl implements ComponentService {
                                            VersionKind kind, Integer basedOnVersion) {
         requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
-        List<ComponentResponseDto> response = componentMapper.toDtoList(repository.saveAll(prepared));
-        Integer versionNo = snapshotScenesOf(prepared, userName, kind, basedOnVersion);
+        List<Component> saved = attachToParents(repository.saveAll(prepared));
+        List<ComponentResponseDto> response = componentMapper.toDtoList(saved);
+        Integer versionNo = snapshotScenesOf(saved, userName, kind, basedOnVersion);
         return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null);
     }
 
@@ -201,7 +202,8 @@ public class ComponentServiceImpl implements ComponentService {
             deleteMissing(scene, tree);
         }
         List<Component> prepared = tree.stream().map(this::updateComponent).toList();
-        List<ComponentResponseDto> response = componentMapper.toDtoList(repository.saveAll(prepared));
+        List<Component> saved = attachToParents(repository.saveAll(prepared));
+        List<ComponentResponseDto> response = componentMapper.toDtoList(saved);
         // Сцена из конверта попадает в снимок всегда, а не только если в неё что-то записалось:
         // см. javadoc метода про пустой PUT (C-1). Сцены записанного добавляются следом ради
         // восстановления версии — оно зовёт update без scene_id, и там их больше взять негде.
@@ -209,7 +211,7 @@ public class ComponentServiceImpl implements ComponentService {
         if (sceneId != null) {
             snapshotTargets.add(sceneId);
         }
-        snapshotTargets.addAll(scenesOf(prepared));
+        snapshotTargets.addAll(scenesOf(saved));
         Integer versionNo = snapshotScenes(snapshotTargets, userName, kind, basedOnVersion);
         return new ComponentSaveResponseDto(mapper.valueToTree(response), versionNo, null,
                 mergedReport(outcome));
@@ -523,6 +525,36 @@ public class ComponentServiceImpl implements ComponentService {
 
         ComponentHierarchyValidator.validateParentForCreate(resolvedParent, dto.getType());
         return populateComponent(entity, dto, resolvedParent);
+    }
+
+    /**
+     * Обратная сторона связи родитель — ребёнок для компонента верхнего уровня. {@code
+     * populateComponent} ставит только {@code setParent}, а коллекцию {@code children} родителя
+     * пополняет лишь для вложенных детей. Если коллекцию сцены в этой транзакции уже подняли
+     * ({@code deleteMissing} при {@code PUT}), новый компонент в неё не попадал, и снимок
+     * {@code SceneDocumentSource.contentOf} собирался без него: хеш совпадал с прошлой версией,
+     * версия не писалась, откат на неё молча удалял добавленное (scada-rfcm).
+     * <p>
+     * Добавляются сущности, которые вернул {@code saveAll}, а не подготовленные: компонент с
+     * {@code version} из снимка Spring Data считает не новым и делает {@code merge}, то есть
+     * управляемой становится копия. Положи в коллекцию подготовленный экземпляр — каскад на flush
+     * вставил бы его вторым (так восстановление версии возвращало удалённый компонент дважды).
+     * Сравнение по ссылке: {@code equals} у {@code Component} не переопределён.
+     */
+    private static List<Component> attachToParents(List<Component> saved) {
+        for (Component component : saved) {
+            Component parent = component.getParent();
+            if (parent == null) {
+                continue;
+            }
+            if (parent.getChildren() == null) {
+                parent.setChildren(new ArrayList<>());
+            }
+            if (parent.getChildren().stream().noneMatch(child -> child == component)) {
+                parent.getChildren().add(component);
+            }
+        }
+        return saved;
     }
 
     /**

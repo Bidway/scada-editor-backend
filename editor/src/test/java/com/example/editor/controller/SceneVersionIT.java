@@ -242,4 +242,29 @@ class SceneVersionIT extends EditorApiTestSupport {
                 .as("номер версии — порядковый в пределах документа, а не сквозной")
                 .isEqualTo(1);
     }
+
+    /**
+     * scada-rfcm: {@code PUT} с новым компонентом в сцене, у которой уже есть дети. Чистка
+     * {@code deleteMissing} поднимает коллекцию детей сцены до записи, новый компонент в неё не
+     * попадал, и снимок собирался по устаревшей коллекции — хеш совпадал с прошлой версией,
+     * версия не писалась, а откат на неё молча удалял добавленное.
+     */
+    @Test
+    void addingComponentByPut_recordsVersionWithIt() throws Exception {
+        long sceneId = newScene();
+        long pumpId = saveComponents("[{\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":"
+                + sceneId + "}]").get(0).get("id").asLong();
+        Integer base = currentVersion(sceneId, "scenes");
+
+        JsonNode response = updateSceneResponse(sceneId, "[{\"id\":" + pumpId
+                + ",\"name\":\"Насос\",\"type\":\"valve\",\"parent_id\":" + sceneId + "},"
+                + "{\"name\":\"Клапан\",\"type\":\"valve\",\"parent_id\":" + sceneId + "}]", base);
+
+        assertThat(response.get("version_no").asInt())
+                .as("новый компонент — новое содержимое сцены, значит новая версия")
+                .isEqualTo(base + 1);
+        assertThat(versionContent(sceneId, "scenes", base + 1).get("children"))
+                .extracting(child -> child.get("name").asText())
+                .containsExactly("Насос", "Клапан");
+    }
 }
