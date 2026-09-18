@@ -208,36 +208,6 @@ public class RuntimeSessionService {
     }
 
     /**
-     * Применяет значение к строке <b>без тега</b>: писать в ПЛК нечего, поэтому значение
-     * ложится в состояние свойства в сессии и сразу уходит фронту.
-     * <p>
-     * Свойство ищется по имени, а не по id: сессия строит индекс один раз при старте и живёт с
-     * ним часами, а строку в editor за это время могут удалить и завести заново. Пришедший
-     * оттуда новый id в старом индексе не нашёлся бы, и запись молча промахнулась бы мимо строки.
-     * (Раньше промах был не краевым случаем, а нормой: пересохранение таблицы пересоздавало id
-     * всех строк разом — с 07.08.2026 они сопоставляются по имени и стабильны.)
-     *
-     * @return {@code false}, если сессии нет или в её компоненте нет такой строки
-     */
-    public boolean applyLocalProperty(String sessionId, Long componentId, String propertyName, Object value) {
-        RuntimeSession session = sessionStore.get(sessionId);
-        if (session == null) {
-            log.warn("Cannot apply local value for '{}': unknown session {}", propertyName, sessionId);
-            return false;
-        }
-        Long propertyId = session.getIndex().propertyIdOfComponentProperty(componentId, propertyName);
-        if (propertyId == null) {
-            log.warn("Cannot apply local value: component {} has no property '{}' in session {}",
-                    componentId, propertyName, sessionId);
-            return false;
-        }
-        storePropertyValue(session, propertyId, value);
-        session.getOutboundBuffer().offerProperty(
-                new PropertyUpdate(propertyId, propertyName, value, System.currentTimeMillis()));
-        return true;
-    }
-
-    /**
      * Записывает значение свойства в потокобезопасное хранилище сессии. {@code null}
      * (свойство сброшено) представляется отсутствием ключа — {@code ConcurrentHashMap}
      * не хранит null, а «нет ключа» и трактуется как «значение не задано».
