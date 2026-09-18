@@ -234,4 +234,25 @@ class TemplateSaveIT extends EditorApiTestSupport {
                 .andExpect(status().is2xxSuccessful());
         mockMvc.perform(get("/api/editor/templates/" + templateId)).andExpect(status().isNotFound());
     }
+
+    /**
+     * scada-6n7: вложенные DTO шаблона общие со сценой и несут поле id, но шаблон его не читает —
+     * сопоставление по имени (и номеру среди одноимённых). У сцены чужой id — 400; у шаблона это
+     * осознанно не ошибка: восстановление версии шлёт снимок с id, и он обязан проходить. Тест
+     * закрепляет асимметрию, чтобы её не «починили» случайно.
+     */
+    @Test
+    void nestedIdInTemplate_isIgnored_rowMatchedByName() throws Exception {
+        JsonNode created = createTemplate(tree("10", "return 1;"));
+        long templateId = created.get("id").asLong();
+        long scriptId = created.get("rootComponent").get("scripts").get(0).get("id").asLong();
+
+        String withBogusId = tree("10", "return 2;").replace(
+                "\"scripts\":[{\"name\":\"Открыть\"", "\"scripts\":[{\"id\":999999999,\"name\":\"Открыть\"");
+        JsonNode updated = updateTemplate(templateId, withBogusId);
+
+        JsonNode script = updated.get("rootComponent").get("scripts").get(0);
+        assertThat(script.get("id").asLong()).as("строка та же — нашлась по имени").isEqualTo(scriptId);
+        assertThat(script.get("script").asText()).isEqualTo("return 2;");
+    }
 }
