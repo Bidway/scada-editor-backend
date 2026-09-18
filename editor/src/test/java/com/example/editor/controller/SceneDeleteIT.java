@@ -35,6 +35,22 @@ class SceneDeleteIT extends EditorApiTestSupport {
     }
 
     /**
+     * scada-69s: удаление проекта каскадом сносит его сцены — в истории каждой обязано остаться
+     * её последнее состояние, иначе от сцены не остаётся никакого следа.
+     */
+    @Test
+    void deletingProject_leavesLastVersionOfEachScene() throws Exception {
+        long projectId = createProject("proj-" + System.nanoTime());
+        long sceneId = createScene("scene-" + System.nanoTime(), projectId);
+
+        deleteComponents(List.of(projectId), null).andExpect(status().isOk());
+
+        org.assertj.core.api.Assertions.assertThat(versionsOf(sceneId, "scenes"))
+                .as("сцена ушла вместе с проектом, но её состояние осталось в истории")
+                .hasSize(1);
+    }
+
+    /**
      * scada-5ko: один based_on_version не может описывать две сцены с независимыми счётчиками —
      * такой DELETE отвергается целиком, как PUT, который несёт ровно одну сцену.
      */

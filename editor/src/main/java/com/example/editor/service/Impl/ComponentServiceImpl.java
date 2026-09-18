@@ -406,6 +406,17 @@ public class ComponentServiceImpl implements ComponentService {
         for (Long sceneId : sceneIds) {
             versionService.requireBase(DocumentType.SCENE, sceneId, basedOnVersion);
         }
+        // Сцены, которые исчезнут целиком — каскадом с проектом или своим id прямо в запросе, —
+        // снимаются ДО удаления: после него читать нечего, а без снимка от сцены в истории не
+        // оставалось следа (scada-69s). Совпало с последней версией — дедупликация новой строки
+        // не создаст, след уже есть.
+        Set<Long> vanishing = new LinkedHashSet<>();
+        for (Long projectId : projectIds) {
+            repository.findByParentIdAndType(projectId, ComponentTypes.SCENE)
+                    .forEach(scene -> vanishing.add(scene.getId()));
+        }
+        ids.stream().filter(sceneIds::contains).forEach(vanishing::add);
+        snapshotScenes(vanishing, userName, kind, basedOnVersion);
         ids.forEach(repository::deleteById);
         // Флаш обязателен здесь: удаление идёт через repository.deleteById,
         // в обход графа сущностей (в отличие от deleteMissing/restore, которые чистят через
