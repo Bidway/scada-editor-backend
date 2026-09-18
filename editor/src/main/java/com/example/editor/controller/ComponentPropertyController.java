@@ -7,6 +7,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/editor/properties")
 @RequiredArgsConstructor
@@ -35,10 +38,11 @@ public class ComponentPropertyController {
      * причине — там тело было нужно под список ids.
      */
     @DeleteMapping("/{id}")
-    public void delete(
+    public Map<String, Integer> delete(
             @PathVariable Long id,
             @RequestParam(required = false) Integer based_on_version,
             @RequestHeader("X-Username") String userName) {
-        service.delete(id, userName, based_on_version);
+        // Номер записанной версии сцены — клиенту для следующего based_on_version (scada-6e1).
+        return Collections.singletonMap("version_no", service.delete(id, userName, based_on_version));
     }
 }

@@ -1,5 +1,6 @@
 package com.example.editor.dto.property;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 @Data
@@ -16,4 +17,12 @@ public class PropertyResponseDto {
     private boolean logging;
     // Сырой JS (см. PropertyCreateDto.onChange) — отдаётся runtime как есть.
     private String onChange;
+
+    /**
+     * Номер версии сцены, записанной этой правкой, — только в ответах эндпоинтов свойств
+     * (scada-6e1). Внутри компонента и в снимках версий не сериализуется: null там всегда, а
+     * лишнее поле поменяло бы хеш снимка.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Integer version_no;
 }

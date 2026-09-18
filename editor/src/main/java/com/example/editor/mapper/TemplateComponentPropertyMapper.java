@@ -16,6 +16,7 @@ public interface TemplateComponentPropertyMapper {
     @Mapping(target = "property_type", source = "propertyType")
     @Mapping(target = "value_type", source = "valueType")
     @Mapping(target = "default_value", source = "defaultValue")
+    @Mapping(target = "version_no", ignore = true)
     PropertyResponseDto toDto(TemplateComponentProperty entity);
 
     List<PropertyResponseDto> toDtoList(List<TemplateComponentProperty> entities);

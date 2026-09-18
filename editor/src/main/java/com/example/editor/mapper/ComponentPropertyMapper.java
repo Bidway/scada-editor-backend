@@ -38,6 +38,7 @@ public abstract class ComponentPropertyMapper {
     @Mapping(target = "property_type", source = "propertyType")
     @Mapping(target = "value_type", source = "valueType")
     @Mapping(target = "default_value", source = "defaultValue")
+    @Mapping(target = "version_no", ignore = true)
     public abstract PropertyResponseDto toDto(ComponentProperty entity);
 
     @Named("mapComponent")

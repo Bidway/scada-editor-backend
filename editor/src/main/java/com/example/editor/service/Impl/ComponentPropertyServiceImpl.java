@@ -42,7 +42,7 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
 
         PropertyResponseDto response = mapper.toDto(repository.save(entity));
 
-        snapshot(sceneId, userName, dto.getBased_on_version());
+        response.setVersion_no(snapshot(sceneId, userName, dto.getBased_on_version()));
         return response;
     }
 
@@ -76,20 +76,20 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
         mapper.updateEntity(dto, existing);
         PropertyResponseDto response = mapper.toDto(repository.save(existing));
 
-        snapshot(sceneId, userName, dto.getBased_on_version());
+        response.setVersion_no(snapshot(sceneId, userName, dto.getBased_on_version()));
         return response;
     }
 
     @Override
     @Transactional
-    public void delete(Long id, String userName, Integer basedOnVersion) {
+    public Integer delete(Long id, String userName, Integer basedOnVersion) {
         ComponentProperty existing = repository.findById(id)
                 .orElseThrow(() -> new IllegalStateException("Property not found: " + id));
         Long sceneId = SceneRootResolver.sceneRootIdOf(existing.getComponent());
         requireBase(sceneId, basedOnVersion);
 
         repository.deleteById(id);
-        snapshot(sceneId, userName, basedOnVersion);
+        return snapshot(sceneId, userName, basedOnVersion);
     }
 
     /**
@@ -145,12 +145,12 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
      * без явного сброса удаление свойства до него не доедет — снимок получится с уже удалённой
      * строкой. Та же причина, по которой флашится удаление компонентов.
      */
-    private void snapshot(Long sceneId, String userName, Integer basedOnVersion) {
+    private Integer snapshot(Long sceneId, String userName, Integer basedOnVersion) {
         if (sceneId == null) {
-            return;
+            return null;
         }
         repository.flush();
-        versionService.record(DocumentType.SCENE, sceneId, sceneDocumentSource.contentOf(sceneId),
-                userName, VersionKind.MANUAL, null, basedOnVersion);
+        return versionService.record(DocumentType.SCENE, sceneId, sceneDocumentSource.contentOf(sceneId),
+                userName, VersionKind.MANUAL, null, basedOnVersion).getVersionNo();
     }
 }

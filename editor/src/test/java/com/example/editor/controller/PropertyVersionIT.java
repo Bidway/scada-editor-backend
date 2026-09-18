@@ -162,6 +162,33 @@ class PropertyVersionIT extends EditorApiTestSupport {
      * Компонент под сценой; сцена после этого гарантированно имеет хотя бы одну версию.
      * {@code saveComponents} отдаёт уже развёрнутый массив components из конверта ответа.
      */
+    /**
+     * scada-6e1: правка свойства пишет версию сцены, но номер клиенту не возвращался — следующее
+     * сохранение сцены уходило с устаревшим based_on_version. Вычислить номер на клиенте нельзя:
+     * совпавшее содержимое версию не увеличивает.
+     */
+    @Test
+    @DisplayName("PUT и DELETE свойства возвращают номер записанной версии сцены")
+    void propertyEndpoints_returnNewSceneVersion() throws Exception {
+        long sceneId = newScene();
+        long componentId = componentInScene(sceneId);
+        long propertyId = createProperty(componentId, "speed", currentVersion(sceneId, "scenes"));
+
+        String updated = mockMvc.perform(put("/api/editor/properties/" + propertyId)
+                        .header("X-Username", USER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(propertyJson(componentId, "rate", currentVersion(sceneId, "scenes"))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(currentVersion(sceneId, "scenes"), objectMapper.readTree(updated).get("version_no").asInt());
+
+        String deleted = mockMvc.perform(delete("/api/editor/properties/" + propertyId)
+                        .header("X-Username", USER)
+                        .param("based_on_version", String.valueOf(currentVersion(sceneId, "scenes"))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(currentVersion(sceneId, "scenes"), objectMapper.readTree(deleted).get("version_no").asInt());
+    }
     private long componentInScene(long sceneId) throws Exception {
         JsonNode saved = saveComponents("""
                 [{"name": "pump", "type": "group", "parent_id": %d}]
