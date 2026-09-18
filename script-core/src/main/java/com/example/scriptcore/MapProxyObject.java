@@ -1,6 +1,7 @@
 package com.example.scriptcore;
 
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
 import java.util.Map;
@@ -40,7 +41,9 @@ public final class MapProxyObject implements ProxyObject {
 
     @Override
     public Object getMemberKeys() {
-        return map.keySet().toArray(new String[0]);
+        // Java-массив контекст с HostAccess.NONE отвергает: Object.keys/JSON.stringify(props)
+        // падали (scada-yk3). ProxyArray — как у ReadOnlyMapProxy.
+        return ProxyArray.fromArray(map.keySet().toArray());
     }
 
     @Override
