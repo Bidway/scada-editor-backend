@@ -75,6 +75,15 @@ public class UndoService {
                 .map(CommandLog::getId)
                 .toList();
 
+        // findAllById молча отбрасывает id, которых нет в журнале: без этого такой id не попадал
+        // ни в отмену, ни в ответ, и вызывающий считал, что всё отменено (scada-thq).
+        for (Long id : commandLogIds) {
+            if (!orderedIds.contains(id) && !failedIds.contains(id)) {
+                failedIds.add(id);
+                log.warn("Запись журнала {} не найдена — отменять нечего", id);
+            }
+        }
+
         for (Long id : orderedIds) {
             try {
                 undoExecutor.undoOne(id, userName);
