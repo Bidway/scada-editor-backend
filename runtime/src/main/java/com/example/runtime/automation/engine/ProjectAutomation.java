@@ -41,10 +41,12 @@ final class ProjectAutomation {
         data = holder;
         holder.start();
         VariableBoard variables = new VariableBoard(initialVariables(projectId));
-        OutputWriter outputs = new OutputWriter(context.commands());
+        OutputWriter outputs = new OutputWriter(context.commands(), context.tags(), System::currentTimeMillis);
 
         for (TaskDefinition task : definitions.tasksOrEmpty()) {
             task.inputsOrEmpty().stream().map(IoDefinition::tag).forEach(watchedTags::add);
+            // Выходы тоже: по их телеметрии OutputWriter видит чужую запись в тег (scada-cre).
+            task.outputsOrEmpty().stream().map(IoDefinition::tag).forEach(watchedTags::add);
         }
         context.tags().watch(watchedTags);
 
