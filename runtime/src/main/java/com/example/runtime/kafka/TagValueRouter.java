@@ -129,6 +129,11 @@ public class TagValueRouter {
         return state != null ? state.snapshot.value() : null;
     }
 
+    /** Отслеживается ли тег вообще: не отслеживаемый {@link #lastValue} вернёт null всегда. */
+    public boolean isTracked(String tagId) {
+        return tagId != null && tagStates.containsKey(tagId);
+    }
+
     @EventListener
     public void onMessage(KafkaTagMessageEvent event) {
         String tagId = event.key();

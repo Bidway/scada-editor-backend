@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,6 +55,9 @@ public class ProcedureExecutionService {
             new com.fasterxml.jackson.databind.ObjectMapper();
 
     private final Map<ExecutionKey, ProcedureExecution> executions = new ConcurrentHashMap<>();
+
+    /** Пути, о которых уже предупредили (scada-ccq): условие шага читает их раз в такт. */
+    private final Set<String> untrackedConditionTags = ConcurrentHashMap.newKeySet();
 
     // Тот же приём, что OnChangeDispatcher в TagValueRouter: onProjectTagChanged приходит
     // синхронно с треда kafka-tags-consumer (Spring ApplicationEventPublisher по умолчанию
@@ -480,11 +484,25 @@ public class ProcedureExecutionService {
         return null;
     }
 
+    /**
+     * Тег, которого нет ни на одной сцене проекта, runtime не отслеживает, и readProjectTag
+     * возвращал null молча: сравнение давало false навсегда, шаг висел без единой строки в логе
+     * (scada-ccq). Предупреждение — один раз на проект и путь, иначе условие раз в такт зальёт лог.
+     */
+    private Object readConditionTag(ProjectRuntime project, EditorRecipeStepDto step, String path) {
+        String tagId = project.getIndex().resolveTagPath(path);
+        if (!tagValueRouter.isTracked(tagId)
+                && untrackedConditionTags.add(project.getProjectId() + ":" + tagId)) {
+            log.warn("Проект {}: шаг '{}' читает тег {} — его нет ни на одной сцене проекта, runtime его не"
+                    + " отслеживает, readProjectTag вернёт null", project.getProjectId(), step.getName(), tagId);
+        }
+        return TagValueRouter.coerceTagValue(tagValueRouter.lastValue(tagId));
+    }
+
     private boolean evaluateCondition(ProjectRuntime project, EditorRecipeStepDto step, long elapsedMs, boolean confirmed) {
         try {
             return scriptEngineService.runCondition(step.getCondition_script(), elapsedMs, confirmed,
-                    path -> TagValueRouter.coerceTagValue(
-                            tagValueRouter.lastValue(project.getIndex().resolveTagPath(path))),
+                    path -> readConditionTag(project, step, path),
                     (componentName, propertyName) -> readProjectProperty(project, step, componentName, propertyName),
                     project.getProjectData());
         } catch (Exception e) {
