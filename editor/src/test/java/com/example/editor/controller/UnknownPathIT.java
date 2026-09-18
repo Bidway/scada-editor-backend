@@ -24,6 +24,16 @@ class UnknownPathIT extends EditorApiTestSupport {
         mockMvc.perform(get("/actuator/health")).andExpect(status().isNotFound());
     }
 
+    /** scada-o8d5: без X-Username изменяющий эндпоинт отдавал 500. */
+    @Test
+    void missingUsernameHeader_answers400() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/editor/components/scene")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"s\",\"project_id\":1}"))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test
     void unsupportedMethod_answers405() throws Exception {
         mockMvc.perform(patch("/api/editor/components")).andExpect(status().isMethodNotAllowed());

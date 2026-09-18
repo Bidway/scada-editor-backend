@@ -8,6 +8,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -112,6 +114,15 @@ public class GlobalExceptionHandler {
         body.put("error", "project_data_invalid");
         body.put("errors", ex.getErrors());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * Нет обязательного параметра или заголовка ({@code X-Username}), параметр не того типа — ошибка
+     * клиента, а не падение сервера (scada-o8d5). Так же, как в runtime.
+     */
+    @ExceptionHandler({ServletRequestBindingException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<Map<String, Object>> handleBadRequestShape(Exception ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     /** Неизвестный путь (опечатка у клиента, {@code /actuator/health} без actuator) — не падение сервера (scada-i2n). */

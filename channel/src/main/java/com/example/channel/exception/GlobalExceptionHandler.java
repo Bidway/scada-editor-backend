@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
@@ -43,6 +45,15 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return buildResponse(HttpStatus.BAD_REQUEST, message.isBlank() ? "Validation failed" : message);
+    }
+
+    /**
+     * Нет обязательного параметра или заголовка ({@code X-Username}), параметр не того типа — ошибка
+     * клиента, а не падение сервера (scada-o8d5). Так же, как в runtime.
+     */
+    @ExceptionHandler({ServletRequestBindingException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<Map<String, Object>> handleBadRequestShape(Exception ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     /** Неизвестный путь (опечатка у клиента, {@code /actuator/health} без actuator) — не падение сервера (scada-i2n). */
