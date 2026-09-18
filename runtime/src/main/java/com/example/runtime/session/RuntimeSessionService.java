@@ -171,7 +171,7 @@ public class RuntimeSessionService {
             }
             Object newValue = after.get(name);
             if (!Objects.equals(before.get(name), newValue)) {
-                storePropertyValue(session, propertyId, newValue);
+                session.getProject().putPropertyValue(propertyId, newValue);
                 changed.add(new PropertyUpdate(propertyId, name, newValue, ts));
             }
         }
@@ -205,19 +205,6 @@ public class RuntimeSessionService {
             result.add(new TagSnapshot(tagId, tagValueRouter.lastValue(tagId)));
         }
         return result;
-    }
-
-    /**
-     * Записывает значение свойства в потокобезопасное хранилище сессии. {@code null}
-     * (свойство сброшено) представляется отсутствием ключа — {@code ConcurrentHashMap}
-     * не хранит null, а «нет ключа» и трактуется как «значение не задано».
-     */
-    private static void storePropertyValue(RuntimeSession session, Long propertyId, Object value) {
-        if (value == null) {
-            session.getProject().getPropertyValues().remove(propertyId);
-        } else {
-            session.getProject().getPropertyValues().put(propertyId, value);
-        }
     }
 
     public record SessionBootstrap(RuntimeSession session, EditorComponentDto projectTree) {

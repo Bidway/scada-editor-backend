@@ -30,6 +30,7 @@ public class ProjectRuntimeService {
     private final RuntimeSessionService sessions;
     private final AutomationEngine automation;
     private final AssignmentState assignments;
+    private final PropertyValueStore propertyValues;
 
     public void activate(Long projectId) {
         if (store.get(projectId) != null) {
@@ -55,7 +56,19 @@ public class ProjectRuntimeService {
         TagSubscriptionIndex index = TagSubscriptionIndex.build(tree, projectId);
         ProjectData projectData = ProjectData.parse(editorClient.getProjectData(projectId));
         ProjectRuntime project = new ProjectRuntime(projectId, tree, index, projectData);
-
+        // Значения, которые скрипты записали до перезапуска, — поверх default_value (scada-vrkf).
+        // Свойство, которого в дереве больше нет, пропускается: его строка — мусор прошлой версии.
+        try {
+            propertyValues.load(projectId).forEach((propertyId, value) -> {
+                if (index.propertyName(propertyId) != null) {
+                    project.getPropertyValues().put(propertyId, value);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("Проект {}: сохранённые значения свойств не загружены, остаются default_value: {}",
+                    projectId, e.getMessage());
+        }
+        project.setPropertyValueSink((propertyId, value) -> propertyValues.record(projectId, propertyId, value));
         store.put(project);
         tagValueRouter.registerProject(project);
         log.info("Проект {} поднят: {} тегов", projectId, index.getAllTagIds().size());
@@ -92,6 +105,8 @@ public class ProjectRuntimeService {
         if (project == null) {
             return;
         }
+        // Последние значения свойств — в базу сейчас, пока проект ещё назначен этому экземпляру.
+        propertyValues.flushProject(projectId);
         // Сначала задачи: проект уже убран из стора, такты больше ничего не пишут, а память задач
         // сбрасывается в базу до снятия тегов.
         automation.projectDeactivated(projectId);

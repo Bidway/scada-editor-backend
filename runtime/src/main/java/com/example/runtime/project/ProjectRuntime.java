@@ -56,6 +56,33 @@ public class ProjectRuntime {
         this.propertyValues = new ConcurrentHashMap<>(index.getInitialPropertyValues());
     }
 
+    /** Получатель изменений значений свойств — для сохранения в базу (scada-vrkf). */
+    @FunctionalInterface
+    public interface PropertyValueSink {
+        void changed(Long propertyId, Object value);
+    }
+
+    /** По умолчанию изменения никуда не уходят: так проект собирают тесты. */
+    private volatile PropertyValueSink propertyValueSink = (propertyId, value) -> {
+    };
+
+    public void setPropertyValueSink(PropertyValueSink sink) {
+        this.propertyValueSink = sink;
+    }
+
+    /**
+     * Единственная точка записи значения свойства скриптом ({@code on_change}, кнопка): карта в
+     * памяти плюс отметка для сохранения. {@code null} — свойство сброшено: {@code ConcurrentHashMap}
+     * не хранит null, отсутствие ключа и значит «не задано».
+     */
+    public void putPropertyValue(Long propertyId, Object value) {
+        if (value == null) {
+            propertyValues.remove(propertyId);
+        } else {
+            propertyValues.put(propertyId, value);
+        }
+        propertyValueSink.changed(propertyId, value);
+    }
     public void replaceProjectData(ProjectData projectData) {
         this.projectData = projectData;
     }

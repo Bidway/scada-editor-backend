@@ -277,25 +277,13 @@ public class TagValueRouter {
             }
             Object newValue = after.get(name);
             if (!java.util.Objects.equals(before.get(name), newValue)) {
-                storePropertyValue(project, propertyId, newValue);
+                project.putPropertyValue(propertyId, newValue);
                 PropertyUpdate update = new PropertyUpdate(propertyId, name, newValue, ts);
                 // Свойство посчитано один раз, а увидеть его должны все наблюдатели проекта.
                 for (RuntimeSession session : project.sessions()) {
                     session.getOutboundBuffer().offerProperty(update);
                 }
             }
-        }
-    }
-
-    /**
-     * Записывает значение свойства в общее состояние проекта. {@code null} (свойство сброшено
-     * скриптом) представляется отсутствием ключа — {@code ConcurrentHashMap} не хранит null.
-     */
-    private static void storePropertyValue(ProjectRuntime project, Long propertyId, Object value) {
-        if (value == null) {
-            project.getPropertyValues().remove(propertyId);
-        } else {
-            project.getPropertyValues().put(propertyId, value);
         }
     }
 

@@ -4,6 +4,16 @@ CREATE SCHEMA IF NOT EXISTS runtime;
 
 -- Схема automation: рабочее состояние фоновых задач. Раньше ей владел сервис automation.
 CREATE SCHEMA IF NOT EXISTS automation;
+-- Значения свойств проекта, которые пишут скрипты (on_change, кнопки). В памяти runtime они
+-- живут в ProjectRuntime.propertyValues; без этой таблицы перезапуск возвращал режимы и флаги
+-- скриптов к default_value (scada-vrkf). Значение telemetry-тегов сюда не пишется.
+CREATE TABLE IF NOT EXISTS runtime.property_value (
+    project_id  bigint      NOT NULL,
+    property_id bigint      NOT NULL,
+    value       jsonb       NOT NULL,
+    updated_at  timestamptz NOT NULL,
+    PRIMARY KEY (project_id, property_id)
+);
 
 CREATE TABLE IF NOT EXISTS automation.task_checkpoint (
     project_id      bigint      NOT NULL,

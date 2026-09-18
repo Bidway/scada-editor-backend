@@ -37,7 +37,8 @@ class ProjectRuntimeServiceTest {
         ProjectRuntimeService service = new ProjectRuntimeService(editor, mock(TagValueRouter.class), store,
                 procedures,
                 mock(com.example.runtime.session.RuntimeSessionService.class),
-                mock(com.example.runtime.automation.engine.AutomationEngine.class), assignments);
+                mock(com.example.runtime.automation.engine.AutomationEngine.class), assignments,
+                mock(PropertyValueStore.class));
 
         service.activate(8501L);
 
@@ -78,13 +79,51 @@ class ProjectRuntimeServiceTest {
         assertThat(alkali(store.get(8501L).getProjectData())).isEqualTo(1.5);
     }
 
+    /**
+     * scada-vrkf: значения, записанные скриптами до перезапуска, возвращаются при подъёме проекта
+     * поверх default_value; свойство, которого в дереве больше нет, отбрасывается; новая запись
+     * скриптом уходит в хранилище.
+     */
+    @Test
+    void подъём_проекта_возвращает_сохранённые_значения_свойств() {
+        EditorClient editor = mock(EditorClient.class);
+        when(editor.isInOperation(8501L)).thenReturn(true);
+        com.example.runtime.client.dto.EditorComponentDto root = new com.example.runtime.client.dto.EditorComponentDto();
+        root.setId(1L);
+        root.setType("project");
+        com.example.runtime.client.dto.EditorComponentDto table = new com.example.runtime.client.dto.EditorComponentDto();
+        table.setId(2L);
+        table.setType("table");
+        table.setName("Режим");
+        com.example.runtime.client.dto.EditorPropertyDto mode = new com.example.runtime.client.dto.EditorPropertyDto();
+        mode.setId(10L);
+        mode.setName("mode");
+        mode.setDefault_value("0");
+        table.setProperties(java.util.List.of(mode));
+        root.setChildren(java.util.List.of(table));
+        when(editor.getProjectTree(8501L)).thenReturn(root);
+        PropertyValueStore saved = mock(PropertyValueStore.class);
+        when(saved.load(8501L)).thenReturn(java.util.Map.of(10L, "Щелочь", 99L, "удалённое свойство"));
+        ProjectRuntimeStore store = new ProjectRuntimeStore();
+        AssignmentState assignments = new AssignmentState();
+        assignments.update(java.util.List.of(), java.util.Set.of(8501L));
+
+        new ProjectRuntimeService(editor, mock(TagValueRouter.class), store, mock(ProcedureExecutionService.class),
+                mock(RuntimeSessionService.class), mock(AutomationEngine.class), assignments, saved)
+                .activate(8501L);
+
+        ProjectRuntime project = store.get(8501L);
+        assertThat(project.getPropertyValues()).containsEntry(10L, "Щелочь").doesNotContainKey(99L);
+        project.putPropertyValue(10L, "Кислота");
+        verify(saved).record(8501L, 10L, "Кислота");
+    }
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private static ProjectRuntimeService service(EditorClient editor, ProjectRuntimeStore store,
                                                  AutomationEngine automation) {
         return new ProjectRuntimeService(editor, mock(TagValueRouter.class), store,
                 mock(ProcedureExecutionService.class), mock(RuntimeSessionService.class), automation,
-                new AssignmentState());
+                new AssignmentState(), mock(PropertyValueStore.class));
     }
 
     private static String tablesWithAlkali(String value) {
