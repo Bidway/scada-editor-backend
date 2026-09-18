@@ -519,32 +519,37 @@ public class SceneMerger {
                 continue;
             }
             ComponentCreateDto merged = resolution.value();
+            // Чужой компонент, добавленный целиком, — одна строка отчёта (scada-lm8): его строки и
+            // дети уже описаны фактом добавления. Рекурсия нужна по-прежнему — ею собирается дерево, —
+            // гасятся только записи в changes. Конфликтов внутри такого компонента не бывает: ни у меня,
+            // ни в базе его нет.
+            List<MergeChange> nested = b == null && m == null ? new ArrayList<>() : changes;
             merged.setProperties(mergeRows(rows(b, ComponentCreateDto::getProperties),
                     rows(m, ComponentCreateDto::getProperties),
                     rows(t, ComponentCreateDto::getProperties),
-                    PROPERTIES, componentPath, conflicts, changes));
+                    PROPERTIES, componentPath, conflicts, nested));
             merged.setScripts(mergeRows(rows(b, ComponentCreateDto::getScripts),
                     rows(m, ComponentCreateDto::getScripts),
                     rows(t, ComponentCreateDto::getScripts),
-                    SCRIPTS, componentPath, conflicts, changes));
+                    SCRIPTS, componentPath, conflicts, nested));
             merged.setStates(mergeRows(rows(b, ComponentCreateDto::getStates),
                     rows(m, ComponentCreateDto::getStates),
                     rows(t, ComponentCreateDto::getStates),
-                    STATES, componentPath, conflicts, changes));
+                    STATES, componentPath, conflicts, nested));
             merged.setEvents(mergeRows(rows(b, ComponentCreateDto::getEvents),
                     rows(m, ComponentCreateDto::getEvents),
                     rows(t, ComponentCreateDto::getEvents),
-                    EVENTS, componentPath, conflicts, changes));
+                    EVENTS, componentPath, conflicts, nested));
             merged.setBindings(mergeRows(rows(b, ComponentCreateDto::getBindings),
                     rows(m, ComponentCreateDto::getBindings),
                     rows(t, ComponentCreateDto::getBindings),
-                    BINDINGS, componentPath, conflicts, changes));
+                    BINDINGS, componentPath, conflicts, nested));
             List<String> childOrder = checkChildrenOrder(b, m, t, componentPath, conflicts);
             merged.setChildren(applyOrder(mergeComponents(
                     rows(b, ComponentCreateDto::getChildren),
                     rows(m, ComponentCreateDto::getChildren),
                     rows(t, ComponentCreateDto::getChildren),
-                    componentPath, conflicts, changes), childOrder));
+                    componentPath, conflicts, nested), childOrder));
             result.add(merged);
         }
         return result;

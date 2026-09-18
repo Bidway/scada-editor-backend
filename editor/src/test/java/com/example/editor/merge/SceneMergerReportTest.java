@@ -94,4 +94,37 @@ class SceneMergerReportTest {
                 .as("конфликт отменяет сохранение целиком — отчитываться не о чем")
                 .isEmpty();
     }
+
+    /**
+     * scada-lm8: чужой компонент, добавленный целиком, — одна строка отчёта. Его скрипты и дети
+     * уже описаны фактом добавления родителя; раньше каждая вложенная строка давала свою запись,
+     * и компонент с десятью строками превращал отчёт в шум.
+     */
+    @Test
+    void theirWholeNewComponent_isOneReportLine() {
+        List<ComponentCreateDto> base = List.of(pump("Насос", 10L, "return 1;"));
+        List<ComponentCreateDto> mine = List.of(pump("Насос", 10L, "return 1;"));
+        ComponentCreateDto valve = pump("Клапан", 20L, "return 2;");
+        valve.setId(2L);
+        ScriptCreateDto close = new ScriptCreateDto();
+        close.setId(21L);
+        close.setName("Закрыть");
+        close.setScript("return 3;");
+        valve.getScripts().add(close);
+        ComponentCreateDto lamp = pump("Лампа", 30L, "return 4;");
+        lamp.setId(3L);
+        valve.setChildren(new ArrayList<>(List.of(lamp)));
+        List<ComponentCreateDto> theirs = List.of(pump("Насос", 10L, "return 1;"), valve);
+
+        SceneMerge result = merger.merge(base, mine, theirs);
+
+        assertThat(result.merged()).extracting(ComponentCreateDto::getName).contains("Клапан");
+        assertThat(result.merged().get(1).getScripts()).as("дерево собрано целиком").hasSize(2);
+        assertThat(result.merged().get(1).getChildren()).hasSize(1);
+        assertThat(result.changes()).singleElement().satisfies(change -> {
+            assertThat(change.entity()).isEqualTo("component");
+            assertThat(change.path()).isEqualTo("Клапан");
+            assertThat(change.change()).isEqualTo(ChangeKind.ADDED);
+        });
+    }
 }
