@@ -5,6 +5,7 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -145,6 +146,15 @@ public final class SandboxExecutor implements AutoCloseable {
                 .option("engine.WarnInterpreterOnly", "false")
                 .build();
         ctx.eval("js", "(function(){ var warm = { a: [1, 2] }; return warm.a.length; })()");
+        // Первый проброс Java-исключения через host-функцию на свежем контексте тоже медленный:
+        // без этого первый такт с ошибкой data()/write() падал по таймауту, а не со своей
+        // причиной (scada-9d6). Прогреваем тот же путь и убираем функцию из привязок.
+        Value bindings = ctx.getBindings("js");
+        bindings.putMember("__warmThrow", (ProxyExecutable) args -> {
+            throw new IllegalStateException("warm-up");
+        });
+        ctx.eval("js", "try { __warmThrow(); } catch (e) { e.message; }");
+        bindings.removeMember("__warmThrow");
         return ctx;
     }
 
