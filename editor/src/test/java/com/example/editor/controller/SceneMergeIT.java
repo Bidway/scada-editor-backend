@@ -8,6 +8,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -208,5 +210,51 @@ class SceneMergeIT extends EditorApiTestSupport {
         assertThat(objectMapper.readTree(body).get("error").asText())
                 .as("базы для слияния нет — слить не от чего, но это не 500")
                 .isEqualTo("version_mismatch");
+    }
+
+    /**
+     * scada-ddk: два настоящих одновременных PUT от одной базы. Гард версии читал без блокировки:
+     * сохранение, успевшее закоммититься внутри нашей записи, не замечалось, и его правка
+     * затиралась нашей с ответом 200. С блокировкой строки сцены второе ждёт первое и сливается.
+     */
+    @Test
+    void twoConcurrentSaves_bothChangesSurvive() throws Exception {
+        for (int round = 0; round < 5; round++) {
+            long sceneId = newScene();
+            JsonNode created = saveComponents(pumpAndValve(sceneId, null, "a()", null, "b()"));
+            long pumpId = created.get(0).get("id").asLong();
+            long valveId = created.get(1).get("id").asLong();
+            Integer base = currentVersion(sceneId, "scenes");
+
+            java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            java.util.concurrent.Future<Integer> mine = pool.submit(() -> {
+                start.await();
+                return mockMvc.perform(put("/api/editor/components")
+                                .header("X-Username", USER)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(envelope(sceneId, pumpAndValve(sceneId, pumpId, "МОЁ()", valveId, "b()"),
+                                        base, "MANUAL")))
+                        .andReturn().getResponse().getStatus();
+            });
+            java.util.concurrent.Future<Integer> theirs = pool.submit(() -> {
+                start.await();
+                return mockMvc.perform(put("/api/editor/components")
+                                .header("X-Username", USER)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(envelope(sceneId, pumpAndValve(sceneId, pumpId, "a()", valveId, "ИХ()"),
+                                        base, "MANUAL")))
+                        .andReturn().getResponse().getStatus();
+            });
+            start.countDown();
+            assertThat(List.of(mine.get(), theirs.get())).as("раунд " + round).containsOnly(200);
+            pool.shutdown();
+
+            JsonNode scene = getComponent(sceneId);
+            assertThat(scene.get("children").get(0).get("scripts").get(0).get("script").asText())
+                    .as("раунд " + round + ": правка насоса уцелела").isEqualTo("МОЁ()");
+            assertThat(scene.get("children").get(1).get("scripts").get(0).get("script").asText())
+                    .as("раунд " + round + ": правка клапана уцелела").isEqualTo("ИХ()");
+        }
     }
 }

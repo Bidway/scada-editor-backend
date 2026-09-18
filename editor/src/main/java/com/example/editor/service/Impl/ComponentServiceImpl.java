@@ -250,7 +250,7 @@ public class ComponentServiceImpl implements ComponentService {
      * принцип, только на входе в {@code update}, до любой записи.
      */
     private Component requireScene(Long sceneId) {
-        Component scene = repository.findById(sceneId)
+        Component scene = repository.findByIdForUpdate(sceneId)
                 .orElseThrow(() -> new NotFoundException("Scene not found: " + sceneId));
         if (!ComponentTypes.SCENE.equals(scene.getType())) {
             throw new IllegalArgumentException(
