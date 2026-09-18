@@ -66,6 +66,27 @@ public class ProjectRuntimeService {
         automation.projectActivated(projectId);
     }
 
+    /**
+     * Перечитать таблицы данных проекта из editor. Снимок подменяется у самого проекта — его
+     * читают скрипты кнопок, {@code on_change} и условия шагов процедур, — а у фоновых задач свой
+     * снимок, его перечитывает {@link AutomationEngine}.
+     * <p>
+     * Запрос в editor синхронный: оператор, сохранивший таблицу, должен узнать, что данные не
+     * доехали. При ошибке исключение уходит вызывающему, прежний снимок остаётся.
+     *
+     * @return {@code false}, если проект этим экземпляром не поднят
+     */
+    public boolean reloadData(Long projectId) {
+        ProjectRuntime project = store.get(projectId);
+        if (project == null) {
+            return false;
+        }
+        project.replaceProjectData(ProjectData.parse(editorClient.getProjectData(projectId)));
+        automation.reloadData(projectId);
+        log.info("Проект {}: данные проекта перечитаны", projectId);
+        return true;
+    }
+
     public void deactivate(Long projectId) {
         ProjectRuntime project = store.remove(projectId);
         if (project == null) {

@@ -31,7 +31,13 @@ public class ProjectRuntime {
      */
     private final EditorComponentDto tree;
     private final TagSubscriptionIndex index;
-    private final ProjectData projectData;
+    /**
+     * Снимок таблиц данных проекта. Заменяемый: правку таблиц скрипты кнопок и шаги процедур
+     * обязаны увидеть без снятия флага «в эксплуатации» — иначе кнопка, подгружающая готовый
+     * вариант уставок, писала бы в ПЛК старые значения (scada-zd1w). Сам снимок неизменяемый,
+     * поэтому достаточно {@code volatile}: читатель видит либо старый, либо новый целиком.
+     */
+    private volatile ProjectData projectData;
     private final Map<Long, Object> propertyValues;
 
     private final Map<String, RuntimeSession> observers = new ConcurrentHashMap<>();
@@ -48,6 +54,10 @@ public class ProjectRuntime {
         this.index = index;
         this.projectData = projectData;
         this.propertyValues = new ConcurrentHashMap<>(index.getInitialPropertyValues());
+    }
+
+    public void replaceProjectData(ProjectData projectData) {
+        this.projectData = projectData;
     }
 
     public void addObserver(RuntimeSession session) {
