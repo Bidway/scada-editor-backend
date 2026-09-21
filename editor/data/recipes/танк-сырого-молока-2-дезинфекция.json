@@ -111,6 +111,21 @@
     "tag" : "Барановичи-1.BN1_MCA1.Параметры_линии_1.OBJECT1.RT_PAR_F[4]",
     "value_type" : "number",
     "description" : "P_VRAB — заданный объём операции, л"
+  }, {
+    "name" : "ALARM",
+    "tag" : "var:ALARM_LINE1",
+    "value_type" : "string",
+    "description" : "Активная авария линии 1 — ставит процедуру на паузу (пишет задача «Аварии линии 1»)"
+  }, {
+    "name" : "ARM_OBJECT_OS",
+    "tag" : "var:ARM_OBJECT_OS_LINE1",
+    "value_type" : "number",
+    "description" : "Взвод аварии «пропала готовность объекта»: номер DI, 0 — снять"
+  }, {
+    "name" : "ARM_NO_RETURN",
+    "tag" : "var:ARM_NO_RETURN_LINE1",
+    "value_type" : "number",
+    "description" : "Взвод аварии «нет потока на возврате»: 1 — взвести, 0 — снять"
   } ],
   "steps" : [ {
     "name" : "0. Ожидание готовности танка №2 (DI1102, P_OS=1102)",
@@ -224,6 +239,9 @@
     }, {
       "tag" : "VRAB",
       "value" : 80
+    }, {
+      "tag" : "ARM_OBJECT_OS",
+      "value" : 1102
     } ],
     "condition_script" : "var on=function(p){var v=readProjectTag(p);return v===true||v==1;};return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
     "timeout_ms" : 300000
@@ -456,8 +474,11 @@
     "action" : [ {
       "tag" : "RET",
       "value" : 1
+    }, {
+      "tag" : "ARM_NO_RETURN",
+      "value" : 1
     } ],
-    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var fs=readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\");return confirmed || (v !== null && v >= 1210 && (fs == 1 || elapsedMs >= 271000));",
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var fs=readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\");return confirmed || (v !== null && v >= 1210 && fs == 1);",
     "timeout_ms" : 275000
   }, {
     "name" : "65. Заполнение бачка водой перед циркуляцией",
@@ -503,6 +524,9 @@
     }, {
       "tag" : "VRAB",
       "value" : 80
+    }, {
+      "tag" : "ARM_NO_RETURN",
+      "value" : 0
     } ],
     "condition_script" : "var on=function(p){var v=readProjectTag(p);return v===true||v==1;};return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
     "timeout_ms" : 300000
@@ -916,13 +940,19 @@
     "action" : [ {
       "tag" : "RET",
       "value" : 1
+    }, {
+      "tag" : "ARM_NO_RETURN",
+      "value" : 1
     } ],
-    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var fs=readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\");return confirmed || (v !== null && v >= 1210 && (fs == 1 || elapsedMs >= 271000));",
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var fs=readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\");return confirmed || (v !== null && v >= 1210 && fs == 1);",
     "timeout_ms" : 275000
   }, {
     "name" : "86-сброс. Сброс счётчика объёма (cnt->start в _Init*)",
     "action" : [ {
       "tag" : "FQT",
+      "value" : 0
+    }, {
+      "tag" : "ARM_NO_RETURN",
       "value" : 0
     } ],
     "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (v !== null && v < 40);",
@@ -1119,8 +1149,27 @@
     }, {
       "tag" : "VRAB",
       "value" : 0
+    }, {
+      "tag" : "ARM_OBJECT_OS",
+      "value" : 0
     } ],
     "condition_script" : "",
     "timeout_ms" : null
+  } ],
+  "pause_action" : [ {
+    "tag" : "NP",
+    "value" : 0
+  }, {
+    "tag" : "RET",
+    "value" : 0
+  }, {
+    "tag" : "V13",
+    "value" : 0
+  }, {
+    "tag" : "ZAD_FLOW",
+    "value" : 0
+  }, {
+    "tag" : "ZAD_PODOGR",
+    "value" : 0
   } ]
 }
