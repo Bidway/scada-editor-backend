@@ -284,6 +284,24 @@ public class ProcedureExecutionService {
         return value == null || value.toString().isBlank() ? null : value.toString();
     }
 
+    /**
+     * Переменная {@code PAUSE} на каждом такте сверяется с состоянием процедуры. Разовой записи при
+     * паузе мало: после перезапуска runtime процедура может встать раньше, чем загрузятся определения
+     * автоматизации, — запись тогда не проходит, и оператор видел бы стоящую мойку без причины.
+     */
+    private void syncPauseReason(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution) {
+        String path = tagPath(recipe, PAUSE_ALIAS);
+        if (path == null || !path.startsWith(VAR_PREFIX)) {
+            return;
+        }
+        String variable = path.substring(VAR_PREFIX.length());
+        String expected = execution.paused() && execution.pauseReason() != null ? execution.pauseReason() : "";
+        Object current = procedureVariables.read(project.getProjectId(), variable);
+        if (current != null && !expected.equals(current.toString())) {
+            procedureVariables.write(project.getProjectId(), variable, expected);
+        }
+    }
+
     /** Причина паузы в переменную записи {@code PAUSE} манифеста; пустая строка — процедура идёт. */
     private void writePauseReason(ProjectRuntime project, EditorRecipeDto recipe, String reason) {
         String path = tagPath(recipe, PAUSE_ALIAS);
@@ -505,6 +523,7 @@ public class ProcedureExecutionService {
                     if (!execution.paused()) {
                         pauseOnAlarm(project, recipe, execution);
                     }
+                    syncPauseReason(project, recipe, execution);
                     advanceWhileConditionMet(project, recipe, execution, Initiator.RUNTIME);
                     checkStalled(project, recipe, entry.getKey().recipeId(), execution);
                 }

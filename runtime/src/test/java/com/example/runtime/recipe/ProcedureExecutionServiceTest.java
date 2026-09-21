@@ -261,6 +261,10 @@ class ProcedureExecutionServiceTest {
         // Авария ушла сама (пауза выключила насос) — причина паузы остаётся видна оператору.
         vars.put("ALARM_L1", "");
         assertThat(vars.get("PAUSE_L1")).asString().contains("Нет расхода на подаче");
+        // Запись причины могла не пройти (перезапуск, автоматизация ещё не поднята) — такт её восстанавливает.
+        vars.put("PAUSE_L1", "");
+        service.runTick();
+        assertThat(vars.get("PAUSE_L1")).asString().contains("Нет расхода на подаче");
         vars.put("ALARM_L1", "Нет расхода на подаче");
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> service.resume(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester"))
