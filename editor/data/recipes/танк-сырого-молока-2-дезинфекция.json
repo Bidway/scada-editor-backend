@@ -80,25 +80,40 @@
     "name" : "RET",
     "tag" : "Барановичи-1.BN1_MCA1.DO_ST.LINE1DO1102.ST",
     "value_type" : "number",
-    "description" : "Управление возвратным насосом (P_N_UPR=1102)"
+    "description" : "Возвратный насос объекта (P_N_UPR=1102)"
   }, {
     "name" : "CIP_END",
     "tag" : "Барановичи-1.BN1_MCA1.DO_ST.LINE1DO1103.ST",
     "value_type" : "number",
-    "description" : "Сигнал «Мойка окончена» (1103)"
+    "description" : "Сигнал «мойка окончена» (1103)"
   }, {
     "name" : "MEDIUM",
     "tag" : "Барановичи-1.BN1_MCA1.DO_ST.LINE1DO1104.ST",
     "value_type" : "number",
-    "description" : "Сигнал «Смена среды» (1104)"
+    "description" : "Сигнал «смена среды» (1104)"
   }, {
     "name" : "FQT",
     "tag" : "Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V",
     "value_type" : "number",
-    "description" : "Счётчик объёма линии LINE1FQT1, л (обнуляется на старте шага)"
+    "description" : "Счётчик объёма LINE1FQT1, л (сбрасывается на старте операции)"
+  }, {
+    "name" : "ZAD_PODOGR",
+    "tag" : "Барановичи-1.BN1_MCA1.Параметры_линии_1.OBJECT1.RT_PAR_F[2]",
+    "value_type" : "number",
+    "description" : "P_ZAD_PODOGR — задание подогрева, °C"
+  }, {
+    "name" : "ZAD_FLOW",
+    "tag" : "Барановичи-1.BN1_MCA1.Параметры_линии_1.OBJECT1.RT_PAR_F[3]",
+    "value_type" : "number",
+    "description" : "P_ZAD_FLOW — задание расхода, м³/ч"
+  }, {
+    "name" : "VRAB",
+    "tag" : "Барановичи-1.BN1_MCA1.Параметры_линии_1.OBJECT1.RT_PAR_F[4]",
+    "value_type" : "number",
+    "description" : "P_VRAB — заданный объём операции, л"
   } ],
   "steps" : [ {
-    "name" : "0. Ожидание готовности танка №2 (DI1102)",
+    "name" : "0. Ожидание готовности танка №2 (DI1102, P_OS=1102)",
     "action" : [ {
       "tag" : "V0",
       "value" : 0
@@ -153,11 +168,20 @@
     }, {
       "tag" : "CIP_END",
       "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 0
     } ],
     "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1102.ST\") == 1;",
     "timeout_ms" : null
   }, {
-    "name" : "61. Заполнение бачка водой",
+    "name" : "61. Заполнение бачка водой (80 л выше LM)",
     "action" : [ {
       "tag" : "V0",
       "value" : 1
@@ -165,34 +189,130 @@
       "tag" : "V1",
       "value" : 1
     }, {
-      "tag" : "V11",
-      "value" : 1
-    } ],
-    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
-    "timeout_ms" : 300000
-  }, {
-    "name" : "62. Подача V1=665 л на танк",
-    "action" : [ {
-      "tag" : "V11",
+      "tag" : "V2",
       "value" : 0
     }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 1
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "NP",
+      "value" : 0
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 80
+    } ],
+    "condition_script" : "var on=function(p){var v=readProjectTag(p);return v===true||v==1;};return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "62а-сброс. Сброс счётчика объёма (cnt->start в _Init*)",
+    "action" : [ {
       "tag" : "FQT",
+      "value" : 0
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (v !== null && v < 10);",
+    "timeout_ms" : 15000
+  }, {
+    "name" : "62а. Подача V1 на танк: первые 40 л без возвратного насоса",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : 1
+    }, {
+      "tag" : "V1",
+      "value" : 1
+    }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
       "value" : 0
     }, {
       "tag" : "V5",
       "value" : 1
     }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
       "tag" : "V7",
       "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
     }, {
       "tag" : "NP",
       "value" : 1
     }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 28
+    }, {
+      "tag" : "VRAB",
+      "value" : 665
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 40);",
+    "timeout_ms" : 12000
+  }, {
+    "name" : "62б. Подача V1 на танк: с возвратным насосом до 625 л",
+    "action" : [ {
       "tag" : "RET",
       "value" : 1
     } ],
-    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 665);",
-    "timeout_ms" : 171000
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 625);",
+    "timeout_ms" : 152000
+  }, {
+    "name" : "62в. Подача V1 на танк: последние 40 л до 665 л, возврат выключен",
+    "action" : [ {
+      "tag" : "RET",
+      "value" : 0
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 665);",
+    "timeout_ms" : 12000
   }, {
     "name" : "63. Опорожнение танка (смена среды)",
     "action" : [ {
@@ -202,127 +322,457 @@
       "tag" : "V1",
       "value" : 0
     }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
+      "value" : 1
+    }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
+      "tag" : "V7",
+      "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
       "tag" : "NP",
       "value" : 0
     }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
       "tag" : "MEDIUM",
       "value" : 1
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 0
     } ],
     "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1118.ST\") == 1 || (elapsedMs >= 12000 && readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\") != 1);",
     "timeout_ms" : 300000
   }, {
-    "name" : "64. Подача V2=1210 л с нагревом до 95 °C",
+    "name" : "64а-сброс. Сброс счётчика объёма (cnt->start в _Init*)",
     "action" : [ {
-      "tag" : "MEDIUM",
-      "value" : 0
-    }, {
       "tag" : "FQT",
       "value" : 0
-    }, {
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (v !== null && v < 10);",
+    "timeout_ms" : 15000
+  }, {
+    "name" : "64а. Прокачка V2 через танк, нагрев 95 °C: первые 150 л без возврата",
+    "action" : [ {
       "tag" : "V0",
       "value" : 1
     }, {
       "tag" : "V1",
       "value" : 1
     }, {
-      "tag" : "V13",
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
       "value" : 1
+    }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
+      "tag" : "V7",
+      "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
     }, {
       "tag" : "NP",
       "value" : 1
+    }, {
+      "tag" : "V13",
+      "value" : 1
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "MEDIUM",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 95
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 28
+    }, {
+      "tag" : "VRAB",
+      "value" : 1210
     } ],
-    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1210);",
-    "timeout_ms" : 311000
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 150);",
+    "timeout_ms" : 40000
   }, {
-    "name" : "65. Заполнение контура циркуляции",
+    "name" : "64б. Прокачка V2 до 1210 л с возвратным насосом",
+    "action" : [ {
+      "tag" : "RET",
+      "value" : 1
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var fs=readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\");return confirmed || (v !== null && v >= 1210 && (fs == 1 || elapsedMs >= 271000));",
+    "timeout_ms" : 275000
+  }, {
+    "name" : "65. Заполнение бачка водой перед циркуляцией",
     "action" : [ {
       "tag" : "V0",
+      "value" : 1
+    }, {
+      "tag" : "V1",
+      "value" : 1
+    }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 1
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "NP",
+      "value" : 0
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 80
+    } ],
+    "condition_script" : "var on=function(p){var v=readProjectTag(p);return v===true||v==1;};return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "66а. Циркуляция: выход на 95 °C (возврат ≥ 85 = T_D − ΔT 10)",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : 0
+    }, {
+      "tag" : "V1",
+      "value" : 1
+    }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
+      "value" : 1
+    }, {
+      "tag" : "V6",
       "value" : 0
     }, {
       "tag" : "V7",
       "value" : 0
     }, {
-      "tag" : "V13",
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
       "value" : 0
     }, {
       "tag" : "V10",
       "value" : 1
-    } ],
-    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
-    "timeout_ms" : 300000
-  }, {
-    "name" : "66а. Циркуляция: нагрев возврата до 85 °C (95 − ΔT 10)",
-    "action" : [ {
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "NP",
+      "value" : 1
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
       "tag" : "V13",
       "value" : 1
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 95
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 28
+    }, {
+      "tag" : "VRAB",
+      "value" : 0
     } ],
     "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.TE_V.LINE1TE2.V\") >= 85;",
     "timeout_ms" : 900000
   }, {
-    "name" : "66б. Циркуляция: выдержка 1200 с при 95 °C",
+    "name" : "66б. Циркуляция: выдержка PTM_D = 1200 с при ≥ 85 °C",
     "action" : [ ],
     "condition_script" : "return confirmed || (elapsedMs >= 1200000 && readProjectTag(\"Барановичи-1.BN1_MCA1.TE_V.LINE1TE2.V\") >= 85);",
     "timeout_ms" : 1500000
   }, {
-    "name" : "67. Опорожнение бачка (35 л после LL)",
+    "name" : "67а. Опорожнение бачка: до пропадания нижнего уровня LL",
     "action" : [ {
+      "tag" : "V0",
+      "value" : 0
+    }, {
+      "tag" : "V1",
+      "value" : 1
+    }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
+      "value" : 1
+    }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
+      "tag" : "V7",
+      "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
       "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
       "value" : 0
     }, {
       "tag" : "V13",
       "value" : 0
     }, {
-      "tag" : "V7",
+      "tag" : "NP",
       "value" : 1
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 5
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 28
+    }, {
+      "tag" : "VRAB",
+      "value" : 35
     } ],
-    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || (elapsedMs >= 4500 && !on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS3.ST\"));",
+    "condition_script" : "var on=function(p){var v=readProjectTag(p);return v===true||v==1;};return confirmed || !on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS3.ST\");",
     "timeout_ms" : 60000
+  }, {
+    "name" : "67б. Опорожнение бачка: 15 с после LL (P_TM_MAX_TIME_OPORBACHOK)",
+    "action" : [ ],
+    "condition_script" : "return confirmed || elapsedMs >= 15000;",
+    "timeout_ms" : 20000
   }, {
     "name" : "81. Окончательное ополаскивание: заполнение бачка",
     "action" : [ {
-      "tag" : "V5",
-      "value" : 0
-    }, {
-      "tag" : "V7",
-      "value" : 0
-    }, {
-      "tag" : "NP",
-      "value" : 0
-    }, {
-      "tag" : "RET",
-      "value" : 0
-    }, {
       "tag" : "V0",
       "value" : 1
     }, {
-      "tag" : "V11",
+      "tag" : "V1",
       "value" : 1
-    } ],
-    "condition_script" : "var on = function (p) { var v = readProjectTag(p); return v === true || v == 1; }; return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
-    "timeout_ms" : 300000
-  }, {
-    "name" : "83. Ополаскивание: подача V1=665 л",
-    "action" : [ {
-      "tag" : "V11",
+    }, {
+      "tag" : "V2",
       "value" : 0
     }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 1
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "NP",
+      "value" : 0
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 80
+    } ],
+    "condition_script" : "var on=function(p){var v=readProjectTag(p);return v===true||v==1;};return confirmed || on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS1.ST\") || (on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS2.ST\") && elapsedMs >= 10300);",
+    "timeout_ms" : 300000
+  }, {
+    "name" : "83а-сброс. Сброс счётчика объёма (cnt->start в _Init*)",
+    "action" : [ {
       "tag" : "FQT",
+      "value" : 0
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (v !== null && v < 10);",
+    "timeout_ms" : 15000
+  }, {
+    "name" : "83а. Ополаскивание, подача V1: первые 40 л без возврата",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : 1
+    }, {
+      "tag" : "V1",
+      "value" : 1
+    }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
       "value" : 0
     }, {
       "tag" : "V5",
       "value" : 1
     }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
       "tag" : "V7",
       "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
     }, {
       "tag" : "NP",
       "value" : 1
     }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 5
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 28
+    }, {
+      "tag" : "VRAB",
+      "value" : 665
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 40);",
+    "timeout_ms" : 12000
+  }, {
+    "name" : "83б. Ополаскивание, подача V1: с возвратным насосом до 625 л",
+    "action" : [ {
       "tag" : "RET",
       "value" : 1
     } ],
-    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 665);",
-    "timeout_ms" : 171000
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 625);",
+    "timeout_ms" : 152000
+  }, {
+    "name" : "83в. Ополаскивание, подача V1: последние 40 л до 665 л",
+    "action" : [ {
+      "tag" : "RET",
+      "value" : 0
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 665);",
+    "timeout_ms" : 12000
   }, {
     "name" : "84. Ополаскивание: опорожнение танка",
     "action" : [ {
@@ -332,41 +782,212 @@
       "tag" : "V1",
       "value" : 0
     }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
+      "value" : 1
+    }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
+      "tag" : "V7",
+      "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
       "tag" : "NP",
       "value" : 0
     }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
       "tag" : "MEDIUM",
       "value" : 1
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 0
     } ],
     "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1118.ST\") == 1 || (elapsedMs >= 12000 && readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\") != 1);",
     "timeout_ms" : 300000
   }, {
-    "name" : "85. Ополаскивание: подача V2=1210 л",
+    "name" : "85а-сброс. Сброс счётчика объёма (cnt->start в _Init*)",
     "action" : [ {
-      "tag" : "MEDIUM",
-      "value" : 0
-    }, {
       "tag" : "FQT",
       "value" : 0
-    }, {
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (v !== null && v < 10);",
+    "timeout_ms" : 15000
+  }, {
+    "name" : "85а. Ополаскивание, прокачка V2: первые 150 л без возврата",
+    "action" : [ {
       "tag" : "V0",
       "value" : 1
     }, {
       "tag" : "V1",
       "value" : 1
     }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
+      "value" : 1
+    }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
+      "tag" : "V7",
+      "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
       "tag" : "NP",
       "value" : 1
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "RET",
+      "value" : 0
+    }, {
+      "tag" : "MEDIUM",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 5
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 28
+    }, {
+      "tag" : "VRAB",
+      "value" : 1210
     } ],
-    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1210);",
-    "timeout_ms" : 311000
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 150);",
+    "timeout_ms" : 40000
   }, {
-    "name" : "86. Доп. объём ополаскивания 1100 л",
+    "name" : "85б. Ополаскивание, прокачка V2 до 1210 л",
+    "action" : [ {
+      "tag" : "RET",
+      "value" : 1
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var fs=readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\");return confirmed || (v !== null && v >= 1210 && (fs == 1 || elapsedMs >= 271000));",
+    "timeout_ms" : 275000
+  }, {
+    "name" : "86-сброс. Сброс счётчика объёма (cnt->start в _Init*)",
     "action" : [ {
       "tag" : "FQT",
       "value" : 0
     } ],
-    "condition_script" : "var v = readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1100);",
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); return confirmed || (v !== null && v < 40);",
+    "timeout_ms" : 15000
+  }, {
+    "name" : "86. Доп. объём окончательного ополаскивания 1100 л (P_DOP_V_OK_OP)",
+    "action" : [ {
+      "tag" : "V0",
+      "value" : 1
+    }, {
+      "tag" : "V1",
+      "value" : 1
+    }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
+      "value" : 1
+    }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
+      "tag" : "V7",
+      "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "NP",
+      "value" : 1
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 5
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 28
+    }, {
+      "tag" : "VRAB",
+      "value" : 1100
+    } ],
+    "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var tr=readProjectTag(\"Барановичи-1.BN1_MCA1.TE_V.LINE1TE2.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1100) || (elapsedMs >= 3000 && tr !== null && tr < 5);",
     "timeout_ms" : 283000
   }, {
     "name" : "91. Финальное опорожнение танка",
@@ -377,21 +998,105 @@
       "tag" : "V1",
       "value" : 0
     }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
+      "tag" : "V5",
+      "value" : 1
+    }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
+      "tag" : "V7",
+      "value" : 1
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V11",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
       "tag" : "NP",
       "value" : 0
     }, {
+      "tag" : "RET",
+      "value" : 1
+    }, {
       "tag" : "MEDIUM",
       "value" : 1
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 0
     } ],
     "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1118.ST\") == 1 || (elapsedMs >= 12000 && readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\") != 1);",
     "timeout_ms" : 300000
   }, {
     "name" : "555. Мойка окончена",
     "action" : [ {
+      "tag" : "V0",
+      "value" : 0
+    }, {
+      "tag" : "V1",
+      "value" : 0
+    }, {
+      "tag" : "V2",
+      "value" : 0
+    }, {
+      "tag" : "V3",
+      "value" : 0
+    }, {
+      "tag" : "V4",
+      "value" : 0
+    }, {
       "tag" : "V5",
       "value" : 0
     }, {
+      "tag" : "V6",
+      "value" : 0
+    }, {
       "tag" : "V7",
+      "value" : 0
+    }, {
+      "tag" : "V8",
+      "value" : 0
+    }, {
+      "tag" : "V9",
+      "value" : 0
+    }, {
+      "tag" : "V10",
+      "value" : 0
+    }, {
+      "tag" : "V12",
+      "value" : 0
+    }, {
+      "tag" : "V13",
+      "value" : 0
+    }, {
+      "tag" : "NP",
       "value" : 0
     }, {
       "tag" : "RET",
@@ -400,10 +1105,22 @@
       "tag" : "MEDIUM",
       "value" : 0
     }, {
+      "tag" : "V11",
+      "value" : 1
+    }, {
       "tag" : "CIP_END",
       "value" : 1
+    }, {
+      "tag" : "ZAD_PODOGR",
+      "value" : 0
+    }, {
+      "tag" : "ZAD_FLOW",
+      "value" : 0
+    }, {
+      "tag" : "VRAB",
+      "value" : 0
     } ],
-    "condition_script" : null,
+    "condition_script" : "",
     "timeout_ms" : null
   } ]
 }
