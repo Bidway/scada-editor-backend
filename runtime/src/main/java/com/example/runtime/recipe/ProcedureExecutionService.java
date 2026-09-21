@@ -62,6 +62,12 @@ public class ProcedureExecutionService {
     static final String VAR_PREFIX = "var:";
     /** Запись манифеста, за которой следит пауза по аварии. */
     static final String ALARM_ALIAS = "ALARM";
+    /**
+     * Запись манифеста, куда пишется причина паузы, пока процедура стоит. Авария может уйти сама
+     * (пауза выключила насос — «нет расхода» больше не выполняется), и без этой переменной
+     * оператор видел бы стоящую мойку без объяснения.
+     */
+    static final String PAUSE_ALIAS = "PAUSE";
 
     /** Пути, о которых уже предупредили (scada-ccq): условие шага читает их раз в такт. */
     private final Set<String> untrackedConditionTags = ConcurrentHashMap.newKeySet();
@@ -225,6 +231,7 @@ public class ProcedureExecutionService {
             return;
         }
         execution.pause(reason);
+        writePauseReason(project, recipe, reason);
         EditorRecipeStepDto step = recipe.getSteps().get(execution.stepIndex());
         applyAction(project, recipe, execution.recipeId(), step, recipe.getPause_action(), initiator);
         save(project.getProjectId(), recipe, execution, initiator.by());
@@ -258,6 +265,7 @@ public class ProcedureExecutionService {
         EditorRecipeStepDto step = recipe.getSteps().get(execution.stepIndex());
         applyAction(project, recipe, execution.recipeId(), step, restore, initiator);
         execution.resume();
+        writePauseReason(project, recipe, "");
         save(project.getProjectId(), recipe, execution, initiator.by());
         log.info("Проект {}: процедура {} продолжена на шаге {} ({})",
                 project.getProjectId(), execution.recipeId(), step.getName(), initiator.by());
@@ -276,13 +284,29 @@ public class ProcedureExecutionService {
         return value == null || value.toString().isBlank() ? null : value.toString();
     }
 
+    /** Причина паузы в переменную записи {@code PAUSE} манифеста; пустая строка — процедура идёт. */
+    private void writePauseReason(ProjectRuntime project, EditorRecipeDto recipe, String reason) {
+        String path = tagPath(recipe, PAUSE_ALIAS);
+        if (path == null || !path.startsWith(VAR_PREFIX)) {
+            return;
+        }
+        String variable = path.substring(VAR_PREFIX.length());
+        if (!procedureVariables.write(project.getProjectId(), variable, reason)) {
+            log.warn("Проект {}: причина паузы процедуры {} не записана в '{}'",
+                    project.getProjectId(), recipe.getId(), variable);
+        }
+    }
+
     /**
      * Взведённая рецептом авария пережила бы мойку и сработала на стоящей линии. Сбрасываются все
      * {@code var:}-записи манифеста, кроме {@code ALARM}: её ведёт задача аварий, а не рецепт.
+     * Причина паузы очищается отдельно — она строка, а не взвод.
      */
     private void resetArmedVariables(ProjectRuntime project, EditorRecipeDto recipe) {
+        writePauseReason(project, recipe, "");
         for (EditorRecipeTagDto tag : recipe.getTags()) {
-            if (ALARM_ALIAS.equals(tag.getName()) || tag.getTag() == null || !tag.getTag().startsWith(VAR_PREFIX)) {
+            if (ALARM_ALIAS.equals(tag.getName()) || PAUSE_ALIAS.equals(tag.getName())
+                    || tag.getTag() == null || !tag.getTag().startsWith(VAR_PREFIX)) {
                 continue;
             }
             String variable = tag.getTag().substring(VAR_PREFIX.length());

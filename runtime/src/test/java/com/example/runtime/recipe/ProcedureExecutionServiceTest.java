@@ -91,6 +91,7 @@ class ProcedureExecutionServiceTest {
         vars.clear();
         vars.put("ALARM_L1", "");
         vars.put("ARM_X", 0);
+        vars.put("PAUSE_L1", "");
         service = new ProcedureExecutionService(editorClient, commandProducer, tagValueRouter,
                 scriptEngineService, sessionStore, projectStore,
                 mock(com.example.runtime.persistence.ProcedureStateRepository.class), variables);
@@ -219,7 +220,8 @@ class ProcedureExecutionServiceTest {
         recipe.setId(RECIPE_ID);
         recipe.setName("Пауза");
         recipe.setTags(List.of(manifest("NP", "LINE1.NP"), manifest("V1", "LINE1.V1"),
-                manifest("ALARM", "var:ALARM_L1"), manifest("ARM", "var:ARM_X")));
+                manifest("ALARM", "var:ALARM_L1"), manifest("ARM", "var:ARM_X"),
+                manifest("PAUSE", "var:PAUSE_L1")));
         recipe.setSteps(List.of(
                 step("Подача", action("NP", 1), action("V1", 1), action("ARM", 1)),
                 step("Закрыть", action("V1", 0))));
@@ -256,12 +258,17 @@ class ProcedureExecutionServiceTest {
         ProcedureStatusDto status = service.status(PROJECT_ID, RECIPE_ID);
         assertThat(status.paused()).isTrue();
         assertThat(status.pauseReason()).contains("Нет расхода на подаче");
+        // Авария ушла сама (пауза выключила насос) — причина паузы остаётся видна оператору.
+        vars.put("ALARM_L1", "");
+        assertThat(vars.get("PAUSE_L1")).asString().contains("Нет расхода на подаче");
+        vars.put("ALARM_L1", "Нет расхода на подаче");
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> service.resume(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester"))
                 .isInstanceOf(ProcedureAlarmActiveException.class);
 
         vars.put("ALARM_L1", "");
         assertThat(service.resume(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester").paused()).isFalse();
+        assertThat(vars.get("PAUSE_L1")).isEqualTo("");
     }
 
     @Test
