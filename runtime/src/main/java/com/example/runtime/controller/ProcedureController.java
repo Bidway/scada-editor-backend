@@ -56,6 +56,20 @@ public class ProcedureController {
                 request.getSessionId(), username);
     }
 
+    @Operation(summary = "Пауза: процедура стоит на шаге, оборудование — в pause_action рецепта")
+    @PostMapping("/{id}/pause")
+    public ProcedureStatusDto pause(@PathVariable String id, @Valid @RequestBody ProcedureProjectRequest request,
+                                    @RequestHeader(value = "X-Username", required = false) String username) {
+        return service.pause(request.getProjectId(), id, request.getSessionId(), username);
+    }
+
+    @Operation(summary = "Продолжить после паузы; 409, если авария ещё активна")
+    @PostMapping("/{id}/resume")
+    public ProcedureStatusDto resume(@PathVariable String id, @Valid @RequestBody ProcedureProjectRequest request,
+                                     @RequestHeader(value = "X-Username", required = false) String username) {
+        return service.resume(request.getProjectId(), id, request.getSessionId(), username);
+    }
+
     @Operation(summary = "Ручной выбор/восстановление шага")
     @PostMapping("/{id}/jump")
     public ProcedureStatusDto jump(@PathVariable String id,

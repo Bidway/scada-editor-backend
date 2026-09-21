@@ -16,6 +16,10 @@ class ProcedureExecution {
     private boolean confirmed;
     private boolean completed;
     private boolean stalledNotified;
+    /** Процедура стоит на шаге — по аварии или по кнопке оператора. */
+    private boolean paused;
+    private Instant pausedAt;
+    private String pauseReason;
     /**
      * Определение рецепта, по которому идёт процедура. Читается из editor один раз на запуск:
      * условия пересчитываются на каждое изменение тега и каждый тик, и HTTP-запрос на каждый
@@ -35,11 +39,15 @@ class ProcedureExecution {
      * мойка уже в этом положении, повторная запись дёрнула бы клапаны. Время входа в шаг
      * берётся сохранённое, иначе условия на времени отсчитались бы заново.
      */
-    static ProcedureExecution restored(String recipeId, int stepIndex, Instant stepStartedAt, boolean confirmed) {
+    static ProcedureExecution restored(String recipeId, int stepIndex, Instant stepStartedAt, boolean confirmed,
+                                       boolean paused, Instant pausedAt, String pauseReason) {
         ProcedureExecution execution = new ProcedureExecution(recipeId);
         execution.stepIndex = stepIndex;
         execution.stepStartedAt = stepStartedAt;
         execution.confirmed = confirmed;
+        execution.paused = paused;
+        execution.pausedAt = pausedAt;
+        execution.pauseReason = pauseReason;
         return execution;
     }
 
@@ -76,7 +84,43 @@ class ProcedureExecution {
     }
 
     long elapsedMs() {
-        return Duration.between(stepStartedAt, Instant.now()).toMillis();
+        // На паузе время шага стоит: условия вида «прошло 1200 с» не должны досчитываться, пока
+        // мойка остановлена аварией.
+        Instant until = paused && pausedAt != null ? pausedAt : Instant.now();
+        return Duration.between(stepStartedAt, until).toMillis();
+    }
+
+    boolean paused() {
+        return paused;
+    }
+
+    Instant pausedAt() {
+        return pausedAt;
+    }
+
+    String pauseReason() {
+        return pauseReason;
+    }
+
+    /** Повторная пауза ничего не меняет: причина — первая, отсчёт — с первой. */
+    void pause(String reason) {
+        if (paused) {
+            return;
+        }
+        paused = true;
+        pausedAt = Instant.now();
+        pauseReason = reason;
+    }
+
+    /** Сдвигает вход в шаг на длительность паузы — шаг досчитывает остаток, а не проскакивает. */
+    void resume() {
+        if (!paused) {
+            return;
+        }
+        stepStartedAt = stepStartedAt.plus(Duration.between(pausedAt, Instant.now()));
+        paused = false;
+        pausedAt = null;
+        pauseReason = null;
     }
 
     void confirm() {
@@ -88,6 +132,11 @@ class ProcedureExecution {
         this.stepStartedAt = Instant.now();
         this.confirmed = false;
         this.stalledNotified = false;
+        // Вход в шаг снимает паузу: так бывает только при прыжке оператора, а jump и так
+        // переприменяет состояние шага целиком.
+        this.paused = false;
+        this.pausedAt = null;
+        this.pauseReason = null;
     }
 
     void markStalledNotified() {

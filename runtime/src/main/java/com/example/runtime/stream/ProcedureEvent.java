@@ -14,6 +14,6 @@ public record ProcedureEvent(String recipeId, Integer stepIndex, String stepName
                              String by, String sessionId) {
 
     public enum Kind {
-        STEP_STARTED, STEP_COMPLETED, WRITE_FAILED, STALLED, COMPLETED, ABORTED
+        STEP_STARTED, STEP_COMPLETED, WRITE_FAILED, STALLED, COMPLETED, ABORTED, PAUSED, RESUMED
     }
 }

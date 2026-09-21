@@ -27,6 +27,7 @@ final class ProjectAutomation {
     private final List<ScheduledFuture<?>> futures = new ArrayList<>();
     private final List<String> watchedTags = new ArrayList<>();
     private ProjectDataHolder data;
+    private VariableBoard variables;
 
     ProjectAutomation(ProjectDefinitions definitions, AutomationEngine.Context context, BooleanSupplier projectUp) {
         this.definitions = definitions;
@@ -40,7 +41,7 @@ final class ProjectAutomation {
                 context.dataRetryMinMs(), context.dataRetryMaxMs());
         data = holder;
         holder.start();
-        VariableBoard variables = new VariableBoard(initialVariables(projectId));
+        variables = new VariableBoard(initialVariables(projectId));
         OutputWriter outputs = new OutputWriter(context.commands(), context.tags(), System::currentTimeMillis);
 
         for (TaskDefinition task : definitions.tasksOrEmpty()) {
@@ -85,6 +86,19 @@ final class ProjectAutomation {
         futures.clear();
         context.tags().unwatch(watchedTags);
         watchedTags.clear();
+    }
+
+    /** {@code null} до {@link #start()}. */
+    VariableBoard variables() {
+        return variables;
+    }
+
+    /** {@code value_type} объявленной переменной; {@code null} — такой переменной в проекте нет. */
+    String declaredType(String variableName) {
+        return definitions.variablesOrEmpty().stream()
+                .filter(variable -> variable.name().equals(variableName))
+                .map(VariableDefinition::valueType)
+                .findFirst().orElse(null);
     }
 
     void reloadData() {

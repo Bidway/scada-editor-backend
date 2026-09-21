@@ -41,6 +41,24 @@ class ProcedureExecutionServiceTest {
     private RuntimeSessionStore sessionStore;
     private ProcedureExecutionService service;
 
+    /** Переменные автоматизации проекта: пишутся только объявленные, как в AutomationEngine. */
+    private final java.util.Map<String, Object> vars = new java.util.HashMap<>();
+    private final ProcedureVariables variables = new ProcedureVariables() {
+        @Override
+        public Object read(long projectId, String name) {
+            return vars.get(name);
+        }
+
+        @Override
+        public boolean write(long projectId, String name, Object value) {
+            if (!vars.containsKey(name)) {
+                return false;
+            }
+            vars.put(name, value);
+            return true;
+        }
+    };
+
     @BeforeEach
     void setUp() {
         editorClient = mock(EditorClient.class);
@@ -70,9 +88,12 @@ class ProcedureExecutionServiceTest {
                 mock(com.example.runtime.project.ProjectRuntimeStore.class);
         when(projectStore.get(PROJECT_ID)).thenReturn(project);
 
+        vars.clear();
+        vars.put("ALARM_L1", "");
+        vars.put("ARM_X", 0);
         service = new ProcedureExecutionService(editorClient, commandProducer, tagValueRouter,
                 scriptEngineService, sessionStore, projectStore,
-                mock(com.example.runtime.persistence.ProcedureStateRepository.class));
+                mock(com.example.runtime.persistence.ProcedureStateRepository.class), variables);
     }
 
     @AfterEach
@@ -183,6 +204,80 @@ class ProcedureExecutionServiceTest {
         action.setTag(tag);
         action.setValue(value);
         return action;
+    }
+
+    private static EditorRecipeTagDto manifest(String name, String path) {
+        EditorRecipeTagDto tag = new EditorRecipeTagDto();
+        tag.setName(name);
+        tag.setTag(path);
+        return tag;
+    }
+
+    /** Шаг 0 включает насос и клапан и взводит аварию, шаг 1 закрывает клапан. Оба ждут подтверждения. */
+    private EditorRecipeDto pausableRecipe() {
+        EditorRecipeDto recipe = new EditorRecipeDto();
+        recipe.setId(RECIPE_ID);
+        recipe.setName("Пауза");
+        recipe.setTags(List.of(manifest("NP", "LINE1.NP"), manifest("V1", "LINE1.V1"),
+                manifest("ALARM", "var:ALARM_L1"), manifest("ARM", "var:ARM_X")));
+        recipe.setSteps(List.of(
+                step("Подача", action("NP", 1), action("V1", 1), action("ARM", 1)),
+                step("Закрыть", action("V1", 0))));
+        recipe.setPause_action(List.of(action("NP", 0)));
+        return recipe;
+    }
+
+    @Test
+    void pause_blocksAdvance_andConfirmOnPauseResumesRestoringOnlyPauseActionTags() {
+        when(editorClient.getRecipe(RECIPE_ID)).thenReturn(pausableRecipe());
+        service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
+
+        ProcedureStatusDto paused = service.pause(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
+
+        assertThat(paused.paused()).isTrue();
+        verify(commandProducer).send("LINE1.NP", 0);
+
+        ProcedureStatusDto resumed = service.confirm(PROJECT_ID, RECIPE_ID, null, SESSION_ID, "tester");
+
+        assertThat(resumed.paused()).isFalse();
+        assertThat(resumed.stepIndex()).isEqualTo(0);
+        verify(commandProducer, org.mockito.Mockito.times(2)).send("LINE1.NP", 1);
+        verify(commandProducer, org.mockito.Mockito.times(1)).send("LINE1.V1", 1);
+    }
+
+    @Test
+    void alarmVariable_pausesOnTick_andResumeIsRefusedWhileAlarmIsActive() {
+        when(editorClient.getRecipe(RECIPE_ID)).thenReturn(pausableRecipe());
+        service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
+
+        vars.put("ALARM_L1", "Нет расхода на подаче");
+        service.runTick();
+
+        ProcedureStatusDto status = service.status(PROJECT_ID, RECIPE_ID);
+        assertThat(status.paused()).isTrue();
+        assertThat(status.pauseReason()).contains("Нет расхода на подаче");
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.resume(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester"))
+                .isInstanceOf(ProcedureAlarmActiveException.class);
+
+        vars.put("ALARM_L1", "");
+        assertThat(service.resume(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester").paused()).isFalse();
+    }
+
+    @Test
+    void completion_resetsArmedVariables_butNotTheAlarmItself() {
+        when(editorClient.getRecipe(RECIPE_ID)).thenReturn(pausableRecipe());
+        service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester");
+        assertThat(vars.get("ARM_X")).isEqualTo(1);
+        vars.put("ALARM_L1", "не трогать");
+
+        // Авария активна, но пауза её ещё не увидела (тика не было) — подтверждения идут как обычно.
+        service.confirm(PROJECT_ID, RECIPE_ID, null, SESSION_ID, "tester");
+        ProcedureStatusDto done = service.confirm(PROJECT_ID, RECIPE_ID, null, SESSION_ID, "tester");
+
+        assertThat(done.completed()).isTrue();
+        assertThat(vars.get("ARM_X")).isEqualTo(0);
+        assertThat(vars.get("ALARM_L1")).isEqualTo("не трогать");
     }
 
     @Test

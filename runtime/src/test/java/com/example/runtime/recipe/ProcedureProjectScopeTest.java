@@ -85,7 +85,7 @@ class ProcedureProjectScopeTest {
 
         service = new ProcedureExecutionService(editorClient, commandProducer,
                 mock(TagValueRouter.class), scriptEngineService, new RuntimeSessionStore(),
-                projectStore, states);
+                projectStore, states, mock(ProcedureVariables.class));
     }
 
     @AfterEach

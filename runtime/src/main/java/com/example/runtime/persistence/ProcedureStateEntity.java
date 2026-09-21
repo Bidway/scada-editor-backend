@@ -49,6 +49,16 @@ public class ProcedureStateEntity {
     @Column(nullable = false)
     private boolean confirmed;
 
+    /** Процедура стоит на шаге по аварии или по кнопке. default — для строк, записанных до колонки. */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean paused;
+
+    @Column(name = "paused_at")
+    private Instant pausedAt;
+
+    @Column(name = "pause_reason", length = 500)
+    private String pauseReason;
+
     /** Накопленное состояние тегов шагов 0..N — то, что применяет jump. */
     @Type(JsonBinaryType.class)
     @Column(name = "accumulated_actions", columnDefinition = "jsonb", nullable = false)

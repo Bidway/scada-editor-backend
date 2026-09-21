@@ -13,6 +13,10 @@ public final class VariableBoard {
         this.values = new HashMap<>(initial);
     }
 
+    public synchronized Object get(String name) {
+        return values.get(name);
+    }
+
     public synchronized Map<String, Object> snapshot() {
         return new HashMap<>(values);
     }

@@ -11,4 +11,6 @@ public class EditorRecipeDto {
     private String name;
     private List<EditorRecipeTagDto> tags;
     private List<EditorRecipeStepDto> steps;
+    /** Безопасное состояние на паузе процедуры; {@code null} — пауза ничего не пишет. */
+    private List<EditorRecipeStepActionDto> pause_action;
 }

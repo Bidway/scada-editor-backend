@@ -2,6 +2,7 @@ package com.example.runtime.exception;
 
 import com.example.runtime.assignment.AssignmentConflictException;
 import com.example.runtime.recipe.ProcedureAlreadyRunningException;
+import com.example.runtime.recipe.ProcedureAlarmActiveException;
 import com.example.runtime.recipe.ProcedureStepMismatchException;
 import com.example.runtime.recipe.ProjectNotInOperationException;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ProcedureStepMismatchException.class)
     public ResponseEntity<Map<String, Object>> handleStepMismatch(ProcedureStepMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("timestamp", LocalDateTime.now(), "status", HttpStatus.CONFLICT.value(),
+                        "error", HttpStatus.CONFLICT.getReasonPhrase(), "message", ex.getMessage(),
+                        "procedure", ex.status()));
+    }
+
+    @ExceptionHandler(ProcedureAlarmActiveException.class)
+    public ResponseEntity<Map<String, Object>> handleAlarmActive(ProcedureAlarmActiveException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("timestamp", LocalDateTime.now(), "status", HttpStatus.CONFLICT.value(),
                         "error", HttpStatus.CONFLICT.getReasonPhrase(), "message", ex.getMessage(),

@@ -25,6 +25,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,10 +52,16 @@ public class ProcedureExecutionService {
     private final RuntimeSessionStore sessionStore;
     private final ProjectRuntimeStore projectStore;
     private final ProcedureStateRepository stateRepository;
+    private final ProcedureVariables procedureVariables;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
             new com.fasterxml.jackson.databind.ObjectMapper();
 
     private final Map<ExecutionKey, ProcedureExecution> executions = new ConcurrentHashMap<>();
+
+    /** Путь манифеста, который пишется не в ПЛК, а в переменную автоматизации проекта. */
+    static final String VAR_PREFIX = "var:";
+    /** Запись манифеста, за которой следит пауза по аварии. */
+    static final String ALARM_ALIAS = "ALARM";
 
     /** Пути, о которых уже предупредили (scada-ccq): условие шага читает их раз в такт. */
     private final Set<String> untrackedConditionTags = ConcurrentHashMap.newKeySet();
@@ -135,6 +142,12 @@ public class ProcedureExecutionService {
             if (expectedStepIndex != null && expectedStepIndex != execution.stepIndex()) {
                 throw new ProcedureStepMismatchException(toStatus(recipe, execution));
             }
+            // На паузе «Подтвердить» — это «Продолжить»: другой кнопки у оператора пока нет, а
+            // подтверждение шага посреди аварии пропустило бы шаг, который не доделан.
+            if (execution.paused()) {
+                resumeLocked(project, recipe, execution, new Initiator(username, sessionId));
+                return toStatus(recipe, execution);
+            }
             execution.confirm();
             log.info("Проект {}: шаг {} процедуры {} подтверждён пользователем {}",
                     projectId, execution.stepIndex(), recipeId, username);
@@ -175,6 +188,111 @@ public class ProcedureExecutionService {
         }
     }
 
+    public ProcedureStatusDto pause(Long projectId, String recipeId, String sessionId, String username) {
+        ProjectRuntime project = requireProject(projectId);
+        ProcedureExecution execution = requireExecution(projectId, recipeId);
+        EditorRecipeDto recipe = recipeOf(execution);
+        synchronized (execution) {
+            pauseLocked(project, recipe, execution, "остановлена оператором", new Initiator(username, sessionId));
+            return toStatus(recipe, execution);
+        }
+    }
+
+    public ProcedureStatusDto resume(Long projectId, String recipeId, String sessionId, String username) {
+        ProjectRuntime project = requireProject(projectId);
+        ProcedureExecution execution = requireExecution(projectId, recipeId);
+        EditorRecipeDto recipe = recipeOf(execution);
+        synchronized (execution) {
+            resumeLocked(project, recipe, execution, new Initiator(username, sessionId));
+            return toStatus(recipe, execution);
+        }
+    }
+
+    private void pauseOnAlarm(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution) {
+        String alarm = activeAlarm(project, recipe);
+        if (alarm != null) {
+            pauseLocked(project, recipe, execution, "авария: " + alarm, Initiator.RUNTIME);
+        }
+    }
+
+    /**
+     * Безопасное состояние — {@code pause_action} рецепта. Клапаны в нём не перечисляются и
+     * остаются как есть: пауза останавливает подачу и нагрев, но не сливает контур.
+     */
+    private void pauseLocked(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution,
+                             String reason, Initiator initiator) {
+        if (execution.completed() || execution.paused()) {
+            return;
+        }
+        execution.pause(reason);
+        EditorRecipeStepDto step = recipe.getSteps().get(execution.stepIndex());
+        applyAction(project, recipe, execution.recipeId(), step, recipe.getPause_action(), initiator);
+        save(project.getProjectId(), recipe, execution, initiator.by());
+        log.warn("Проект {}: процедура {} на паузе на шаге {} — {}",
+                project.getProjectId(), execution.recipeId(), step.getName(), reason);
+        publishEvent(project, execution.recipeId(), execution.stepIndex(), step.getName(),
+                ProcedureEvent.Kind.PAUSED, reason, initiator);
+    }
+
+    /**
+     * Возвращает теги {@code pause_action} в значения текущего шага и снимает паузу. Только их:
+     * остальные теги пауза не трогала, а переприменение шага целиком обнулило бы, например,
+     * счётчик объёма, набранный до аварии.
+     */
+    private void resumeLocked(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution,
+                              Initiator initiator) {
+        if (!execution.paused()) {
+            return;
+        }
+        String alarm = activeAlarm(project, recipe);
+        if (alarm != null) {
+            throw new ProcedureAlarmActiveException(alarm, toStatus(recipe, execution));
+        }
+        Set<String> pausedTags = new HashSet<>();
+        if (recipe.getPause_action() != null) {
+            recipe.getPause_action().forEach(action -> pausedTags.add(action.getTag()));
+        }
+        List<EditorRecipeStepActionDto> restore = accumulatedActions(recipe, execution.stepIndex()).stream()
+                .filter(action -> pausedTags.contains(action.getTag()))
+                .toList();
+        EditorRecipeStepDto step = recipe.getSteps().get(execution.stepIndex());
+        applyAction(project, recipe, execution.recipeId(), step, restore, initiator);
+        execution.resume();
+        save(project.getProjectId(), recipe, execution, initiator.by());
+        log.info("Проект {}: процедура {} продолжена на шаге {} ({})",
+                project.getProjectId(), execution.recipeId(), step.getName(), initiator.by());
+        publishEvent(project, execution.recipeId(), execution.stepIndex(), step.getName(),
+                ProcedureEvent.Kind.RESUMED, null, initiator);
+        advanceWhileConditionMet(project, recipe, execution, initiator);
+    }
+
+    /** Текст активной аварии из переменной записи {@code ALARM} манифеста; {@code null} — аварии нет. */
+    private String activeAlarm(ProjectRuntime project, EditorRecipeDto recipe) {
+        String path = tagPath(recipe, ALARM_ALIAS);
+        if (path == null || !path.startsWith(VAR_PREFIX)) {
+            return null;
+        }
+        Object value = procedureVariables.read(project.getProjectId(), path.substring(VAR_PREFIX.length()));
+        return value == null || value.toString().isBlank() ? null : value.toString();
+    }
+
+    /**
+     * Взведённая рецептом авария пережила бы мойку и сработала на стоящей линии. Сбрасываются все
+     * {@code var:}-записи манифеста, кроме {@code ALARM}: её ведёт задача аварий, а не рецепт.
+     */
+    private void resetArmedVariables(ProjectRuntime project, EditorRecipeDto recipe) {
+        for (EditorRecipeTagDto tag : recipe.getTags()) {
+            if (ALARM_ALIAS.equals(tag.getName()) || tag.getTag() == null || !tag.getTag().startsWith(VAR_PREFIX)) {
+                continue;
+            }
+            String variable = tag.getTag().substring(VAR_PREFIX.length());
+            if (!procedureVariables.write(project.getProjectId(), variable, 0)) {
+                log.warn("Проект {}: взвод '{}' не сброшен по окончании процедуры {}",
+                        project.getProjectId(), variable, recipe.getId());
+            }
+        }
+    }
+
     /**
      * Состояние тегов, в котором процедура стоит на шаге {@code index}: действия шагов 0..index,
      * по каждому тегу — последнее значение. Шаг рецепта пишет только то, что меняется
@@ -201,9 +319,11 @@ public class ProcedureExecutionService {
         // Сначала база, потом память: если удаление из базы упадёт, процедура останется живой и
         // видимой, а не исчезнет из памяти, чтобы молча воскреснуть после перезапуска.
         stateRepository.deleteByProjectIdAndRecipeId(projectId, recipeId);
-        if (executions.remove(new ExecutionKey(projectId, recipeId)) != null) {
+        ProcedureExecution removed = executions.remove(new ExecutionKey(projectId, recipeId));
+        if (removed != null) {
             ProjectRuntime project = projectStore.get(projectId);
             if (project != null) {
+                resetArmedVariables(project, recipeOf(removed));
                 publishEvent(project, recipeId, null, null, ProcedureEvent.Kind.ABORTED, null,
                         new Initiator(username, sessionId));
             }
@@ -244,7 +364,8 @@ public class ProcedureExecutionService {
     public void restore(Long projectId) {
         for (ProcedureStateEntity saved : stateRepository.findByProjectIdIn(List.of(projectId))) {
             ProcedureExecution execution = ProcedureExecution.restored(saved.getRecipeId(),
-                    saved.getStepIndex(), saved.getStepEnteredAt(), saved.isConfirmed());
+                    saved.getStepIndex(), saved.getStepEnteredAt(), saved.isConfirmed(),
+                    saved.isPaused(), saved.getPausedAt(), saved.getPauseReason());
             executions.put(new ExecutionKey(projectId, saved.getRecipeId()), execution);
             log.info("Проект {}: восстановлена процедура {} на шаге {}",
                     projectId, saved.getRecipeId(), saved.getStepIndex());
@@ -291,6 +412,9 @@ public class ProcedureExecutionService {
         row.setStepIndex(execution.stepIndex());
         row.setStepEnteredAt(execution.stepStartedAt());
         row.setConfirmed(execution.confirmed());
+        row.setPaused(execution.paused());
+        row.setPausedAt(execution.pausedAt());
+        row.setPauseReason(execution.pauseReason());
         row.setAccumulatedActions(objectMapper.valueToTree(accumulatedActions(recipe, execution.stepIndex())));
         stateRepository.save(row);
     }
@@ -341,7 +465,7 @@ public class ProcedureExecutionService {
     }
 
     /** Тело тика. Выполняется на {@link #onTagChangeExecutor}. */
-    private void runTick() {
+    void runTick() {
         try {
             for (Map.Entry<ExecutionKey, ProcedureExecution> entry : executions.entrySet()) {
                 ProcedureExecution execution = entry.getValue();
@@ -354,6 +478,9 @@ public class ProcedureExecutionService {
                 }
                 EditorRecipeDto recipe = recipeOf(execution);
                 synchronized (execution) {
+                    if (!execution.paused()) {
+                        pauseOnAlarm(project, recipe, execution);
+                    }
                     advanceWhileConditionMet(project, recipe, execution, Initiator.RUNTIME);
                     checkStalled(project, recipe, entry.getKey().recipeId(), execution);
                 }
@@ -364,7 +491,7 @@ public class ProcedureExecutionService {
     }
 
     private void checkStalled(ProjectRuntime project, EditorRecipeDto recipe, String recipeId, ProcedureExecution execution) {
-        if (execution.completed() || execution.stalledNotified()) {
+        if (execution.completed() || execution.stalledNotified() || execution.paused()) {
             return;
         }
         Long timeoutMs = recipe.getSteps().get(execution.stepIndex()).getTimeout_ms();
@@ -413,7 +540,7 @@ public class ProcedureExecutionService {
     private void advanceWhileConditionMet(ProjectRuntime project, EditorRecipeDto recipe, ProcedureExecution execution,
                                           Initiator initiator) {
         List<EditorRecipeStepDto> steps = recipe.getSteps();
-        while (!execution.completed()
+        while (!execution.completed() && !execution.paused()
                 && evaluateCondition(project, steps.get(execution.stepIndex()), execution.elapsedMs(), execution.confirmed())) {
             EditorRecipeStepDto finishedStep = steps.get(execution.stepIndex());
             log.info("Проект {}: шаг {} процедуры {} завершён",
@@ -422,6 +549,7 @@ public class ProcedureExecutionService {
                     ProcedureEvent.Kind.STEP_COMPLETED, null, initiator);
             int next = execution.stepIndex() + 1;
             if (next >= steps.size()) {
+                resetArmedVariables(project, recipe);
                 execution.markCompleted();
                 stateRepository.deleteByProjectIdAndRecipeId(project.getProjectId(), execution.recipeId());
                 log.info("Проект {}: процедура {} выполнена целиком", project.getProjectId(), execution.recipeId());
@@ -460,6 +588,16 @@ public class ProcedureExecutionService {
             if (path == null) {
                 log.warn("Recipe {}: step '{}' action references unknown tag '{}'",
                         recipeId, step.getName(), entry.getTag());
+                continue;
+            }
+            if (path.startsWith(VAR_PREFIX)) {
+                String variable = path.substring(VAR_PREFIX.length());
+                if (!procedureVariables.write(project.getProjectId(), variable, entry.getValue())) {
+                    log.warn("Проект {}: переменная '{}' на шаге '{}' не записана — не объявлена, не того типа"
+                            + " или задачи проекта не исполняются", project.getProjectId(), variable, step.getName());
+                    publishEvent(project, recipeId, null, step.getName(), ProcedureEvent.Kind.WRITE_FAILED,
+                            "Переменная '" + variable + "' не записана", initiator);
+                }
                 continue;
             }
             String idNode = project.getIndex().resolveTagPath(path);
@@ -552,7 +690,8 @@ public class ProcedureExecutionService {
     private ProcedureStatusDto toStatus(EditorRecipeDto recipe, ProcedureExecution execution) {
         String stepName = execution.completed() ? null : recipe.getSteps().get(execution.stepIndex()).getName();
         return new ProcedureStatusDto(execution.recipeId(), execution.stepIndex(), stepName,
-                execution.elapsedMs(), execution.confirmed(), execution.completed(), execution.stalledNotified());
+                execution.elapsedMs(), execution.confirmed(), execution.completed(), execution.stalledNotified(),
+                execution.paused(), execution.pauseReason());
     }
 
     /**

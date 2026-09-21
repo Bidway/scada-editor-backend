@@ -107,6 +107,35 @@ public class AutomationEngine {
         return running.containsKey(projectId);
     }
 
+    /** @return значение переменной или {@code null}, если задачи проекта здесь не исполняются */
+    public synchronized Object readVariable(long projectId, String name) {
+        ProjectAutomation project = running.get(projectId);
+        return project == null || project.variables() == null ? null : project.variables().get(name);
+    }
+
+    /**
+     * Запись переменной не из задачи, а из процедуры рецепта (взвод аварий). Только объявленной:
+     * опечатка в рецепте не должна заводить переменную, которую ни одна задача не читает. Значение
+     * приводится к объявленному типу, как выход задачи, и сохраняется тем же путём, что {@code setVar}.
+     */
+    public synchronized boolean writeVariable(long projectId, String name, Object value) {
+        ProjectAutomation project = running.get(projectId);
+        String type = project == null ? null : project.declaredType(name);
+        if (type == null || project.variables() == null) {
+            return false;
+        }
+        Object typed;
+        try {
+            typed = ValueTypes.toOutput(value, type);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (project.variables().set(name, typed)) {
+            context.observer().variable(projectId, name, typed);
+        }
+        return true;
+    }
+
     /** @return {@code false}, если задачи проекта не исполняются этим экземпляром */
     public synchronized boolean reloadData(long projectId) {
         ProjectAutomation project = running.get(projectId);
