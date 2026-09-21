@@ -33,6 +33,7 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setName(dto.getName());
         recipe.setTags(dto.getTags() == null ? List.of() : dto.getTags());
         recipe.setSteps(dto.getSteps());
+        recipe.setPause_action(dto.getPause_action());
         validate(recipe);
         return fileStore.create(recipe);
     }
@@ -44,6 +45,11 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setName(dto.getName());
         recipe.setTags(dto.getTags() == null ? List.of() : dto.getTags());
         recipe.setSteps(dto.getSteps());
+        // Окно рецепта во фронте шлёт только name, tags и steps: без этой ветки любое сохранение
+        // через интерфейс молча стирало бы безопасное состояние паузы.
+        if (dto.getPause_action() != null) {
+            recipe.setPause_action(dto.getPause_action());
+        }
         validate(recipe);
         return fileStore.update(recipe);
     }
@@ -92,18 +98,27 @@ public class RecipeServiceImpl implements RecipeService {
                 continue;
             }
             for (RecipeStepActionDto action : step.getAction()) {
-                RecipeTagDto tag = tagsByName.get(action.getTag());
-                if (tag == null) {
-                    unknown.add(action.getTag());
-                    continue;
-                }
-                requireTypeMatch(tag, action);
+                checkAction(tagsByName, action, unknown);
+            }
+        }
+        if (recipe.getPause_action() != null) {
+            for (RecipeStepActionDto action : recipe.getPause_action()) {
+                checkAction(tagsByName, action, unknown);
             }
         }
         if (!unknown.isEmpty()) {
             throw new IllegalArgumentException(
                     "Recipe step action references tag(s) not declared in manifest 'tags': " + unknown);
         }
+    }
+
+    private void checkAction(Map<String, RecipeTagDto> tagsByName, RecipeStepActionDto action, Set<String> unknown) {
+        RecipeTagDto tag = tagsByName.get(action.getTag());
+        if (tag == null) {
+            unknown.add(action.getTag());
+            return;
+        }
+        requireTypeMatch(tag, action);
     }
 
     private void requireTypeMatch(RecipeTagDto tag, RecipeStepActionDto action) {

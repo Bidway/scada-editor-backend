@@ -1,6 +1,7 @@
 package com.example.editor.service.Impl;
 
 import com.example.editor.dto.recipe.RecipeCreateDto;
+import com.example.editor.dto.recipe.RecipeResponseDto;
 import com.example.editor.dto.recipe.RecipeStepActionDto;
 import com.example.editor.dto.recipe.RecipeStepDto;
 import com.example.editor.dto.recipe.RecipeTagDto;
@@ -94,5 +95,21 @@ class RecipeServiceImplTest {
         RecipeCreateDto dto = recipeWithAction("P_VRAB", 500);
 
         assertThat(service.create(dto).getId()).isNotBlank();
+    }
+
+    /** Окно рецепта во фронте шлёт только name/tags/steps — pause_action не должен от этого пропадать. */
+    @Test
+    void update_keepsPauseActionWhenBodyOmitsIt(@TempDir Path dir) {
+        RecipeServiceImpl service = service(dir);
+        RecipeCreateDto dto = recipeWithAction("P_VRAB", 500);
+        RecipeStepActionDto stop = new RecipeStepActionDto();
+        stop.setTag("P_VRAB");
+        stop.setValue(0);
+        dto.setPause_action(List.of(stop));
+        String id = service.create(dto).getId();
+
+        RecipeResponseDto updated = service.update(id, recipeWithAction("P_VRAB", 600));
+
+        assertThat(updated.getPause_action()).extracting(RecipeStepActionDto::getTag).containsExactly("P_VRAB");
     }
 }

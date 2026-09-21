@@ -20,4 +20,7 @@ public class RecipeCreateDto {
     @NotEmpty
     @Valid
     private List<RecipeStepDto> steps;
+    /** Безопасное состояние на паузе процедуры (runtime). null в PUT — оставить уже записанное. */
+    @Valid
+    private List<RecipeStepActionDto> pause_action;
 }
