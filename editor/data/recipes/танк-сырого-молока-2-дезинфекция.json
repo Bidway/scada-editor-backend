@@ -126,6 +126,11 @@
     "tag" : "var:ARM_NO_RETURN_LINE1",
     "value_type" : "number",
     "description" : "Взвод аварии «нет потока на возврате»: 1 — взвести, 0 — снять"
+  }, {
+    "name" : "PAUSE",
+    "tag" : "var:PAUSE_LINE1",
+    "value_type" : "string",
+    "description" : "Причина паузы процедуры — показывается оператору, пока мойка стоит"
   } ],
   "steps" : [ {
     "name" : "0. Ожидание готовности танка №2 (DI1102, P_OS=1102)",
