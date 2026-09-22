@@ -1,0 +1,44 @@
+ж<?xml version="1.0"?>
+<driver xmlns:driver="http://brestmilk.by/driver/">
+  <driver:inf>BASE TEST</driver:inf>
+  <driver:driver>
+    <driver:id>42</driver:id>
+    <driver:access>2</driver:access>
+    <driver:maxsubtypescount>10</driver:maxsubtypescount>
+    <driver:enabled>-1</driver:enabled>
+    <driver:descr>MINI MCA</driver:descr>
+    <driver:communication xmlns:communication="http://brestmilk.by/communication/">
+      <communication:parameters xmlns:parameters="http://brestmilk.by/parameters/">
+        <parameters:parameter><parameters:name>PORTNAME</parameters:name><parameters:value>COM3</parameters:value></parameters:parameter>
+        <parameters:parameter><parameters:name>SPEED</parameters:name><parameters:value>12</parameters:value></parameters:parameter>
+      </communication:parameters>
+    </driver:communication>
+    <driver:subtypes xmlns:subtypes="http://brestmilk.by/subtypes/">
+      <subtypes:subtype>
+        <subtypes:sid>1</subtypes:sid>
+        <subtypes:sdrvname>V_ST</subtypes:sdrvname>
+        <subtypes:channels xmlns:channels="http://brestmilk.by/channels/">
+          <channels:channel><channels:id>1</channels:id><channels:requesttype>1</channels:requesttype><channels:requestperiod>1</channels:requestperiod><channels:enabled>-1</channels:enabled><channels:descr>LINE1V0.ST -- Клапан V00</channels:descr><channels:delta>0</channels:delta><channels:apptime>0</channels:apptime><channels:protocol>0</channels:protocol></channels:channel>
+          <channels:channel><channels:id>2</channels:id><channels:requesttype>1</channels:requesttype><channels:requestperiod>1</channels:requestperiod><channels:enabled>-1</channels:enabled><channels:descr>LINE1V0.M --</channels:descr><channels:delta>0</channels:delta><channels:apptime>0</channels:apptime><channels:protocol>0</channels:protocol></channels:channel>
+          <channels:channel><channels:id>3</channels:id><channels:requesttype>1</channels:requesttype><channels:requestperiod>1</channels:requestperiod><channels:enabled>-1</channels:enabled><channels:descr>CAB1HLA1.L_RED -- Красный</channels:descr><channels:delta>0</channels:delta><channels:apptime>0</channels:apptime><channels:protocol>0</channels:protocol></channels:channel>
+          <channels:channel><channels:id>4</channels:id><channels:requesttype>0</channels:requesttype><channels:requestperiod>3000</channels:requestperiod><channels:enabled>-1</channels:enabled><channels:descr>SYSTEM.UP_TIME</channels:descr><channels:delta>0.5</channels:delta><channels:apptime>0</channels:apptime><channels:protocol>-1</channels:protocol></channels:channel>
+          <channels:channel><channels:id>5</channels:id><channels:requesttype>1</channels:requesttype><channels:requestperiod>1</channels:requestperiod><channels:enabled>-1</channels:enabled><channels:descr>LINE1WATCHDOG1.P_T_GEN -- Период генерации</channels:descr><channels:delta>0</channels:delta><channels:apptime>0</channels:apptime><channels:protocol>0</channels:protocol></channels:channel>
+        </subtypes:channels>
+      </subtypes:subtype>
+      <subtypes:subtype>
+        <subtypes:sid>2</subtypes:sid>
+        <subtypes:sdrvname>Параметры линии 1</subtypes:sdrvname>
+        <subtypes:channels xmlns:channels="http://brestmilk.by/channels/">
+          <channels:channel><channels:id>6</channels:id><channels:requesttype>1</channels:requesttype><channels:requestperiod>1</channels:requestperiod><channels:enabled>-1</channels:enabled><channels:descr>OBJECT1.RT_PAR_F[119] -- Параметр</channels:descr><channels:delta>0</channels:delta><channels:apptime>0</channels:apptime><channels:protocol>0</channels:protocol></channels:channel>
+        </subtypes:channels>
+      </subtypes:subtype>
+      <subtypes:subtype>
+        <subtypes:sid>3</subtypes:sid>
+        <subtypes:sdrvname>Статистика линии 1</subtypes:sdrvname>
+        <subtypes:channels xmlns:channels="http://brestmilk.by/channels/">
+          <channels:channel><channels:id>7</channels:id><channels:requesttype>1</channels:requesttype><channels:requestperiod>1</channels:requestperiod><channels:enabled>-1</channels:enabled><channels:descr>OBJECT1.RT_PAR_F[119] -- Статистика</channels:descr><channels:delta>0</channels:delta><channels:apptime>0</channels:apptime><channels:protocol>0</channels:protocol></channels:channel>
+        </subtypes:channels>
+      </subtypes:subtype>
+    </driver:subtypes>
+  </driver:driver>
+</driver>
