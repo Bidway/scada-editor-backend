@@ -14,6 +14,8 @@ import org.springframework.test.context.ActiveProfiles;
 import java.io.InputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -100,5 +102,36 @@ class CdbxImportIT extends ChannelApiTestSupport {
                 .andExpect(status().isBadRequest());
 
         assertThat(nodeRepository.findByIdNode("ИМП-3")).isEmpty();
+    }
+
+    @Test
+    void удаление_убирает_только_свой_проект() throws Exception {
+        importMini("ИМП-4", "BN1_MCA2");
+        importMini("ИМП-4", "BN1_MCA20");
+
+        mockMvc.perform(delete("/api/channel/import/ИМП-4/BN1_MCA2"))
+                .andExpect(status().isNoContent());
+
+        assertThat(nodeRepository.findByIdNode("ИМП-4.BN1_MCA2")).isEmpty();
+        assertThat(nodeRepository.findByIdNode("ИМП-4.BN1_MCA2.LINE1.V0.ST")).isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM channel.param WHERE id_node LIKE 'ИМП-4.BN1\\_MCA2.%' ESCAPE '\\'",
+                Integer.class)).isZero();
+        // Общий префикс имени — не повод удалить соседа.
+        assertThat(nodeRepository.findByIdNode("ИМП-4.BN1_MCA20.LINE1.V0.ST")).isPresent();
+        assertThat(nodeRepository.findByIdNode("ИМП-4")).isPresent();
+    }
+
+    /** Базу, собранную руками или залитую дампом (как BN1_MCA1), этим эндпоинтом не снести. */
+    @Test
+    void проект_без_источника_импорта_не_удаляется() throws Exception {
+        // Без parentKey путь берётся как есть (NodeMapper.setIdNode); шаблона 1 нет — узел без параметров.
+        createNode("РУЧ", 1L);
+        createNode("РУЧ.MCA", 1L);
+
+        mockMvc.perform(delete("/api/channel/import/РУЧ/MCA"))
+                .andExpect(status().isConflict());
+
+        assertThat(nodeRepository.findByIdNode("РУЧ.MCA")).isPresent();
     }
 }

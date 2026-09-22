@@ -1,5 +1,6 @@
 package com.example.channel.importer;
 
+import com.example.channel.exception.NotFoundException;
 import com.example.channel.repository.NodeRepository;
 import com.example.channel.repository.ParamRepository;
 import lombok.RequiredArgsConstructor;
@@ -104,6 +105,26 @@ public class CdbxImportService {
 
         writer.write(new ArrayList<>(nodes), params);
         return new CdbxImportReport(root, nodes.size(), channelPaths.size(), merged, guessed, skipped);
+    }
+
+    /**
+     * Проект целиком — вместо отмены импорта, которого нет в журнале. Только проект с параметром
+     * «Источник импорта»: так не снести базу, собранную руками или залитую дампом.
+     */
+    @Transactional
+    public void deleteProject(String site, String project) {
+        String root = segment(site, "Площадка") + "." + segment(project, "Проект");
+        if (nodeRepository.findByIdNode(root).isEmpty()) {
+            throw new NotFoundException("Нет проекта " + root);
+        }
+        long sourceType = paramTypes.ids().get(ImportParamTypes.SOURCE);
+        boolean imported = paramRepository.findByIdNode(root).orElse(List.of()).stream()
+                .anyMatch(param -> param.getIdType() != null && param.getIdType() == sourceType);
+        if (!imported) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Проект " + root + " создан не импортом .cdbx — удаление целиком запрещено");
+        }
+        writer.deleteTree(root);
     }
 
     private static String segment(String value, String what) {
