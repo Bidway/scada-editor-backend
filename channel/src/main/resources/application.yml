@@ -17,6 +17,12 @@ spring:
         default_schema: channel
         hbm2ddl.create_namespaces: true
 
+  # Файл .cdbx BN1 — 2,4 МБ, а лимит Spring по умолчанию — 1 МБ.
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
