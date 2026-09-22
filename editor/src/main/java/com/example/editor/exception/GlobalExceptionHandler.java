@@ -1,5 +1,6 @@
 package com.example.editor.exception;
 
+import com.example.editor.client.ChannelUnavailableException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(NotFoundException ex) {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    /** channel недоступен — ошибка соседа, а не клиента и не наша: 503, ничего не записано. */
+    @ExceptionHandler(ChannelUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleChannelUnavailable(ChannelUnavailableException ex) {
+        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})

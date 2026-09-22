@@ -32,6 +32,8 @@ editor:
     # месяца работы, посмотрев фактический размер editor.document_version.
     autosave-retention-days: 30
     retention-cron: "0 30 3 * * *"
+  # Автопривязка читает базу каналов прямо из channel, минуя gateway.
+  channel-base-url: http://${CHANNEL_HOST:localhost}:${CHANNEL_PORT:8082}
   recipes:
     # Один файл на рецепт, имя — <component_id>-<slug>.json. Переопределяется переменной
     # окружения, как остальной конфиг сервиса.
