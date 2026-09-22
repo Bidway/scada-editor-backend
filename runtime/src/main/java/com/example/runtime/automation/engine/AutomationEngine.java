@@ -161,6 +161,14 @@ public class AutomationEngine {
         try {
             project.start();
             running.put(projectId, project);
+            // Задачи публикуют переменную только при изменении: неизменная после перезапуска runtime
+            // так и не дошла бы до монитора, и индикатор висел бы серым «нет данных». Пустая
+            // (без значения по умолчанию и без сохранённого) остаётся неопубликованной — это честно.
+            project.variables().snapshot().forEach((name, value) -> {
+                if (value != null) {
+                    context.observer().variable(projectId, name, value);
+                }
+            });
         } catch (Exception e) {
             project.stop();
             log.error("Проект {}: фоновые задачи не запущены: {}", projectId, e.getMessage(), e);

@@ -3,6 +3,7 @@ package com.example.runtime.automation.engine;
 import com.example.runtime.automation.AutomationEngineProperties;
 import com.example.runtime.automation.definition.ProjectDefinitions;
 import com.example.runtime.automation.definition.TaskDefinition;
+import com.example.runtime.automation.definition.VariableDefinition;
 import com.example.runtime.automation.store.AutomationStore;
 import com.example.runtime.kafka.CommandOutcome;
 import com.example.scriptcore.ProjectData;
@@ -70,5 +71,22 @@ class AutomationEngineTest {
         engine.projectDeactivated(8501L);
         assertThat(engine.isRunning(8501L)).isFalse();
         verify(observer).flushProject(8501L);
+    }
+
+    /** После перезапуска runtime неизменная переменная иначе не публикуется — монитор видел «нет данных». */
+    @Test
+    void при_старте_публикуются_все_переменные_проекта() {
+        AutomationStore store = mock(AutomationStore.class);
+        when(store.loadVariables(anyLong())).thenReturn(Map.of("ALARM_LINE1", "Нет расхода"));
+        engine = new AutomationEngine(new AutomationEngineProperties(), new TagCache(), mock(CommandSender.class),
+                observer, store, new ObjectMapper(), projectId -> ProjectData.EMPTY, projectId -> projectUp.get());
+        projectUp.set(true);
+
+        engine.definitionsChanged(8502L, new ProjectDefinitions(8502L, 1, List.of(), List.of(
+                new VariableDefinition("ALARM_LINE1", "string", "", null),
+                new VariableDefinition("PAUSE_LINE1", "string", "", null)), null));
+
+        verify(observer).variable(8502L, "ALARM_LINE1", "Нет расхода");
+        verify(observer).variable(8502L, "PAUSE_LINE1", "");
     }
 }
