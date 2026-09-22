@@ -12,6 +12,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -133,5 +134,24 @@ class CdbxImportIT extends ChannelApiTestSupport {
                 .andExpect(status().isConflict());
 
         assertThat(nodeRepository.findByIdNode("РУЧ.MCA")).isPresent();
+    }
+
+    @Test
+    void выгрузка_даёт_строку_тега_со_старым_именем_и_id_узла() throws Exception {
+        importMini("ИМП-5", "MCA");
+        long nodeId = nodeRepository.findByIdNode("ИМП-5.MCA.LINE1.V0.ST").orElseThrow().getId();
+
+        String yaml = mockMvc.perform(get("/api/channel/export/gateway")
+                        .param("root", "ИМП-5.MCA").param("controllerId", "ptusa-test")
+                        .param("endpoint", "pac://${PTUSA_HOST}:10000"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(yaml).contains("- id: ptusa-test", "endpoint: \"pac://${PTUSA_HOST}:10000\"");
+        assertThat(yaml).contains("{name: \"ИМП-5.MCA.LINE1.V0.ST\", nodeId: \"pac:" + nodeId + "\", channelId: "
+                + nodeId + ", deviceName: \"LINE1V0\", fieldName: \"ST\", deviceType: \"V\", protocol: pac, "
+                + "dataType: INT32, pollingRate: 2000, enabled: true, writable: true}");
+        // Контейнеры и объекты — не теги.
+        assertThat(yaml).doesNotContain("name: \"ИМП-5.MCA.LINE1.V0\",");
     }
 }
