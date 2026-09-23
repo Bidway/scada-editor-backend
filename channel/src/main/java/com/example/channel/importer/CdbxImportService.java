@@ -43,6 +43,12 @@ public class CdbxImportService {
 
     @Transactional
     public CdbxImportReport importFile(byte[] content, String fileName, String site, String project) {
+        return importFile(content, fileName, site, project, PlcProject.empty());
+    }
+
+    @Transactional
+    public CdbxImportReport importFile(byte[] content, String fileName, String site, String project,
+                                       PlcProject plc) {
         String siteName = segment(site, "Площадка");
         String projectName = segment(project, "Проект");
         CdbxFile file = CdbxParser.parse(content);
@@ -71,14 +77,18 @@ public class CdbxImportService {
         List<String> merged = new ArrayList<>();
         List<String> guessed = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
+        Set<String> unmapped = new LinkedHashSet<>();
         for (CdbxChannel channel : file.channels()) {
             ObjectPathMapper.LegacyName legacy = ObjectPathMapper.split(channel.name()).orElse(null);
             if (legacy == null) {
                 skipped.add(channel.name());
                 continue;
             }
+            if (!plc.isEmpty() && !ObjectPathMapper.known(legacy.object(), plc)) {
+                unmapped.add(legacy.object());
+            }
             String parent = root;
-            for (String segment : ObjectPathMapper.objectSegments(legacy.object())) {
+            for (String segment : ObjectPathMapper.objectSegments(legacy.object(), plc)) {
                 parent = parent + "." + segment;
                 nodes.add(parent);
             }
@@ -98,13 +108,26 @@ public class CdbxImportService {
             params.add(new PlannedParam(path, types.get(ImportParamTypes.DELTA), channel.delta()));
             params.add(new PlannedParam(path, types.get(ImportParamTypes.AVERAGING), channel.appTime()));
             params.add(new PlannedParam(path, types.get(ImportParamTypes.PROTOCOL), channel.protocol()));
-            params.add(new PlannedParam(path, types.get(ImportParamTypes.DESCRIPTION), channel.description()));
+            params.add(new PlannedParam(path, types.get(ImportParamTypes.DESCRIPTION),
+                    description(channel, legacy.object(), plc)));
             params.add(new PlannedParam(path, types.get(ImportParamTypes.PLC_NAME), channel.name()));
             params.add(new PlannedParam(path, types.get(ImportParamTypes.DATA_TYPE), dataType.type()));
         }
 
         writer.write(new ArrayList<>(nodes), params);
-        return new CdbxImportReport(root, nodes.size(), channelPaths.size(), merged, guessed, skipped);
+        return new CdbxImportReport(root, nodes.size(), channelPaths.size(), merged, guessed, skipped,
+                new ArrayList<>(unmapped));
+    }
+
+    /**
+     * Описание канала своё, из .cdbx; если его там нет — описание прибора из main.io.lua. В базе
+     * танков описаний у каналов нет вовсе, и только вложение делает дерево читаемым.
+     */
+    private static String description(CdbxChannel channel, String object, PlcProject plc) {
+        if (channel.description() != null && !channel.description().isBlank()) {
+            return channel.description();
+        }
+        return plc.device(object).map(PlcProject.Device::description).orElse(channel.description());
     }
 
     /**

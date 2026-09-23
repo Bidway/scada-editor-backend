@@ -3,6 +3,8 @@ package com.example.channel.controller;
 import com.example.channel.export.GatewayExportService;
 import com.example.channel.importer.CdbxImportReport;
 import com.example.channel.importer.CdbxImportService;
+import com.example.channel.importer.PlcProject;
+import com.example.channel.importer.PlcProjectParser;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -27,12 +29,22 @@ public class ImportExportController {
     private final CdbxImportService importService;
     private final GatewayExportService exportService;
 
-    @Operation(summary = "Новая объектная база каналов из .cdbx; 409, если проект уже есть")
+    @Operation(summary = "Новая объектная база каналов из .cdbx; 409, если проект уже есть. "
+            + "Необязательные вложения main.io.lua и main.objects.lua из исходников проекта ptusa "
+            + "дают точную разбивку имён по приборам и объектам и описания приборов")
     @PostMapping(value = "/import/cdbx", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CdbxImportReport importCdbx(@RequestParam("file") MultipartFile file,
                                        @RequestParam String site,
-                                       @RequestParam String project) throws IOException {
-        return importService.importFile(file.getBytes(), file.getOriginalFilename(), site, project);
+                                       @RequestParam String project,
+                                       @RequestParam(value = "io", required = false) MultipartFile io,
+                                       @RequestParam(value = "objects", required = false) MultipartFile objects)
+            throws IOException {
+        PlcProject plc = PlcProjectParser.parse(bytes(io), bytes(objects));
+        return importService.importFile(file.getBytes(), file.getOriginalFilename(), site, project, plc);
+    }
+
+    private static byte[] bytes(MultipartFile file) throws IOException {
+        return file == null || file.isEmpty() ? null : file.getBytes();
     }
 
     @Operation(summary = "Удалить импортированный проект целиком; 409 для базы, созданной не импортом")

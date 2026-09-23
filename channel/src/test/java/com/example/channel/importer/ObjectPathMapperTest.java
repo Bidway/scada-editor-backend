@@ -22,6 +22,16 @@ class ObjectPathMapperTest {
     }
 
     @Test
+    void без_вложений_имя_режется_по_известному_типу_прибора() {
+        assertThat(ObjectPathMapper.objectSegments("TANK1V1")).isEqualTo(List.of("TANK1", "V1"));
+        assertThat(ObjectPathMapper.objectSegments("CIPV101")).isEqualTo(List.of("CIP", "V101"));
+        assertThat(ObjectPathMapper.objectSegments("MCA4LINE1DI1")).isEqualTo(List.of("MCA4LINE1", "DI1"));
+        assertThat(ObjectPathMapper.objectSegments("M15AI11")).isEqualTo(List.of("M15", "AI11"));
+        assertThat(ObjectPathMapper.objectSegments("NTRZDI1")).isEqualTo(List.of("NTRZ", "DI1"));
+        assertThat(ObjectPathMapper.objectSegments("V101")).isEqualTo(List.of("STATION", "V101"));
+    }
+
+    @Test
     void имя_делится_по_первой_точке_без_точки_не_разбирается() {
         assertThat(ObjectPathMapper.split("OBJECT1.RT_PAR_F[1]"))
                 .contains(new ObjectPathMapper.LegacyName("OBJECT1", "RT_PAR_F[1]"));
