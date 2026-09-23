@@ -65,9 +65,8 @@ class CdbxImportIT extends ChannelApiTestSupport {
         assertThat(report.get("nodes").asInt()).isEqualTo(16);
         assertThat(report.get("channels").asInt()).isEqualTo(6);
         assertThat(report.get("merged").get(0).asText()).isEqualTo("OBJECT1.RT_PAR_F[119]");
-        // UP_TIME и P_T_GEN вне таблицы типов — в порядке файла.
-        assertThat(report.get("guessedType")).extracting(JsonNode::asText)
-                .containsExactly("SYSTEM.UP_TIME", "LINE1WATCHDOG1.P_T_GEN");
+        // Все поля мини-файла есть в таблице типов с 23.09.2026 (scada-3ebv).
+        assertThat(report.get("guessedType")).isEmpty();
         assertThat(report.get("skipped")).isEmpty();
 
         assertThat(nodeRepository.findByIdNode("ИМП-1.MCA.LINE1.V0.ST")).isPresent();
@@ -76,6 +75,8 @@ class CdbxImportIT extends ChannelApiTestSupport {
         assertThat(param("ИМП-1.MCA.LINE1.V0.ST", "Имя в ПЛК")).isEqualTo("LINE1V0.ST");
         assertThat(param("ИМП-1.MCA.LINE1.V0.ST", "Тип данных")).isEqualTo("INT32");
         assertThat(param("ИМП-1.MCA.LINE1.V0.ST", "Описание")).isEqualTo("Клапан V00");
+        // Строка, объявленная числом, теряется у шлюза — тип должен доехать до базы именно STRING.
+        assertThat(param("ИМП-1.MCA.STATION.SYSTEM.UP_TIME", "Тип данных")).isEqualTo("STRING");
         // Параметры слитого канала — от первого встреченного, «Параметры линии».
         assertThat(param("ИМП-1.MCA.LINE1.OBJECT.RT_PAR_F[119]", "Описание")).isEqualTo("Параметр");
         assertThat(param("ИМП-1.MCA", "Источник импорта")).isEqualTo("mini.cdbx");
