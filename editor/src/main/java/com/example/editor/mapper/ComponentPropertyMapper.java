@@ -22,6 +22,7 @@ public abstract class ComponentPropertyMapper {
     @Mapping(target = "propertyType", source = "property_type")
     @Mapping(target = "valueType", source = "value_type")
     @Mapping(target = "defaultValue", source = "default_value")
+    @Mapping(target = "gatewayName", source = "gateway_name")
     public abstract ComponentProperty toEntity(PropertyCreateDto dto);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -31,6 +32,7 @@ public abstract class ComponentPropertyMapper {
     @Mapping(target = "propertyType", source = "property_type")
     @Mapping(target = "valueType", source = "value_type")
     @Mapping(target = "defaultValue", source = "default_value")
+    @Mapping(target = "gatewayName", source = "gateway_name")
     public abstract void updateEntity(PropertyCreateDto dto, @MappingTarget ComponentProperty entity);
 
     @Mapping(target = "component_id", source = "component.id")
@@ -39,6 +41,8 @@ public abstract class ComponentPropertyMapper {
     @Mapping(target = "value_type", source = "valueType")
     @Mapping(target = "default_value", source = "defaultValue")
     @Mapping(target = "version_no", ignore = true)
+    @Mapping(target = "gateway_name", source = "gatewayName")
+    @Mapping(target = "description", source = "gatewayName")
     public abstract PropertyResponseDto toDto(ComponentProperty entity);
 
     @Named("mapComponent")

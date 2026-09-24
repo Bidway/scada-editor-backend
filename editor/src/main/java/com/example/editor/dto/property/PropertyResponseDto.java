@@ -10,6 +10,14 @@ public class PropertyResponseDto {
     private Long component_id;
     private String property_type;
     private String tag_id;
+    /** Человеческое имя для оператора — см. {@code PropertyCreateDto.label}. */
+    private String label;
+    private String gateway_name;
+    /**
+     * Устарело: то же значение, что {@code gateway_name}. Отдаётся, пока фронт не перешёл на новое
+     * поле (контракт docs/integration/2026-09-24-property-label-contract.md), затем удалить.
+     */
+    @Deprecated
     private String description;
     private String value_type;
     private String default_value;

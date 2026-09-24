@@ -1,5 +1,6 @@
 package com.example.editor.dto.property;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -23,7 +24,14 @@ public class PropertyCreateDto {
     private String name;
     private String property_type;
     private String tag_id;
-    private String description;
+    /** Человеческое имя для оператора («Опции» монитора); {@code name} занят скриптами. */
+    private String label;
+    /**
+     * Имя для шлюза. Принимается и под прежним именем {@code description}: так шлёт фронт до
+     * перехода и так лежат свойства в снимках версий, записанных до 24.09.2026.
+     */
+    @JsonAlias("description")
+    private String gateway_name;
     private String value_type;
     private String default_value;
     // Номер строки/поля для представления. Не прислан — сервер проставит по позиции

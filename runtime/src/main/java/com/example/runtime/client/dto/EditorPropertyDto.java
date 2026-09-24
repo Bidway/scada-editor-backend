@@ -13,6 +13,11 @@ public class EditorPropertyDto {
     private Long component_id;
     private String property_type;
     private String tag_id;
+    /** Человеческое имя для оператора — монитор получает дерево отсюда, без поля «Опции» его не увидят. */
+    private String label;
+    /** Имя для шлюза (бывшее description). */
+    private String gateway_name;
+    /** Устарело, зеркало gateway_name — editor отдаёт его, пока фронт не перешёл. */
     private String description;
     private String value_type;
     private String default_value;

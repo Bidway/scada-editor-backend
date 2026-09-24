@@ -19,7 +19,7 @@ public class TemplateComponentProperty {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "component_id", nullable = false)
+    @JoinColumn(name = "component_id", nullable = false)
     // Без каскада на чистой схеме удаление шаблона падает на FK (scada-854).
     @OnDelete(action = OnDeleteAction.CASCADE)
     private TemplateComponent component;
@@ -29,7 +29,12 @@ public class TemplateComponentProperty {
     @Column(nullable = false)
     private String propertyType;
 
-    private String description;
+    /** Человеческое имя для оператора — см. {@code ComponentProperty.label}. */
+    private String label;
+
+    /** Имя для шлюза, бывшее description; колонка прежняя — см. {@code ComponentProperty.gatewayName}. */
+    @Column(name = "description")
+    private String gatewayName;
 
     @Column(nullable = false)
     private String valueType;

@@ -37,10 +37,14 @@ public class MergeShape {
      *   <li>{@code version} — счётчик оптимистической блокировки. Он растёт от самого факта
      *       записи, а не от правки содержимого; тот же довод, по которому его вырезает
      *       {@code withoutLockCounters} при хешировании снимка.</li>
+     *   <li>{@code description} у свойства — устаревшее зеркало {@code gateway_name} (24.09.2026):
+     *       в снимке оно есть, а DTO сохранения сворачивает его в {@code gateway_name} через алиас.
+     *       Само значение сравнивается под {@code gateway_name}; без исключения каждое свойство
+     *       выглядело бы изменённым. Убрать вместе с полем из ответа.</li>
      * </ul>
      */
     private static final Set<String> IGNORED =
-            Set.of("key", "parent_key", "parent_id", "component_id", "componentId", "version");
+            Set.of("key", "parent_key", "parent_id", "component_id", "componentId", "version", "description");
 
     /** Дети сцены из снимка. Пустой список, если снимок пуст — но не {@code null}. */
     public List<ComponentCreateDto> childrenOf(JsonNode content, ObjectMapper mapper) {

@@ -46,7 +46,20 @@ public class ComponentProperty {
     @Column(nullable = false)
     private String propertyType;
 
-    private String description;
+    /**
+     * Человеческое имя для оператора — его показывает «Опции» монитора. {@code name} для этого не
+     * годится: по нему свойство адресуют скрипты ({@code OP.V}, {@code writeTag('OP', …)}), и в нём
+     * не может быть пробелов и запятых.
+     */
+    private String label;
+
+    /**
+     * Имя для шлюза (до 24.09.2026 — {@code description}). Колонка прежняя: миграций в проекте нет,
+     * данные живут в дампах, и переименование колонки через {@code ddl-auto} оставило бы значения
+     * в старой.
+     */
+    @Column(name = "description")
+    private String gatewayName;
 
     @Column(nullable = false)
     private String valueType;

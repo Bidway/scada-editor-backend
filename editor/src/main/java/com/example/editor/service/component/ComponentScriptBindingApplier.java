@@ -244,7 +244,8 @@ public class ComponentScriptBindingApplier {
             target.setName(name);
             target.setTagId(p.getTag_id());
             target.setPropertyType(p.getProperty_type());
-            target.setDescription(p.getDescription());
+            target.setLabel(p.getLabel());
+            target.setGatewayName(p.getGateway_name());
             target.setValueType(p.getValue_type());
             target.setDefaultValue(p.getDefault_value());
             target.setPosition(p.getPosition() != null ? p.getPosition() : index);
