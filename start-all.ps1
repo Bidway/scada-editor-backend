@@ -246,6 +246,21 @@ function Resolve-SimEndpoint([bool]$GatewayInContainer) {
 }
 
 <#
+    Устарел ли jar шлюза: исходники (src/main — код, controllers.yaml, миграции) или pom.xml
+    новее него. Раньше сравнивался только controllers.yaml, и правка Java-кода молча не
+    доезжала: 25.09.2026 шлюз поднялся из jar от 24.09 без фильтра истории и писал 13 млн
+    строк в час.
+#>
+function Test-GatewayJarStale($jar) {
+    if (-not $jar) { return $true }
+    $module = Join-Path $GatewayDir 'SCADA-gateway'
+    $sources = @(Get-ChildItem -Path (Join-Path $module 'src\main') -Recurse -File -ErrorAction SilentlyContinue)
+    $sources += @(Get-Item (Join-Path $module 'pom.xml') -ErrorAction SilentlyContinue)
+    $newest = $sources | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    return [bool]($newest -and $newest.LastWriteTime -gt $jar.LastWriteTime)
+}
+
+<#
     JDK 21 для сборки шлюза. Наши модули собираются под 17, а pom шлюза требует 21,
     и mvnw берёт версию из JAVA_HOME. Если в PATH стоит другая (часто 19), сборка
     падает на «release version 21 not supported» — поэтому ищем 21-ю отдельно и
@@ -303,11 +318,10 @@ function Start-GatewayNative([string]$DbUrl, [switch]$ForceRestart) {
            Where-Object { $_.Name -notmatch 'sources|javadoc' } |
                Sort-Object LastWriteTime -Descending | Select-Object -First 1  # свежий, а не первый по алфавиту (scada-c9t)
     $jdk = $null
-    # controllers.yaml лежит в ресурсах jar: правка тегов или адреса контроллера без пересборки
-    # молча не применяется. 15.09.2026 так шлюз после переноса PAC на 10001 ходил на старый 10000,
-    # и все pac-теги были BAD. Поэтому пересобираем и тогда, когда конфиг новее jar.
-    $gwConfig = Get-Item (Join-Path $GatewayDir 'SCADA-gateway\src\main\resources\controllers.yaml') -ErrorAction SilentlyContinue
-    $jarStale = $jar -and $gwConfig -and ($gwConfig.LastWriteTime -gt $jar.LastWriteTime)
+    # controllers.yaml и код лежат в jar: правка без пересборки молча не применяется. 15.09.2026 так
+    # шлюз после переноса PAC на 10001 ходил на старый 10000; 25.09.2026 — работал без фильтра
+    # истории. Поэтому пересобираем, когда любой исходник новее jar (Test-GatewayJarStale).
+    $jarStale = $jar -and (Test-GatewayJarStale $jar)
     if (-not $jar -or $jarStale) {
         $jdk = Resolve-Jdk21
         if (-not $jdk) {
@@ -315,7 +329,7 @@ function Start-GatewayNative([string]$DbUrl, [switch]$ForceRestart) {
             return
         }
         if ($jarStale) {
-            Info "controllers.yaml новее jar шлюза — пересобираю (JDK 21: $jdk), это займёт минуту ..."
+            Info "Исходники шлюза новее jar — пересобираю (JDK 21: $jdk), это займёт минуту ..."
         } else {
             Info "Jar шлюза не найден — собираю (JDK 21: $jdk), это займёт минуту ..."
         }
@@ -493,7 +507,7 @@ if ($Mode -eq 'docker') {
                    -ErrorAction SilentlyContinue |
                Where-Object { $_.Name -notmatch 'sources|javadoc' } |
                Sort-Object LastWriteTime -Descending | Select-Object -First 1  # свежий, а не первый по алфавиту (scada-c9t)
-        if (-not $jar) {
+        if (Test-GatewayJarStale $jar) {
             $jdk = Resolve-Jdk21
             if (-not $jdk) {
                 Err 'Не нашёл JDK 21 — шлюз собрать нечем. Поставь JDK 21 или задай JAVA_HOME.'
