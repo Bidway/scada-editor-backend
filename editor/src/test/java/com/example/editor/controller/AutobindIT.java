@@ -121,6 +121,29 @@ class AutobindIT extends EditorApiTestSupport {
         assertThat(currentVersion(sceneId, "scenes")).isEqualTo(before + 1);
     }
 
+    /**
+     * scada-w7gh, стенд 22.09.2026: FQT1 на Карта1 был привязан к счётчику линии LINE1FQT1, а по
+     * старому имени FQT1 нашёлся станционный STATION.FQT1 — все теги молча перетирались.
+     */
+    @Test
+    void привязка_к_другому_устройству_не_перетирается_и_идёт_в_kept() throws Exception {
+        when(channelClient.fetchTree(anyString())).thenReturn(new ChannelTree(
+                List.of(ROOT + ".STATION", ROOT + ".STATION.FQT1", ROOT + ".STATION.FQT1.F"),
+                List.of(new ChannelTree.Param(ROOT + ".STATION.FQT1.F", "Имя в ПЛК", "FQT1.F"))));
+        long projectId = createProject("autobind-" + System.nanoTime());
+        long sceneId = createScene("Схема", projectId);
+        ComponentProperty f = property(component(sceneId, "FQT1"), "F", "Тег",
+                "Барановичи-1.BN1_MCA1.V_ST_1.LINE1FQT1.F");
+
+        JsonNode report = autobind(projectId);
+
+        assertThat(tagOf(f)).isEqualTo("Барановичи-1.BN1_MCA1.V_ST_1.LINE1FQT1.F");
+        assertThat(report.get("changed").asInt()).isZero();
+        assertThat(report.get("kept").get(0).get("current").asText())
+                .isEqualTo("Барановичи-1.BN1_MCA1.V_ST_1.LINE1FQT1.F");
+        assertThat(report.get("kept").get(0).get("found").asText()).isEqualTo(ROOT + ".STATION.FQT1.F");
+    }
+
     @Test
     void повторная_автопривязка_ничего_не_меняет_и_версию_не_пишет() throws Exception {
         long projectId = createProject("autobind-" + System.nanoTime());

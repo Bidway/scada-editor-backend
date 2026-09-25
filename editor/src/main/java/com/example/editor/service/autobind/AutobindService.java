@@ -24,7 +24,8 @@ import java.util.Optional;
 
 /**
  * Автопривязка проекта к базе каналов: компонент по имени находит объект, теговое свойство по
- * имени — поле. Совпало — tag_id перезаписывается; нет — остаётся и идёт в отчёт.
+ * имени — поле. Совпало — tag_id перезаписывается; нет — остаётся и идёт в отчёт. Непустой tag_id,
+ * указывающий на другое устройство, тоже не трогается и идёт в отчёт списком kept (scada-w7gh).
  * <p>
  * База читается до транзакции: channel лёг — 503, ничего не записано, и соединение с базой не
  * держится на время HTTP-запроса. Запись — одна транзакция со сценами под блокировкой строки, той
@@ -90,7 +91,7 @@ public class AutobindService {
         }
         boolean inOperation = runtimeFlags.findById(projectId).map(ProjectRuntimeFlag::isInOperation).orElse(false);
         return new AutobindReportDto(root, counters.bound, counters.changed, scenes, counters.notFound,
-                counters.missingFields, inOperation);
+                counters.missingFields, counters.kept, inOperation);
     }
 
     private void walk(Component component, String sceneName, ChannelIndex index, Counters counters) {
@@ -110,8 +111,16 @@ public class AutobindService {
                                 property.getName(), sceneName));
                         continue;
                     }
+                    String current = property.getTagId();
+                    if (current != null && !current.isBlank() && !current.equals(tag.get())
+                            && !index.sameDevice(current, tag.get())) {
+                        // Рабочая привязка к другому датчику: не перетираем, отдаём человеку (scada-w7gh).
+                        counters.kept.add(new AutobindReportDto.Kept(component.getId(), component.getName(),
+                                property.getName(), sceneName, current, tag.get()));
+                        continue;
+                    }
                     counters.bound++;
-                    if (!tag.get().equals(property.getTagId())) {
+                    if (!tag.get().equals(current)) {
                         property.setTagId(tag.get());
                         counters.changed++;
                     }
@@ -128,5 +137,6 @@ public class AutobindService {
         int changed;
         final List<AutobindReportDto.Miss> notFound = new ArrayList<>();
         final List<AutobindReportDto.Miss> missingFields = new ArrayList<>();
+        final List<AutobindReportDto.Kept> kept = new ArrayList<>();
     }
 }
