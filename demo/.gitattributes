@@ -1,0 +1,3 @@
+# Файлы уезжают на Linux-сервер: CRLF сломал бы EnvironmentFile systemd и конфиг nginx.
+server/** text eol=lf
+README.md text eol=lf
