@@ -2,8 +2,6 @@ package com.example.channel.service;
 
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandLogRepository;
-import com.example.channel.config.command.CommandManager;
-import com.example.channel.command.UndoHandler;
 import com.example.channel.exception.NotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -20,19 +18,13 @@ import java.util.UUID;
 public class UndoService {
 
     private final CommandLogRepository commandLogRepository;
-    private final CommandManager commandManager;
-    private final List<UndoHandler<CommandLog>> handlers;
     private final UndoExecutor undoExecutor;
 
     public UndoService(
             CommandLogRepository commandLogRepository,
-            CommandManager commandManager,
-            List<UndoHandler<CommandLog>> handlers,
             UndoExecutor undoExecutor
     ) {
         this.commandLogRepository = commandLogRepository;
-        this.commandManager = commandManager;
-        this.handlers = handlers;
         this.undoExecutor = undoExecutor;
     }
 
@@ -97,30 +89,13 @@ public class UndoService {
 
     private void undoLogsAndMark(List<CommandLog> logs, String userName) {
         for (CommandLog log : logs) {
-            undoSingleLog(log, userName);
+            undoExecutor.undo(log, userName);
         }
 
         LocalDateTime undoneAt = LocalDateTime.now();
         for (CommandLog log : logs) {
             markUndone(log, undoneAt);
         }
-    }
-
-    private void undoSingleLog(CommandLog log, String userName) {
-        if (log.getUndoneAt() != null) {
-            throw new IllegalStateException("Log already undone: " + log.getId());
-        }
-
-        UndoHandler<CommandLog> handler = handlers.stream()
-                .filter(h -> h.supports(log.getCommandType()))
-                .findFirst()
-                .orElseThrow(() ->
-                        new IllegalStateException(
-                                "No UndoHandler for commandType " + log.getCommandType()
-                        )
-                );
-
-        commandManager.executeUndo(handler, log, userName);
     }
 
     private void markUndone(CommandLog log, LocalDateTime undoneAt) {

@@ -36,6 +36,18 @@ class UndoExecutor {
     public void undoOne(Long logId, String userName) {
         CommandLog log = commandLogRepository.findByIdForUpdate(logId)
                 .orElseThrow(() -> new IllegalStateException("Log not found: " + logId));
+        undo(log, userName);
+        log.setUndoneAt(LocalDateTime.now());
+        commandLogRepository.save(log);
+    }
+
+    /**
+     * Отменяет одну запись журнала, не помечая её отменённой, в транзакции вызывающего.
+     * Единственное место с проверкой «уже отменено» и выбором {@link UndoHandler}: им пользуются
+     * и {@link #undoOne}, и групповая отмена {@code UndoService.undoBatch} (scada-wjm).
+     * Публичный, потому что зовётся через прокси Spring из другого бина.
+     */
+    public void undo(CommandLog log, String userName) {
         if (log.getUndoneAt() != null) {
             throw new IllegalStateException("Log already undone: " + log.getId());
         }
@@ -45,7 +57,5 @@ class UndoExecutor {
                 .orElseThrow(() -> new IllegalStateException(
                         "No UndoHandler for commandType " + log.getCommandType()));
         commandManager.executeUndo(handler, log, userName);
-        log.setUndoneAt(LocalDateTime.now());
-        commandLogRepository.save(log);
     }
 }

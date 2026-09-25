@@ -1,6 +1,5 @@
 package com.example.channel.service;
 
-import com.example.channel.config.command.CommandManager;
 import com.example.channel.config.command.CommandLog;
 import com.example.channel.config.command.CommandLogRepository;
 import org.junit.jupiter.api.Test;
@@ -24,8 +23,7 @@ class UndoServiceTest {
         CommandLog existing = new CommandLog();
         existing.setId(1L);
         when(repository.findAllById(List.of(1L, 42L))).thenReturn(List.of(existing));
-        UndoService service = new UndoService(repository, mock(CommandManager.class), List.of(),
-                mock(UndoExecutor.class));
+        UndoService service = new UndoService(repository, mock(UndoExecutor.class));
 
         assertThat(service.undoLogs(List.of(1L, 42L), "tester")).containsExactly(42L);
     }
