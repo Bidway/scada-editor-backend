@@ -213,6 +213,15 @@ public class ScriptEngineService {
     /** То же с данными проекта: процедура передаёт снимок своей сессии. */
     public boolean runCondition(String scriptSource, long elapsedMs, boolean confirmed, TagReader tagReader,
                                 PropertyReader propertyReader, ProjectData data) {
+        return runCondition(scriptSource, elapsedMs, confirmed, tagReader, alias -> null, propertyReader, data);
+    }
+
+    /**
+     * С {@code readTag(alias)}: {@code aliasReader} разрешает короткое имя из манифеста {@code tags[]}
+     * рецепта — то же, каким адресуется {@code action[].tag} (scada-wss).
+     */
+    public boolean runCondition(String scriptSource, long elapsedMs, boolean confirmed, TagReader tagReader,
+                                TagReader aliasReader, PropertyReader propertyReader, ProjectData data) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return true;
         }
@@ -242,6 +251,7 @@ public class ScriptEngineService {
                 ctx.getBindings("js").putMember("elapsedMs", elapsedMs);
                 ctx.getBindings("js").putMember("confirmed", confirmed);
                 ctx.getBindings("js").putMember("readProjectTag", readProjectTagFunction(tagReader));
+                ctx.getBindings("js").putMember("readTag", readTagFunction(aliasReader));
                 ctx.getBindings("js").putMember("readProjectProperty", readProjectPropertyFunction(propertyReader));
                 ctx.getBindings("js").putMember("data", new DataFunction(data));
                 Value result = ctx.eval(source);
@@ -302,6 +312,16 @@ public class ScriptEngineService {
         };
     }
 
+    private ProxyExecutable readTagFunction(TagReader aliasReader) {
+        return arguments -> {
+            if (arguments.length < 1 || !arguments[0].isString()) {
+                log.warn("readTag(): first argument must be a tag alias string from the recipe's tags[]");
+                return null;
+            }
+            return aliasReader.read(arguments[0].asString());
+        };
+    }
+
     private ProxyExecutable readProjectPropertyFunction(PropertyReader reader) {
         return arguments -> {
             if (arguments.length < 2 || !arguments[0].isString() || !arguments[1].isString()) {
@@ -337,6 +357,7 @@ public class ScriptEngineService {
                 // Контекст общий с runCondition: без сброса скрипту компонента достался бы ридер,
                 // замкнутый на сессию чужой процедуры (readProjectTag — тот же случай, scada-re9).
                 ctx.getBindings("js").putMember("readProjectTag", null);
+                ctx.getBindings("js").putMember("readTag", null);
                 ctx.getBindings("js").putMember("readProjectProperty", null);
                 ctx.getBindings("js").putMember("data", new DataFunction(data));
                 ctx.eval(source);

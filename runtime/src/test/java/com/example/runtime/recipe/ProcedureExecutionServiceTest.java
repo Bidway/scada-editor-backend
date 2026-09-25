@@ -141,6 +141,40 @@ class ProcedureExecutionServiceTest {
         assertThat(status.completed()).isFalse();
     }
 
+    /**
+     * scada-wss: условие читает тег тем же коротким именем из tags[], что и action — readTag('LEVEL'),
+     * а не полным путём через readProjectTag.
+     */
+    @Test
+    void conditionReadTag_resolvesAliasThroughRecipeManifest() {
+        EditorRecipeTagDto level = new EditorRecipeTagDto();
+        level.setName("LEVEL");
+        level.setTag("LINE1.LEVEL");
+        EditorRecipeStepDto fill = new EditorRecipeStepDto();
+        fill.setName("Наполнение");
+        fill.setAction(List.of());
+        fill.setCondition_script("return readTag('LEVEL') >= 300;");
+        EditorRecipeStepDto done = new EditorRecipeStepDto();
+        done.setName("Готово");
+        done.setAction(List.of());
+        done.setCondition_script("return confirmed;");
+        EditorRecipeDto recipe = new EditorRecipeDto();
+        recipe.setId(RECIPE_ID);
+        recipe.setName("Уровень");
+        recipe.setTags(List.of(level));
+        recipe.setSteps(List.of(fill, done));
+        when(editorClient.getRecipe(RECIPE_ID)).thenReturn(recipe);
+        when(tagValueRouter.isTracked(anyString())).thenReturn(true);
+        when(tagValueRouter.lastValue("LINE1.LEVEL")).thenReturn("124");
+
+        assertThat(service.start(PROJECT_ID, RECIPE_ID, SESSION_ID, "tester").stepIndex()).isZero();
+
+        when(tagValueRouter.lastValue("LINE1.LEVEL")).thenReturn("350");
+        service.runTick();
+
+        assertThat(service.status(PROJECT_ID, RECIPE_ID).stepName()).isEqualTo("Готово");
+    }
+
     @Test
     void confirm_advancesPastConfirmStep_andCompletesOnLastStep() {
         when(editorClient.getRecipe(RECIPE_ID)).thenReturn(twoStepRecipe());

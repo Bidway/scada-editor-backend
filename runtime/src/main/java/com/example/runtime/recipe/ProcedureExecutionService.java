@@ -16,6 +16,7 @@ import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.session.RuntimeSession;
 import com.example.runtime.session.RuntimeSessionStore;
+import com.example.runtime.session.VariableTags;
 import com.example.runtime.stream.ProcedureEvent;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -584,7 +585,8 @@ public class ProcedureExecutionService {
                                           Initiator initiator) {
         List<EditorRecipeStepDto> steps = recipe.getSteps();
         while (!execution.completed() && !execution.paused()
-                && evaluateCondition(project, steps.get(execution.stepIndex()), execution.elapsedMs(), execution.confirmed())) {
+                && evaluateCondition(project, recipe, steps.get(execution.stepIndex()), execution.elapsedMs(),
+                        execution.confirmed())) {
             EditorRecipeStepDto finishedStep = steps.get(execution.stepIndex());
             log.info("Проект {}: шаг {} процедуры {} завершён",
                     project.getProjectId(), finishedStep.getName(), execution.recipeId());
@@ -680,10 +682,36 @@ public class ProcedureExecutionService {
         return TagValueRouter.coerceTagValue(tagValueRouter.lastValue(tagId));
     }
 
-    private boolean evaluateCondition(ProjectRuntime project, EditorRecipeStepDto step, long elapsedMs, boolean confirmed) {
+    /**
+     * {@code readTag('алиас')} в условии шага — то же короткое имя из манифеста {@code tags[]}, что
+     * у {@code action[].tag} (scada-wss). Без него автор, переносивший имя из действия в условие,
+     * писал {@code readProjectTag('V101_OPEN')} и получал несуществующий путь и {@code null} молча.
+     * Алиас на переменную {@code @var.X} читается по её ключу в роутере, как и пишется действием.
+     * Незнакомый алиас — {@code null} и одно предупреждение на проект и имя.
+     */
+    private Object readConditionAlias(ProjectRuntime project, EditorRecipeDto recipe, EditorRecipeStepDto step,
+                                      String alias) {
+        String path = tagPath(recipe, alias);
+        if (path == null) {
+            if (untrackedConditionTags.add(project.getProjectId() + ":alias:" + alias)) {
+                log.warn("Проект {}: шаг '{}' читает readTag('{}') — такого имени нет в tags[] рецепта,"
+                        + " вернётся null", project.getProjectId(), step.getName(), alias);
+            }
+            return null;
+        }
+        if (VariableTags.isVariable(path)) {
+            return TagValueRouter.coerceTagValue(
+                    tagValueRouter.lastValue(VariableTags.subscriptionKey(project.getProjectId(), path)));
+        }
+        return readConditionTag(project, step, path);
+    }
+
+    private boolean evaluateCondition(ProjectRuntime project, EditorRecipeDto recipe, EditorRecipeStepDto step,
+                                      long elapsedMs, boolean confirmed) {
         try {
             return scriptEngineService.runCondition(step.getCondition_script(), elapsedMs, confirmed,
                     path -> readConditionTag(project, step, path),
+                    alias -> readConditionAlias(project, recipe, step, alias),
                     (componentName, propertyName) -> readProjectProperty(project, step, componentName, propertyName),
                     project.getProjectData());
         } catch (Exception e) {
