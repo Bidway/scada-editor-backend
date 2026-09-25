@@ -24,6 +24,7 @@ import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
 import com.example.editor.service.automation.AutomationService;
 import com.example.editor.service.data.ProjectDataService;
+import com.example.editor.service.script.ScriptValidationService;
 import com.example.editor.service.component.ComponentHierarchyValidator;
 import com.example.editor.service.component.ComponentScriptBindingApplier;
 import com.example.editor.service.component.SceneRootResolver;
@@ -62,6 +63,7 @@ public class ComponentServiceImpl implements ComponentService {
     private final SceneMergeService sceneMergeService;
     private final AutomationService automationService;
     private final ProjectDataService projectDataService;
+    private final ScriptValidationService scriptValidationService;
 
     /**
      * Проверка версии, запись данных и запись снимка — одна транзакция.
@@ -77,6 +79,7 @@ public class ComponentServiceImpl implements ComponentService {
     public ComponentSaveResponseDto create(List<ComponentCreateDto> dtos, String userName,
                                            VersionKind kind, Integer basedOnVersion) {
         requireBaseUnlessRestoring(dtos, kind, basedOnVersion);
+        validateScriptsUnlessRestoring(dtos, kind);
         List<Component> prepared = dtos.stream().map(dto -> buildComponent(dto, null)).toList();
         List<Component> saved = attachToParents(repository.saveAll(prepared));
         List<ComponentResponseDto> response = componentMapper.toDtoList(saved);
@@ -182,6 +185,7 @@ public class ComponentServiceImpl implements ComponentService {
                     "scene_id is required: PUT carries the whole scene, so a missing component"
                             + " means it was deleted");
         }
+        validateScriptsUnlessRestoring(dtos, kind);
         List<ComponentCreateDto> tree = dtos;
         SceneMergeService.MergeOutcome outcome = null;
         if (sceneId != null) {
@@ -493,6 +497,16 @@ public class ComponentServiceImpl implements ComponentService {
                                             Integer basedOnVersion) {
         if (kind != VersionKind.RESTORE) {
             requireBaseForScenesOf(dtos, basedOnVersion);
+        }
+    }
+
+    /**
+     * Синтаксис скриптов — до записи (scada-8fw). Восстановление версии не проверяем: оно
+     * возвращает то, что уже лежало в базе, и старый снимок не должен становиться невосстановимым.
+     */
+    private void validateScriptsUnlessRestoring(List<ComponentCreateDto> dtos, VersionKind kind) {
+        if (kind != VersionKind.RESTORE) {
+            scriptValidationService.validateTree(dtos);
         }
     }
 

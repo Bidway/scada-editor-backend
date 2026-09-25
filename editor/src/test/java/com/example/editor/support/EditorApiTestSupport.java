@@ -126,7 +126,7 @@ public abstract class EditorApiTestSupport extends PostgresTestContainerSupport 
         return versions.isEmpty() ? null : versions.get(0).get("version_no").asInt();
     }
 
-    private String envelope(String componentsJson, Integer basedOnVersion, String saveKind) {
+    protected String envelope(String componentsJson, Integer basedOnVersion, String saveKind) {
         StringBuilder sb = new StringBuilder("{\"components\":").append(componentsJson);
         if (basedOnVersion != null) {
             sb.append(",\"based_on_version\":").append(basedOnVersion);

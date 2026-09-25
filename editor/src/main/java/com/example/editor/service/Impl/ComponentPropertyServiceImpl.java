@@ -10,6 +10,7 @@ import com.example.editor.model.version.VersionKind;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.service.ComponentPropertyService;
 import com.example.editor.service.component.SceneRootResolver;
+import com.example.editor.service.script.ScriptValidationService;
 import com.example.editor.service.version.DocumentVersionService;
 import com.example.editor.service.version.SceneDocumentSource;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
     private final ComponentPropertyMapper mapper;
     private final DocumentVersionService versionService;
     private final SceneDocumentSource sceneDocumentSource;
+    private final ScriptValidationService scriptValidationService;
 
     @Override
     @Transactional
@@ -37,6 +39,7 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
                     "Property name '" + entity.getName() + "' already exists in component " + componentId
                             + "; names must be unique within a component");
         }
+        scriptValidationService.validateProperty(dto, component == null ? null : component.getName());
         Long sceneId = SceneRootResolver.sceneRootIdOf(component);
         requireBase(sceneId, dto.getBased_on_version());
 
@@ -70,6 +73,7 @@ public class ComponentPropertyServiceImpl implements ComponentPropertyService {
                     "Property name '" + newName + "' already exists in component " + componentId
                             + "; names must be unique within a component");
         }
+        scriptValidationService.validateProperty(dto, component == null ? null : component.getName());
         Long sceneId = SceneRootResolver.sceneRootIdOf(component);
         requireBase(sceneId, dto.getBased_on_version());
 
