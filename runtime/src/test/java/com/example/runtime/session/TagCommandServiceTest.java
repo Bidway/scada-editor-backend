@@ -3,8 +3,10 @@ package com.example.runtime.session;
 import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.kafka.CommandOutcome;
 import com.example.runtime.kafka.CommandProducer;
+import com.example.runtime.script.ScriptFailureRegistry;
 import com.example.runtime.script.ScriptWriteSinks;
 import com.example.runtime.script.TagWriteSink;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,7 @@ class TagCommandServiceTest {
     private TagSubscriptionIndex index;
     private ProjectRuntime project;
     private TagCommandService service;
+    private ScriptFailureRegistry failures;
 
     @BeforeEach
     void setUp() {
@@ -46,7 +49,8 @@ class TagCommandServiceTest {
         when(commandProducer.send(anyString(), any()))
                 .thenReturn(CompletableFuture.completedFuture(CommandOutcome.applied("ok")));
 
-        service = new TagCommandService(commandProducer);
+        failures = new ScriptFailureRegistry(new SimpleMeterRegistry());
+        service = new TagCommandService(commandProducer, failures);
     }
 
     @Test
@@ -68,6 +72,22 @@ class TagCommandServiceTest {
         sink().byProperty().write("Нет такого", 1);
 
         verify(commandProducer, never()).send(anyString(), any());
+    }
+
+    /** scada-u8v: несостоявшаяся запись видна не только в логе — и промах по имени, и отказ шлюза. */
+    @Test
+    @DisplayName("Промах по имени и отказ шлюза попадают в реестр отказов как WRITE_REJECTED")
+    void rejectedWrites_areRecordedInFailureRegistry() {
+        when(index.tagIdOfComponentProperty(COMPONENT_ID, "Нет такого")).thenReturn(null);
+        when(commandProducer.send(eq("ДругойСайт-2.RO"), any()))
+                .thenReturn(CompletableFuture.completedFuture(CommandOutcome.failure("READ_ONLY", "узел только на чтение")));
+
+        sink().byProperty().write("Нет такого", 1);
+        sink().byPath().write("ДругойСайт-2.RO", 1);
+
+        assertThat(failures.recent()).hasSize(2)
+                .allMatch(f -> f.kind() == ScriptFailureRegistry.Kind.WRITE_REJECTED && f.projectId().equals(1L));
+        assertThat(failures.recent().get(0).message()).contains("узел только на чтение");
     }
 
     @Test

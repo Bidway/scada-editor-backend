@@ -49,7 +49,8 @@ class RuntimeSessionServiceTest {
         RuntimeSessionService service = new RuntimeSessionService(sessions, mock(ProjectRuntimeStore.class),
                 mock(TagValueRouter.class), mock(ScriptEngineService.class), mock(TagCommandService.class),
                 mock(ActionDedupGuard.class),
-                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"));
+                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"),
+                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
 
         service.closeSessionsOf(project);
 
@@ -90,7 +91,8 @@ class RuntimeSessionServiceTest {
         when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
         RuntimeSessionService service = new RuntimeSessionService(sessions, mock(ProjectRuntimeStore.class),
                 mock(TagValueRouter.class), engine, mock(TagCommandService.class), dedup,
-                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"));
+                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"),
+                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
 
         assertThat(service.handleAction("pressing", 5L)).hasSize(1);
 

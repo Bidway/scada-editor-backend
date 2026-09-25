@@ -3,6 +3,7 @@ package com.example.runtime.kafka;
 import com.example.runtime.automation.engine.TagCache;
 import com.example.runtime.script.OnChangeDispatcher;
 import com.example.runtime.script.ScriptEngineService;
+import com.example.runtime.script.ScriptFailureRegistry;
 import com.example.runtime.session.OnChangeBinding;
 import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.project.ProjectRuntimeStore;
@@ -49,6 +50,7 @@ public class TagValueRouter {
     private final ApplicationEventPublisher eventPublisher;
     /** Входы фоновых задач: разбираются тем же приёмом, возраст считается по часам сервиса. */
     private final TagCache automationTags;
+    private final ScriptFailureRegistry failures;
 
     /** Ключ = tagId = Kafka-key. Запись удаляется, когда уходит последний проект. */
     private final Map<String, TagRuntimeState> tagStates = new ConcurrentHashMap<>();
@@ -60,7 +62,9 @@ public class TagValueRouter {
                           OnChangeDispatcher onChangeDispatcher,
                           ObjectMapper objectMapper,
                           ApplicationEventPublisher eventPublisher,
-                          TagCache automationTags) {
+                          TagCache automationTags,
+                          ScriptFailureRegistry failures) {
+        this.failures = failures;
         this.sessionStore = sessionStore;
         this.projectStore = projectStore;
         this.scriptEngineService = scriptEngineService;
@@ -267,6 +271,8 @@ public class TagValueRouter {
                     tagCommandService.sinksFor(project, componentId), project.getProjectData());
         } catch (Exception e) {
             log.warn("onChange script failed for property {}: {}", binding.componentPropertyId(), e.getMessage());
+            failures.record(ScriptFailureRegistry.kindOf(e), project.getProjectId(),
+                    "onChange property " + binding.componentPropertyId(), e.getMessage());
             return;
         }
 

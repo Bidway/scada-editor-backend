@@ -6,6 +6,7 @@ import com.example.runtime.instance.InstanceIdentity;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
+import com.example.runtime.script.ScriptFailureRegistry;
 import com.example.runtime.stream.PropertyUpdate;
 import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.project.ProjectRuntimeStore;
@@ -33,6 +34,7 @@ public class RuntimeSessionService {
     private final ActionDedupGuard actionDedupGuard;
     private final ProjectRuntimeStore projectStore;
     private final InstanceIdentity identity;
+    private final ScriptFailureRegistry failures;
 
     public RuntimeSessionService(RuntimeSessionStore sessionStore,
                                   ProjectRuntimeStore projectStore,
@@ -40,8 +42,10 @@ public class RuntimeSessionService {
                                   ScriptEngineService scriptEngineService,
                                   TagCommandService tagCommandService,
                                   ActionDedupGuard actionDedupGuard,
-                                  InstanceIdentity identity) {
+                                  InstanceIdentity identity,
+                                  ScriptFailureRegistry failures) {
         this.identity = identity;
+        this.failures = failures;
         this.sessionStore = sessionStore;
         this.projectStore = projectStore;
         this.tagValueRouter = tagValueRouter;
@@ -137,6 +141,8 @@ public class RuntimeSessionService {
         }
         if (!actionDedupGuard.allow(sessionId + ":" + scriptId)) {
             log.warn("ACTION {} for session {} dropped as a duplicate (dedup window)", scriptId, sessionId);
+            failures.record(ScriptFailureRegistry.Kind.DEDUP_DROPPED, session.getProject().getProjectId(),
+                    "action script " + scriptId, "повтор в окне дедупликации, сессия " + sessionId);
             return List.of();
         }
 
@@ -159,6 +165,8 @@ public class RuntimeSessionService {
                     tagCommandService.sinksFor(session.getProject(), script.componentId()), session.getProjectData());
         } catch (Exception e) {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
+            failures.record(ScriptFailureRegistry.kindOf(e), session.getProject().getProjectId(),
+                    "action script " + scriptId, e.getMessage());
             return List.of();
         }
 

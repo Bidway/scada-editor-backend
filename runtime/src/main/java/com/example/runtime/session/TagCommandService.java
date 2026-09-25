@@ -2,6 +2,7 @@ package com.example.runtime.session;
 
 import com.example.runtime.project.ProjectRuntime;
 import com.example.runtime.kafka.CommandProducer;
+import com.example.runtime.script.ScriptFailureRegistry;
 import com.example.runtime.script.ScriptWriteSinks;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,16 +26,18 @@ import org.springframework.stereotype.Service;
 public class TagCommandService {
 
     private final CommandProducer commandProducer;
+    private final ScriptFailureRegistry failures;
 
-    public TagCommandService(CommandProducer commandProducer) {
+    public TagCommandService(CommandProducer commandProducer, ScriptFailureRegistry failures) {
         this.commandProducer = commandProducer;
+        this.failures = failures;
     }
 
     /** Три sink'а для скрипта конкретного компонента — см. {@link ScriptWriteSinks}. */
     public ScriptWriteSinks sinksFor(ProjectRuntime project, Long componentId) {
         return new ScriptWriteSinks(
                 (propertyName, value) -> writeByProperty(project, componentId, propertyName, value),
-                this::writeByPath,
+                (path, value) -> writeByPath(project, path, value),
                 (path, value) -> writeByProjectTag(project, path, value));
     }
 
@@ -43,9 +46,12 @@ public class TagCommandService {
         if (idNode == null) {
             log.warn("writeTag('{}'): у компонента {} нет свойства с таким именем или оно не привязано к тегу",
                     propertyName, componentId);
+            failures.record(ScriptFailureRegistry.Kind.WRITE_REJECTED, project.getProjectId(),
+                    "writeTag('" + propertyName + "') component " + componentId,
+                    "нет свойства с таким именем или оно не привязано к тегу");
             return;
         }
-        send("writeTag", propertyName, idNode, value);
+        send(project, "writeTag", propertyName, idNode, value);
     }
 
     /**
@@ -54,13 +60,13 @@ public class TagCommandService {
      * любая попытка что-то в нём проверить ограничила бы функцию текущим проектом — а это
      * ровно то, для чего есть {@code writeProjectTag}.
      */
-    private void writeByPath(String path, Object value) {
-        send("writeTagPath", path, path, value);
+    private void writeByPath(ProjectRuntime project, String path, Object value) {
+        send(project, "writeTagPath", path, path, value);
     }
 
     private void writeByProjectTag(ProjectRuntime project, String path, Object value) {
         String idNode = project.getIndex().resolveTagPath(path);
-        send("writeProjectTag", path, idNode, value);
+        send(project, "writeProjectTag", path, idNode, value);
     }
 
     /**
@@ -74,11 +80,14 @@ public class TagCommandService {
      * иначе нигде не всплыл бы — кнопка на мнемосхеме выглядела бы сработавшей, а в ПЛК не
      * менялось бы ничего.
      */
-    private void send(String functionName, String requestedBy, String idNode, Object value) {
+    private void send(ProjectRuntime project, String functionName, String requestedBy, String idNode, Object value) {
         commandProducer.send(idNode, value).thenAccept(outcome -> {
             if (!outcome.applied()) {
                 log.warn("{}('{}') по тегу '{}': {} — {}",
                         functionName, requestedBy, idNode, outcome.status(), outcome.message());
+                failures.record(ScriptFailureRegistry.Kind.WRITE_REJECTED, project.getProjectId(),
+                        functionName + "('" + requestedBy + "') tag " + idNode,
+                        outcome.status() + ": " + outcome.message());
             }
         });
     }

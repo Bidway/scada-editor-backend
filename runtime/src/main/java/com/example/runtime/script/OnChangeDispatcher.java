@@ -39,12 +39,14 @@ public class OnChangeDispatcher {
     private static final long DROP_LOG_INTERVAL_MS = 10_000;
 
     private final RuntimeProperties properties;
+    private final ScriptFailureRegistry failures;
 
     private ThreadPoolExecutor[] stripes;
     private final AtomicLong dropped = new AtomicLong();
     private volatile long lastDropLogAt;
 
-    public OnChangeDispatcher(RuntimeProperties properties) {
+    public OnChangeDispatcher(RuntimeProperties properties, ScriptFailureRegistry failures) {
+        this.failures = failures;
         this.properties = properties;
     }
 
@@ -98,6 +100,8 @@ public class OnChangeDispatcher {
 
     private void registerDrop() {
         long total = dropped.incrementAndGet();
+        failures.record(ScriptFailureRegistry.Kind.QUEUE_DROPPED, null, "onChange queue",
+                "полоса переполнена, задача отброшена (всего " + total + ")");
         long now = System.currentTimeMillis();
         if (now - lastDropLogAt >= DROP_LOG_INTERVAL_MS) {
             lastDropLogAt = now;

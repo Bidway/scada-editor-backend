@@ -73,7 +73,7 @@ class TagValueRouterTest {
         eventPublisher = mock(org.springframework.context.ApplicationEventPublisher.class);
         router = new TagValueRouter(sessionStore, projectStore, mock(ScriptEngineService.class),
                 mock(TagCommandService.class), onChangeDispatcher, new ObjectMapper(), eventPublisher,
-                automationTags);
+                automationTags, new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
         router.registerProject(project);
         // Начальные кадры «нет данных» раздаёт теперь не регистрация, а снимок для наблюдателя.
         router.snapshot(project).forEach(buffer::offerTag);
