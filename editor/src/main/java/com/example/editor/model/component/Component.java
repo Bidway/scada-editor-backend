@@ -28,11 +28,15 @@ public class Component {
 //    @Type(JsonBinaryType.class)
 //    @Column(columnDefinition = "jsonb")
 //    private JsonNode image;
+    // Порядок коллекций без своего поля позиции — по id, то есть по порядку создания. Без
+    // @OrderBy он был физическим порядком строк: плыл после UPDATE и менялся от пачечной
+    // загрузки (default_batch_fetch_size, scada-5nba). Слои фронт рисует по zIndex, не по нему.
     @OneToMany(
         mappedBy = "component",
         cascade = CascadeType.ALL,
         orphanRemoval = true
     )
+    @OrderBy("id ASC")
     private List<ComponentState> states = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -40,6 +44,7 @@ public class Component {
     private Component parent;
 
     @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<Component> children = new ArrayList<>();
 
     @Version
@@ -47,6 +52,7 @@ public class Component {
     private Long version;
 
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<Script> scripts = new ArrayList<>();
 
     // Порядок строк таблицы (и полей в редакторе) — по position; свойства без номера уходят
@@ -56,8 +62,10 @@ public class Component {
     private List<ComponentProperty> properties = new ArrayList<>();
 
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<Binding> bindings = new ArrayList<>();
 
     @OneToMany(mappedBy = "component", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<ComponentEvent> events = new ArrayList<>();
 }
