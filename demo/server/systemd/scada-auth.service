@@ -1,0 +1,14 @@
+[Unit]
+Description=SCADA demo: auth (JWT)
+After=network.target postgresql.service
+
+[Service]
+User=scada
+WorkingDirectory=/opt/scada-demo
+EnvironmentFile=/opt/scada-demo/scada.env
+ExecStart=/usr/bin/env java -Xmx384m -jar /opt/scada-demo/auth.jar
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

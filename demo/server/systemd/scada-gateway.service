@@ -1,0 +1,14 @@
+[Unit]
+Description=SCADA demo: gateway
+After=network.target scada-auth.service scada-editor.service
+
+[Service]
+User=scada
+WorkingDirectory=/opt/scada-demo
+EnvironmentFile=/opt/scada-demo/scada.env
+ExecStart=/usr/bin/env java -Xmx256m -jar /opt/scada-demo/gateway.jar
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

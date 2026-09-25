@@ -1,0 +1,14 @@
+[Unit]
+Description=SCADA demo: editor
+After=network.target postgresql.service
+
+[Service]
+User=scada
+WorkingDirectory=/opt/scada-demo
+EnvironmentFile=/opt/scada-demo/scada.env
+ExecStart=/usr/bin/env java -Xmx768m -jar /opt/scada-demo/editor.jar
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

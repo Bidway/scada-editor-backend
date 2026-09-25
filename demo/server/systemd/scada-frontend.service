@@ -1,0 +1,14 @@
+[Unit]
+Description=SCADA demo: frontend
+After=network.target scada-gateway.service
+
+[Service]
+User=scada
+WorkingDirectory=/opt/scada-demo
+EnvironmentFile=/opt/scada-demo/scada.env
+ExecStart=/usr/bin/env node /opt/scada-demo/frontend/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
