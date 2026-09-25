@@ -44,6 +44,14 @@ spring:
 
         # WebSocket мониторинга маршрутизирует RuntimeInstanceRoutes по имени экземпляра в пути
         # (/ws/runtime/<instanceId>/…, этап 2Б). Порядок важен: /ws/** разбирается последним.
+        # STOMP/SockJS редактора: уведомления SCENE_CHANGED (scada-fqr). Раньше /ws/** — тот
+        # перехватил бы путь и увёл в channel.
+        - id: editor-ws
+          uri: http://${EDITOR_HOST:localhost}:8083
+          order: 0
+          predicates:
+            - Path=/ws/editor/**
+
         # STOMP/SockJS канала.
         - id: channel-ws
           uri: http://${CHANNEL_HOST:localhost}:8082

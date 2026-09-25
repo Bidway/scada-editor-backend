@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ public class DocumentVersionService {
     private final DocumentVersionRepository repository;
     private final ObjectMapper objectMapper;
     private final List<DocumentSource> sources;
+    private final ApplicationEventPublisher events;
 
     /**
      * Записывает снимок с версией, на которой основывался клиент. Возвращает созданную версию
@@ -79,7 +81,12 @@ public class DocumentVersionService {
             // saveAndFlush, а не save: INSERT обязан уйти в базу здесь, внутри try. Отложенный до
             // коммита, он выбросил бы нарушение уже за границей метода, где номер версии не виден
             // и перевести его в 409 нечем.
-            return repository.saveAndFlush(version);
+            DocumentVersion saved = repository.saveAndFlush(version);
+            if (targetType == DocumentType.SCENE) {
+                // Разошлёт SCENE_CHANGED после коммита (SceneChangeNotifier, scada-fqr).
+                events.publishEvent(new SceneVersionRecorded(targetId, saved.getVersionNo(), userName));
+            }
+            return saved;
         } catch (DataIntegrityViolationException e) {
             if (!isVersionCollision(e)) {
                 throw e;
