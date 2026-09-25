@@ -612,7 +612,11 @@ public class ComponentServiceImpl implements ComponentService {
             throw new IllegalStateException("Use dedicated endpoints to create projects and scenes");
         }
 
-        entity.setVersion(dto.getVersion());
+        // Новой сущности версию из dto не переносим: Spring Data считает сущность новой,
+        // пока @Version равен null, и иначе идёт em.merge вместо persist (scada-7xu).
+        if (entity.getId() != null) {
+            entity.setVersion(dto.getVersion());
+        }
         entity.setParent(parent);
 
         applyStates(entity, dto);
