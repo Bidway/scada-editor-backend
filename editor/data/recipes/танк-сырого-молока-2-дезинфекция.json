@@ -594,6 +594,9 @@
     }, {
       "tag" : "VRAB",
       "value" : 0
+    }, {
+      "tag" : "ARM_NO_RETURN",
+      "value" : 1
     } ],
     "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.TE_V.LINE1TE2.V\") >= 85;",
     "timeout_ms" : 900000
@@ -661,6 +664,9 @@
     }, {
       "tag" : "VRAB",
       "value" : 35
+    }, {
+      "tag" : "ARM_NO_RETURN",
+      "value" : 0
     } ],
     "condition_script" : "var on=function(p){var v=readProjectTag(p);return v===true||v==1;};return confirmed || !on(\"Барановичи-1.BN1_MCA1.LS_ST.LINE1LS3.ST\");",
     "timeout_ms" : 60000
@@ -1021,6 +1027,9 @@
     }, {
       "tag" : "VRAB",
       "value" : 1100
+    }, {
+      "tag" : "ARM_NO_RETURN",
+      "value" : 1
     } ],
     "condition_script" : "var v=readProjectTag(\"Барановичи-1.BN1_MCA1.FQT_V.LINE1FQT1.V\"); var tr=readProjectTag(\"Барановичи-1.BN1_MCA1.TE_V.LINE1TE2.V\");return confirmed || (elapsedMs >= 3000 && v !== null && v >= 1100) || (elapsedMs >= 3000 && tr !== null && tr < 5);",
     "timeout_ms" : 283000
@@ -1085,6 +1094,9 @@
       "value" : 0
     }, {
       "tag" : "VRAB",
+      "value" : 0
+    }, {
+      "tag" : "ARM_NO_RETURN",
       "value" : 0
     } ],
     "condition_script" : "return confirmed || readProjectTag(\"Барановичи-1.BN1_MCA1.DI_ST.LINE1DI1118.ST\") == 1 || (elapsedMs >= 12000 && readProjectTag(\"Барановичи-1.BN1_MCA1.FS_ST.LINE1FS1.ST\") != 1);",
