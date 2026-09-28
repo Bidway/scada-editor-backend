@@ -7,7 +7,10 @@ import org.springframework.stereotype.Component;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** SQL чтения архива. Все выборки — по индексу (tag, ts), секции отсекаются по ts. */
 @Component
@@ -72,5 +75,45 @@ public class ArchiveReader {
                 WHERE (good AND (rn_min = 1 OR rn_max = 1)) OR NOT good
                 ORDER BY ts
                 """, VALUE, fromEpoch, width, tag, Timestamp.from(from), Timestamp.from(to));
+    }
+
+    /** Состояние набора тегов на момент {@code before}: по одной последней точке на тег. */
+    public Map<Integer, ArchiveValue> initialAll(Collection<Integer> tags, Instant before) {
+        Map<Integer, ArchiveValue> out = new HashMap<>();
+        jdbc.query("""
+                SELECT t.id AS tag, a.ts, a.value_num, a.value_text, a.good
+                FROM unnest(?::integer[]) AS t(id)
+                JOIN LATERAL (SELECT ts, value_num, value_text, good FROM runtime.tag_archive
+                              WHERE tag = t.id AND ts < ? ORDER BY ts DESC LIMIT 1) a ON true
+                """, ps -> {
+                    ps.setArray(1, ps.getConnection().createArrayOf("integer", tags.toArray()));
+                    ps.setTimestamp(2, Timestamp.from(before));
+                }, rs -> {
+                    out.put(rs.getInt("tag"), VALUE.mapRow(rs, 0));
+                });
+        return out;
+    }
+
+    /**
+     * Страница изменений набора тегов по (ts, tag); {@code afterTs}/{@code afterTag} — курсор или null.
+     * Строка: {id тега, ts как Timestamp с микросекундами, ArchiveValue}.
+     */
+    public List<Object[]> changes(Collection<Integer> tags, Instant from, Instant to,
+                                  Timestamp afterTs, Integer afterTag, int limit) {
+        return jdbc.query("""
+                SELECT tag, ts, value_num, value_text, good FROM runtime.tag_archive
+                WHERE tag = ANY(?) AND ts >= ? AND ts < ?
+                  AND (?::timestamptz IS NULL OR (ts, tag) > (?::timestamptz, ?::integer))
+                ORDER BY ts, tag
+                LIMIT ?
+                """, ps -> {
+                    ps.setArray(1, ps.getConnection().createArrayOf("integer", tags.toArray()));
+                    ps.setTimestamp(2, Timestamp.from(from));
+                    ps.setTimestamp(3, Timestamp.from(to));
+                    ps.setTimestamp(4, afterTs);
+                    ps.setTimestamp(5, afterTs);
+                    ps.setObject(6, afterTag, java.sql.Types.INTEGER);
+                    ps.setInt(7, limit);
+                }, (rs, i) -> new Object[]{rs.getInt("tag"), rs.getTimestamp("ts"), VALUE.mapRow(rs, i)});
     }
 }
