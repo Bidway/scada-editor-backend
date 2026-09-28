@@ -37,6 +37,8 @@ public class AssignmentApplier {
     private final ProjectRuntimeStore projectStore;
 
     private volatile boolean ready;
+    /** Назначенные проекты, чья активация упала; повторяются, пока не поднимутся или не снимутся. */
+    private final Set<Long> failedActivations = new HashSet<>();
 
     @EventListener(ApplicationReadyEvent.class)
     public void onReady() {
@@ -72,10 +74,19 @@ public class AssignmentApplier {
         state.update(ownTopics, ownProjects);
         connections.sync(ownTopics);
 
+        failedActivations.retainAll(ownProjects);
         for (Long projectId : ownProjects) {
-            if (!before.contains(projectId)) {
+            if (!before.contains(projectId) || failedActivations.contains(projectId)) {
                 // Поднимется, только если стоит флаг «в эксплуатации» (сверка с editor внутри activate).
-                projectRuntimeService.activate(projectId);
+                // Сбой одного проекта (медленный или лежащий editor) не валит старт экземпляра:
+                // проект повторяется на следующем тике (scada-kdxq).
+                try {
+                    projectRuntimeService.activate(projectId);
+                    failedActivations.remove(projectId);
+                } catch (Exception e) {
+                    failedActivations.add(projectId);
+                    log.warn("Проект {} не поднят, повторю через 5 с: {}", projectId, e.toString());
+                }
             }
         }
         for (ProjectRuntime running : List.copyOf(projectStore.all())) {

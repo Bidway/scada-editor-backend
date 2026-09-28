@@ -18,18 +18,28 @@ import java.time.Duration;
  * сессии и на каждый запрос статуса процедуры. Поэтому у клиента заданы конечные таймауты
  * подключения и чтения: зависший (а не упавший) editor иначе подвесил бы вызывающий тред
  * пула или HTTP-тред без ограничения по времени.
+ *
+ * <p>Дереву проекта — свой клиент с длинным таймаутом чтения: оно запрашивается только при
+ * активации проекта, а у большого проекта (10554, ~4 МБ) editor отдаёт его дольше 5 с
+ * (scada-kdxq).
  */
 @Component
 @Slf4j
 public class EditorClient {
 
     private final RestClient restClient;
+    private final RestClient treeClient;
 
     public EditorClient(RuntimeProperties properties) {
+        this.restClient = client(properties, Duration.ofSeconds(5));
+        this.treeClient = client(properties, Duration.ofSeconds(30));
+    }
+
+    private static RestClient client(RuntimeProperties properties, Duration readTimeout) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
-        requestFactory.setReadTimeout(Duration.ofSeconds(5));
-        this.restClient = RestClient.builder()
+        requestFactory.setReadTimeout(readTimeout);
+        return RestClient.builder()
                 .baseUrl(properties.getEditorBaseUrl())
                 .requestFactory(requestFactory)
                 .build();
@@ -37,7 +47,7 @@ public class EditorClient {
 
     public EditorComponentDto getProjectTree(Long projectId) {
         log.debug("Fetching project tree {} from editor", projectId);
-        return restClient.get()
+        return treeClient.get()
                 .uri("/api/editor/components/{id}", projectId)
                 .retrieve()
                 .body(EditorComponentDto.class);
