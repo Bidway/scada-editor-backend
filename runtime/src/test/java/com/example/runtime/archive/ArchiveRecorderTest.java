@@ -73,6 +73,15 @@ class ArchiveRecorderTest {
         assertThat(points.get(1).text()).isEqualTo("Мойка");
     }
 
+    // Ревью, Important-2: STRING-тег ПЛК часто дополнен нулями, а Postgres не принимает 0x00 в text.
+    @Test
+    void нулевые_байты_строкового_тега_вычищаются() {
+        ArchiveRecorder r = recorder(100);
+        r.record("s", good("Мойка\u0000\u0000"), at("2026-09-28T10:00:00"));
+
+        assertThat(r.queue().drain(10).get(0).text()).isEqualTo("Мойка");
+    }
+
     // Review Focus 1: курсор воспроизведения идёт по (ts, tag) — у тега не может быть двух точек с одним ts.
     @Test
     void две_точки_тега_в_одну_миллисекунду_получают_разные_ts() {

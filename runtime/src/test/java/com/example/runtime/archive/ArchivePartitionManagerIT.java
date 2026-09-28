@@ -8,7 +8,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -24,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(ArchiveProperties.class)
 @Testcontainers
+// Без транзакции теста: менеджер работает своим соединением и должен видеть строки теста.
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ArchivePartitionManagerIT {
 
     @Container
@@ -41,11 +44,10 @@ class ArchivePartitionManagerIT {
     private static final ZoneId ZONE = ZoneId.of("Europe/Minsk");
 
     @Autowired JdbcTemplate jdbc;
-    @Autowired PlatformTransactionManager tx;
     @Autowired ArchiveProperties props;
 
     private ArchivePartitionManager managerAt(String isoInstant) {
-        return new ArchivePartitionManager(jdbc, tx, props,
+        return new ArchivePartitionManager(jdbc, props,
                 Clock.fixed(Instant.parse(isoInstant), ZONE));
     }
 
@@ -64,6 +66,28 @@ class ArchivePartitionManagerIT {
                 .doesNotContain("20260819", "20260820");
         assertThat(now.partitions(ArchivePartitionManager.ACTION_LOG))
                 .contains("20260928", "20260929");
+    }
+
+    /**
+     * Ревью, Important-1: строка в DEFAULT за сутки без секции раньше навсегда блокировала
+     * CREATE … PARTITION OF на этот диапазон (Postgres: «updated partition constraint for default
+     * partition would be violated») — и вместе с ним всё обслуживание одной транзакцией.
+     */
+    @Test
+    void секция_создаётся_даже_если_в_default_уже_есть_строки_её_суток() {
+        managerAt("2026-10-10T10:00:00Z").maintain();          // секции 10 и 11 октября
+        jdbc.update("INSERT INTO runtime.tag_archive(tag, ts, value_num, good) VALUES (7, '2026-10-12T09:00:00Z', 5, true)");
+        jdbc.update("INSERT INTO runtime.action_log(ts, kind, outcome) VALUES ('2026-10-12T09:00:00Z', 'ACTION', 'OK')");
+
+        ArchivePartitionManager next = managerAt("2026-10-11T10:00:00Z");
+        next.maintain();                                       // нужна секция 12 октября
+
+        assertThat(next.partitions(ArchivePartitionManager.TAG_ARCHIVE)).contains("20261012");
+        assertThat(next.partitions(ArchivePartitionManager.ACTION_LOG)).contains("20261012");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM runtime.tag_archive_20261012 WHERE tag = 7", Long.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM runtime.tag_archive_default WHERE tag = 7", Long.class)).isZero();
     }
 
     @Test

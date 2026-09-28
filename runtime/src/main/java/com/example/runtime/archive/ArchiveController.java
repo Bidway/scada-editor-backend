@@ -37,7 +37,7 @@ public class ArchiveController {
     @GetMapping("/status")
     public ArchiveStatus status() {
         return new ArchiveStatus(recorder.queue().size(), recorder.queue().capacity(), recorder.queue().dropped(),
-                writer.pendingSize(), writer.lastFlushAt(), writer.lastError(),
+                writer.rejected(), writer.pendingSize(), writer.lastFlushAt(), writer.lastError(),
                 partitions.partitions(ArchivePartitionManager.TAG_ARCHIVE),
                 partitions.defaultRows(ArchivePartitionManager.TAG_ARCHIVE));
     }

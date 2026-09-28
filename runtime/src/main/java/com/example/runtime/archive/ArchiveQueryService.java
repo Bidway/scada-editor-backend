@@ -111,8 +111,11 @@ public class ArchiveQueryService {
         }
 
         int limit = props.getReplayPageSize();
+        // Нижняя граница по курсору: индекс (tag, ts) не сужает диапазон по условию (ts, tag) > (…),
+        // и без неё каждая страница заново читала бы период от from.
+        Instant lower = afterTs == null ? request.from() : afterTs.toInstant();
         List<Object[]> rows = ids.isEmpty() ? List.of()
-                : reader.changes(ids.values(), request.from(), request.to(), afterTs, afterTag, limit);
+                : reader.changes(ids.values(), lower, request.to(), afterTs, afterTag, limit);
         List<ReplayChange> changes = new ArrayList<>(rows.size());
         for (Object[] row : rows) {
             ArchiveValue v = (ArchiveValue) row[2];
