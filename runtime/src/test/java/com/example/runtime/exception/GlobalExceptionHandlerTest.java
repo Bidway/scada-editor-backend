@@ -18,7 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class GlobalExceptionHandlerTest {
 
     private final MockMvc mockMvc = MockMvcBuilders
-            .standaloneSetup(new ProcedureController(mock(ProcedureExecutionService.class)))
+            .standaloneSetup(new ProcedureController(mock(ProcedureExecutionService.class),
+                    mock(com.example.runtime.journal.ActionJournal.class)))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 

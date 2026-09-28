@@ -3,6 +3,8 @@ package com.example.runtime.session;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.dto.TagSnapshot;
 import com.example.runtime.instance.InstanceIdentity;
+import com.example.runtime.journal.ActionJournal;
+import com.example.runtime.journal.ActionRecord;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +38,7 @@ public class RuntimeSessionService {
     private final ProjectRuntimeStore projectStore;
     private final InstanceIdentity identity;
     private final ScriptFailureRegistry failures;
+    private final ActionJournal journal;
 
     public RuntimeSessionService(RuntimeSessionStore sessionStore,
                                   ProjectRuntimeStore projectStore,
@@ -43,7 +47,9 @@ public class RuntimeSessionService {
                                   TagCommandService tagCommandService,
                                   ActionDedupGuard actionDedupGuard,
                                   InstanceIdentity identity,
-                                  ScriptFailureRegistry failures) {
+                                  ScriptFailureRegistry failures,
+                                 ActionJournal journal) {
+        this.journal = journal;
         this.identity = identity;
         this.failures = failures;
         this.sessionStore = sessionStore;
@@ -128,7 +134,7 @@ public class RuntimeSessionService {
      * Возвращает список изменившихся свойств — вызывающий (WS-хендлер) сразу шлёт их
      * фронту, не дожидаясь батч-флаша, так как это редкое дискретное событие.
      */
-    public List<PropertyUpdate> handleAction(String sessionId, Long scriptId) {
+    public List<PropertyUpdate> handleAction(String sessionId, Long scriptId, String username) {
         RuntimeSession session = sessionStore.get(sessionId);
         if (session == null) {
             log.warn("ACTION for unknown session {}", sessionId);
@@ -145,6 +151,11 @@ public class RuntimeSessionService {
                     "action script " + scriptId, "повтор в окне дедупликации, сессия " + sessionId);
             return List.of();
         }
+
+        // Журнал действий: кто нажал, на каком компоненте, какой скрипт; исход — ниже.
+        ActionRecord action = new ActionRecord(Instant.now(), username, session.getProjectId(),
+                ActionRecord.KIND_ACTION, script.componentId(),
+                session.getIndex().componentName(script.componentId()), script.name(), null, null, null);
 
         List<Long> propertyIds = session.getIndex().propertyIdsOfComponent(script.componentId());
         // HashMap, а не ConcurrentHashMap: свойство может быть не задано (null), а скрипт
@@ -167,8 +178,10 @@ public class RuntimeSessionService {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
             failures.record(ScriptFailureRegistry.kindOf(e), session.getProject().getProjectId(),
                     "action script " + scriptId, e.getMessage());
+            journal.record(action.failed(e.getMessage()));
             return List.of();
         }
+        journal.record(action.ok());
 
         long ts = System.currentTimeMillis();
         List<PropertyUpdate> changed = new ArrayList<>();

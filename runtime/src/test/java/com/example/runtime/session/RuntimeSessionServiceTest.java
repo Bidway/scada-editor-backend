@@ -50,7 +50,8 @@ class RuntimeSessionServiceTest {
                 mock(TagValueRouter.class), mock(ScriptEngineService.class), mock(TagCommandService.class),
                 mock(ActionDedupGuard.class),
                 new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"),
-                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
+                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+                mock(com.example.runtime.journal.ActionJournal.class));
 
         service.closeSessionsOf(project);
 
@@ -92,14 +93,55 @@ class RuntimeSessionServiceTest {
         RuntimeSessionService service = new RuntimeSessionService(sessions, mock(ProjectRuntimeStore.class),
                 mock(TagValueRouter.class), engine, mock(TagCommandService.class), dedup,
                 new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"),
-                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
+                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+                mock(com.example.runtime.journal.ActionJournal.class));
 
-        assertThat(service.handleAction("pressing", 5L)).hasSize(1);
+        assertThat(service.handleAction("pressing", 5L, "ivanov")).hasSize(1);
 
         assertThat(watching.getOutboundBuffer().drainAll().properties())
                 .extracting(com.example.runtime.stream.PropertyUpdate::value).containsExactly(1);
         assertThat(pressing.getOutboundBuffer().isEmpty())
                 .as("нажавшему обработчик шлёт сразу — второй раз из буфера не нужно")
                 .isTrue();
+    }
+
+    /** Журнал действий: кто нажал, на каком компоненте, какой скрипт и чем кончилось. */
+    @Test
+    void нажатие_пишется_в_журнал_с_оператором_скриптом_и_исходом() {
+        TagSubscriptionIndex index = mock(TagSubscriptionIndex.class);
+        when(index.getInitialPropertyValues()).thenReturn(Map.of());
+        when(index.getScript(5L)).thenReturn(new ScriptEntry(5L, 10L, "Открыть клапан", "x"));
+        when(index.propertyIdsOfComponent(10L)).thenReturn(java.util.List.of());
+        when(index.componentName(10L)).thenReturn("V1");
+        ProjectRuntime project = new ProjectRuntime(8501L, index, null);
+        RuntimeSessionStore sessions = new RuntimeSessionStore();
+        RuntimeSession pressing = new RuntimeSession("pressing", project);
+        sessions.put(pressing);
+        ScriptEngineService engine = mock(ScriptEngineService.class);
+        when(engine.runAction(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new IllegalStateException("таймаут скрипта"));
+        ActionDedupGuard dedup = mock(ActionDedupGuard.class);
+        when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        com.example.runtime.journal.ActionJournal journal = mock(com.example.runtime.journal.ActionJournal.class);
+        RuntimeSessionService service = new RuntimeSessionService(sessions, mock(ProjectRuntimeStore.class),
+                mock(TagValueRouter.class), engine, mock(TagCommandService.class), dedup,
+                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"),
+                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+                journal);
+
+        service.handleAction("pressing", 5L, "ivanov");
+
+        ArgumentCaptor<com.example.runtime.journal.ActionRecord> captor =
+                ArgumentCaptor.forClass(com.example.runtime.journal.ActionRecord.class);
+        verify(journal).record(captor.capture());
+        com.example.runtime.journal.ActionRecord r = captor.getValue();
+        assertThat(r.username()).isEqualTo("ivanov");
+        assertThat(r.projectId()).isEqualTo(8501L);
+        assertThat(r.kind()).isEqualTo("ACTION");
+        assertThat(r.component()).isEqualTo("V1");
+        assertThat(r.target()).isEqualTo("Открыть клапан");
+        assertThat(r.outcome()).isEqualTo("ERROR");
+        assertThat(r.error()).contains("таймаут скрипта");
     }
 }

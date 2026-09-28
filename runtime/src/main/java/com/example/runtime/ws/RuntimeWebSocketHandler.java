@@ -137,7 +137,9 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
         }
 
         if ("ACTION".equalsIgnoreCase(inbound.getType())) {
-            List<PropertyUpdate> changed = sessionService.handleAction(sessionId, inbound.getScriptId());
+            Object username = wsSession.getAttributes().get(RuntimeHandshakeInterceptor.USERNAME_ATTRIBUTE);
+            List<PropertyUpdate> changed = sessionService.handleAction(sessionId, inbound.getScriptId(),
+                    username == null ? null : username.toString());
             if (!changed.isEmpty()) {
                 RuntimeSession session = sessionService.getSession(sessionId);
                 if (session != null) {

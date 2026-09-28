@@ -41,6 +41,8 @@ public class TagSubscriptionIndex {
     private final Set<String> allTagIds = new HashSet<>();
     /** Имя компонента → id компонентов с этим именем: имена в дереве не уникальны («Насос», «Element»). */
     private final Map<String, List<Long>> componentIdsByName = new HashMap<>();
+    /** id компонента → имя: для журнала действий («нажали на V1»). */
+    private final Map<Long, String> componentNames = new HashMap<>();
 
     /**
      * Общий префикс путей всех тегов проекта (для {@code writeProjectTag} из скрипта),
@@ -82,6 +84,7 @@ public class TagSubscriptionIndex {
         Long componentId = component.getId();
         if (component.getName() != null && !component.getName().isBlank()) {
             componentIdsByName.computeIfAbsent(component.getName().trim(), name -> new ArrayList<>()).add(componentId);
+            componentNames.put(componentId, component.getName().trim());
         }
 
         if (component.getProperties() != null) {
@@ -204,6 +207,10 @@ public class TagSubscriptionIndex {
 
     public List<OnChangeBinding> onChangeBindingsForTag(String tagId) {
         return tagToOnChangeBindings.getOrDefault(tagId, List.of());
+    }
+
+    public String componentName(Long componentId) {
+        return componentNames.get(componentId);
     }
 
     public ScriptEntry getScript(Long scriptId) {
