@@ -69,6 +69,17 @@ runtime:
     # Подпись токена снимает gateway — он единственный вход в контур. Для локального
     # прогона runtime без gateway: RUNTIME_WS_REQUIRE_AUTH=false.
     require-auth: ${RUNTIME_WS_REQUIRE_AUTH:true}
+  archive:
+    # Архив тегов и журнал действий (дизайн 2026-09-28-tag-archive). Пишутся только изменения.
+    enabled: ${RUNTIME_ARCHIVE_ENABLED:true}
+    retention-days: 30
+    queue-capacity: 200000
+    batch-size: 5000
+    flush-interval-ms: 1000
+    max-tags-per-request: 20
+    max-points: 5000
+    replay-page-size: 50000
+    max-replay-tags: 5000
 
 kafka:
   bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
