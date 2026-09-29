@@ -1,5 +1,7 @@
 package com.example.runtime.ws;
 
+import com.example.runtime.project.ProjectModelReplaced;
+import org.springframework.context.event.EventListener;
 import com.example.runtime.automation.AutomationStateBridge;
 import com.example.runtime.instance.InstanceIdentity;
 import com.example.runtime.kafka.TagValueRouter;
@@ -101,6 +103,36 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
     }
 
     /** Копия общего состояния свойств проекта в том же виде, в каком их шлёт UPDATE. */
+    /**
+     * Смена выпуска: каждому монитору проекта TREE_CHANGED, затем свежий SNAPSHOT — значения
+     * свойств и теги нового выпуска. Под локом сессии: соединение уже привязано, и OutboundFlusher
+     * шлёт в него параллельно. UPDATE, ушедший до снимка, снимок перезапишет; после — свежее снимка.
+     */
+    @EventListener
+    public void onModelReplaced(ProjectModelReplaced event) {
+        ProjectRuntime project = projectStore.get(event.projectId());
+        if (project == null) {
+            return;
+        }
+        for (RuntimeSession session : project.sessions()) {
+            WebSocketSession ws = session.getWebSocketSession();
+            if (ws == null || !ws.isOpen()) {
+                continue;
+            }
+            session.getSendLock().lock();
+            try {
+                ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new TreeChangedMessage(event.versionNo()))));
+                ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new SnapshotMessage(
+                        tagValueRouter.snapshot(project), propertiesOf(project),
+                        procedures.activeStatuses(project.getProjectId())))));
+            } catch (Exception e) {
+                log.warn("TREE_CHANGED не отправлен сессии {}: {}", session.getId(), e.getMessage());
+            } finally {
+                session.getSendLock().unlock();
+            }
+        }
+    }
+
     private static List<PropertyUpdate> propertiesOf(ProjectRuntime project) {
         long ts = System.currentTimeMillis();
         List<PropertyUpdate> result = new ArrayList<>();

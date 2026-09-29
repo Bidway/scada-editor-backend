@@ -79,4 +79,35 @@ class OwnerForwardingFilterTest {
         assertThat(againResponse.getStatus()).isEqualTo(409);
         assertThat(againResponse.getContentAsString()).contains("не назначен этому экземпляру");
     }
+
+    @Test
+    void сцена_чужого_проекта_пересылается_владельцу() throws Exception {
+        InstanceProjectRepository projects = mock(InstanceProjectRepository.class);
+        InstanceProjectEntity owned = new InstanceProjectEntity();
+        owned.setProjectId(9000L);
+        owned.setInstanceId("runtime-2");
+        when(projects.findById(9000L)).thenReturn(Optional.of(owned));
+        InstanceRepository instances = mock(InstanceRepository.class);
+        InstanceEntity owner = new InstanceEntity();
+        owner.setInstanceId("runtime-2");
+        owner.setBaseUrl("http://runtime-2:8085");
+        owner.setLastSeenAt(Instant.now());
+        when(instances.findById("runtime-2")).thenReturn(Optional.of(owner));
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://runtime-2:8085/api/runtime/projects/9000/scenes/5"))
+                .andRespond(withSuccess("{\"id\":5}", MediaType.APPLICATION_JSON));
+        OwnerForwardingFilter filter = new OwnerForwardingFilter(new InstanceIdentity("runtime-1", "http://runtime-1:8085"),
+                instances, projects, mock(InstanceTopicPrefixRepository.class), mock(InstanceTopicRepository.class), builder);
+
+        MockHttpServletRequest request = new MockHttpServletRequest(HttpMethod.GET.name(),
+                "/api/runtime/projects/9000/scenes/5");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        filter.doFilter(request, response, chain);
+
+        server.verify();
+        assertThat(chain.getRequest()).isNull();
+        assertThat(response.getContentAsString()).contains("\"id\":5");
+    }
 }

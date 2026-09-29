@@ -49,6 +49,7 @@ public class OwnerForwardingFilter extends OncePerRequestFilter {
     static final String FORWARDED = "X-Runtime-Forwarded";
 
     private static final Pattern AUTOMATION = Pattern.compile("^/api/automation/projects/(\\d+)/data/.*");
+    private static final Pattern PROJECT_SCENES = Pattern.compile("^/api/runtime/projects/(\\d+)/scenes(/.*)?$");
     private static final Pattern SESSION = Pattern.compile("^/api/runtime/sessions/([A-Za-z0-9_-]+)\\.[^/]+(/.*)?$");
     private static final Set<String> COPIED_HEADERS = Set.of("x-username", "x-user-id", "content-type", "accept");
 
@@ -82,7 +83,8 @@ public class OwnerForwardingFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         boolean routed = path.startsWith("/api/runtime/sessions") || path.startsWith("/api/runtime/recipes/")
-                || path.equals("/api/runtime/tags/write") || AUTOMATION.matcher(path).matches();
+                || path.equals("/api/runtime/tags/write") || AUTOMATION.matcher(path).matches()
+                || PROJECT_SCENES.matcher(path).matches();
         return !routed;
     }
 
@@ -119,6 +121,10 @@ public class OwnerForwardingFilter extends OncePerRequestFilter {
         Matcher automation = AUTOMATION.matcher(path);
         if (automation.matches()) {
             return Optional.of(projectOwner(Long.parseLong(automation.group(1))));
+        }
+        Matcher scenes = PROJECT_SCENES.matcher(path);
+        if (scenes.matches()) {
+            return Optional.of(projectOwner(Long.parseLong(scenes.group(1))));
         }
         String queryProject = request.getParameter("projectId");
         if (queryProject != null && queryProject.matches("\\d+")) {
