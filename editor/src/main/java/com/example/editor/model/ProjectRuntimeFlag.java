@@ -25,4 +25,8 @@ public class ProjectRuntimeFlag {
 
     @Column(name = "in_operation", nullable = false)
     private boolean inOperation;
+
+    /** Номер выпуска (версии PROJECT), который крутит runtime; null — выпуска ещё нет. */
+    @Column(name = "prod_version_no")
+    private Integer prodVersionNo;
 }

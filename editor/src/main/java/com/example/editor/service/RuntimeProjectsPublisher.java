@@ -68,7 +68,7 @@ public class RuntimeProjectsPublisher {
         }
     }
 
-    public void publish(Long projectId, boolean inOperation) {
+    public void publish(Long projectId, boolean inOperation, Integer prodVersionNo) {
         // Выключается в тестовом профиле: тесты editor поднимают контекст с настоящим адресом
         // брокера, и прогон ProjectRuntimeApiIT включал проект 8501 на стенде (scada-ocqj).
         if (!enabled) {
@@ -82,7 +82,7 @@ public class RuntimeProjectsPublisher {
                     topic, projectId);
             return;
         }
-        String value = inOperation ? "{\"projectId\":" + projectId + ",\"inOperation\":true}" : null;
+        String value = valueOf(projectId, inOperation, prodVersionNo);
         producer.send(new ProducerRecord<>(topic, String.valueOf(projectId), value), (meta, e) -> {
             if (e != null) {
                 log.warn("Не удалось опубликовать проект {} в {}: {}", projectId, topic, e.toString());
@@ -90,10 +90,17 @@ public class RuntimeProjectsPublisher {
         });
     }
 
+    /** Тело записи: выключенный проект — tombstone, включённый несёт номер prod для горячей замены. */
+    static String valueOf(Long projectId, boolean inOperation, Integer prodVersionNo) {
+        return inOperation
+                ? "{\"projectId\":" + projectId + ",\"inOperation\":true,\"prodVersionNo\":" + prodVersionNo + "}"
+                : null;
+    }
+
     /** Полная пересинхронизация: страховка вместо outbox. */
     @EventListener(ApplicationReadyEvent.class)
     @Scheduled(fixedDelayString = "${editor.runtime-projects.resync-interval-ms:60000}")
     public void resync() {
-        repository.findAll().forEach(f -> publish(f.getProjectId(), f.isInOperation()));
+        repository.findAll().forEach(f -> publish(f.getProjectId(), f.isInOperation(), f.getProdVersionNo()));
     }
 }

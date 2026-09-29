@@ -68,6 +68,14 @@ public class GlobalExceptionHandler {
      * {@code error: "version_mismatch"} и оба номера версий, а общий обработчик кладёт в
      * {@code error} reason phrase.
      */
+    @ExceptionHandler(NoProdReleaseException.class)
+    public ResponseEntity<Map<String, Object>> handleNoProdRelease(NoProdReleaseException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "no_prod_release");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(VersionMismatchException.class)
     public ResponseEntity<Map<String, Object>> handleVersionMismatch(VersionMismatchException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
