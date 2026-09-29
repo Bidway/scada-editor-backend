@@ -91,13 +91,19 @@ public class ProjectRuntime {
      * памяти плюс отметка для сохранения. {@code null} — свойство сброшено: {@code ConcurrentHashMap}
      * не хранит null, отсутствие ключа и значит «не задано».
      */
-    public void putPropertyValue(Long propertyId, Object value) {
+    public boolean putPropertyValue(Long propertyId, Object value) {
+        // Скрипт, начатый на прошлом выпуске, мог закончиться после reload: свойства в текущем
+        // выпуске уже нет — значение не пишем ни в память, ни в базу, и мониторам его не шлют.
+        if (model.index().propertyName(propertyId) == null) {
+            return false;
+        }
         if (value == null) {
             propertyValues.remove(propertyId);
         } else {
             propertyValues.put(propertyId, value);
         }
         propertyValueSink.changed(propertyId, value);
+        return true;
     }
     public void replaceProjectData(ProjectData projectData) {
         this.projectData = projectData;

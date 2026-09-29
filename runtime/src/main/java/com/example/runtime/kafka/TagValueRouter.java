@@ -272,12 +272,14 @@ public class TagValueRouter {
 
     private void runOnChangeAndPublish(ProjectRuntime project, OnChangeBinding binding, Object tagValue, long ts) {
         Long componentId = binding.componentId();
-        List<Long> propertyIds = project.getIndex().propertyIdsOfComponent(componentId);
+        // Индекс — один раз на выполнение: reload может сменить выпуск посреди скрипта.
+        TagSubscriptionIndex index = project.getIndex();
+        List<Long> propertyIds = index.propertyIdsOfComponent(componentId);
         // HashMap, а не ConcurrentHashMap: значение свойства может быть не задано (null),
         // и скрипт вправе выставить props.x = null. Карта живёт одно выполнение скрипта.
         Map<String, Object> props = new HashMap<>();
         for (Long propertyId : propertyIds) {
-            String name = project.getIndex().propertyName(propertyId);
+            String name = index.propertyName(propertyId);
             Object current = project.getPropertyValues().get(propertyId);
             if (name != null) {
                 props.put(name, current);
@@ -297,13 +299,13 @@ public class TagValueRouter {
         }
 
         for (Long propertyId : propertyIds) {
-            String name = project.getIndex().propertyName(propertyId);
+            String name = index.propertyName(propertyId);
             if (name == null) {
                 continue;
             }
             Object newValue = after.get(name);
-            if (!java.util.Objects.equals(before.get(name), newValue)) {
-                project.putPropertyValue(propertyId, newValue);
+            if (!java.util.Objects.equals(before.get(name), newValue)
+                    && project.putPropertyValue(propertyId, newValue)) {
                 PropertyUpdate update = new PropertyUpdate(propertyId, name, newValue, ts);
                 // Свойство посчитано один раз, а увидеть его должны все наблюдатели проекта.
                 for (RuntimeSession session : project.sessions()) {

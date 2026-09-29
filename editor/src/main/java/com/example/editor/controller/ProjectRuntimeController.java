@@ -8,7 +8,6 @@ import com.example.editor.service.RuntimeProjectsPublisher;
 import com.example.editor.service.version.DocumentVersionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -24,6 +23,10 @@ import java.util.Map;
  * Ввод проекта в эксплуатацию и выбор prod-выпуска. Пока флаг не выставлен, runtime проект не
  * поднимает: ни телеметрии, ни onChange, ни процедур. Крутит он только prod-выпуск — живое дерево
  * видит один редактор.
+ * <p>
+ * Без {@code @Transactional} намеренно: {@code save} репозитория коммитит сам, и запись в
+ * runtime.projects уходит уже после коммита. Внутри транзакции runtime, получив запись, прочёл бы
+ * из editor ещё старый флаг и prod, и смена ждала бы ресинка — до минуты.
  */
 @RestController
 @RequestMapping("/api/editor/projects/{projectId}/runtime")
@@ -41,7 +44,6 @@ public class ProjectRuntimeController {
     }
 
     @PutMapping
-    @Transactional
     public Map<String, Object> set(@PathVariable Long projectId,
                                    @RequestBody Map<String, Boolean> body,
                                    @RequestHeader(value = "X-Username", required = false) String username) {
@@ -63,7 +65,6 @@ public class ProjectRuntimeController {
      * runtime.projects; у выключенного номер просто запоминается.
      */
     @PutMapping("/prod")
-    @Transactional
     public Map<String, Object> setProd(@PathVariable Long projectId,
                                        @RequestBody Map<String, Integer> body,
                                        @RequestHeader(value = "X-Username", required = false) String username) {

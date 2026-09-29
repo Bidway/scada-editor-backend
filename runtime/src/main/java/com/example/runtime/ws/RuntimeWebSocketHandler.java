@@ -90,12 +90,23 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
         // пропускает, и накопленные после подписки UPDATE гарантированно уедут после SNAPSHOT,
         // а не перед ним — иначе снимок затёр бы на экране более свежие значения.
         project.addObserver(session);
+        // Выпуск сменился между POST /sessions и подключением: событие смены эту сессию пропустило
+        // (соединения не было), а дерево у монитора старое — сказать ему до снимка.
+        int current = project.getModel().versionNo();
+        if (session.getShownVersionNo() != current) {
+            sendDirect(wsSession, new TreeChangedMessage(current));
+            session.setShownVersionNo(current);
+        }
         SnapshotMessage snapshot = new SnapshotMessage(
                 tagValueRouter.snapshot(project),
                 propertiesOf(project),
                 procedures.activeStatuses(project.getProjectId()));
         sendDirect(wsSession, snapshot);
         session.setWebSocketSession(wsSession);
+        // Смена могла прийти между снимком и привязкой соединения — событие и тогда сессию пропустило.
+        if (project.getModel().versionNo() != session.getShownVersionNo()) {
+            sendTreeChanged(project, session);
+        }
         // Переменные automation публикуются как телеметрия и дойдут через буфер наблюдателя.
         automationState.replayVariables(session);
         log.info("WebSocket connected for runtime session {}: SNAPSHOT {} tags, {} procedures",
@@ -115,21 +126,28 @@ public class RuntimeWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         for (RuntimeSession session : project.sessions()) {
-            WebSocketSession ws = session.getWebSocketSession();
-            if (ws == null || !ws.isOpen()) {
-                continue;
-            }
-            session.getSendLock().lock();
-            try {
-                ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new TreeChangedMessage(event.versionNo()))));
-                ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new SnapshotMessage(
-                        tagValueRouter.snapshot(project), propertiesOf(project),
-                        procedures.activeStatuses(project.getProjectId())))));
-            } catch (Exception e) {
-                log.warn("TREE_CHANGED не отправлен сессии {}: {}", session.getId(), e.getMessage());
-            } finally {
-                session.getSendLock().unlock();
-            }
+            sendTreeChanged(project, session);
+        }
+    }
+
+    /** TREE_CHANGED с текущим выпуском проекта и следом SNAPSHOT; без соединения — ничего. */
+    private void sendTreeChanged(ProjectRuntime project, RuntimeSession session) {
+        WebSocketSession ws = session.getWebSocketSession();
+        if (ws == null || !ws.isOpen()) {
+            return;
+        }
+        session.getSendLock().lock();
+        try {
+            int versionNo = project.getModel().versionNo();
+            ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new TreeChangedMessage(versionNo))));
+            ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new SnapshotMessage(
+                    tagValueRouter.snapshot(project), propertiesOf(project),
+                    procedures.activeStatuses(project.getProjectId())))));
+            session.setShownVersionNo(versionNo);
+        } catch (Exception e) {
+            log.warn("TREE_CHANGED не отправлен сессии {}: {}", session.getId(), e.getMessage());
+        } finally {
+            session.getSendLock().unlock();
         }
     }
 

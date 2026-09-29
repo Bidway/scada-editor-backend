@@ -49,6 +49,7 @@ public class OwnerForwardingFilter extends OncePerRequestFilter {
     static final String FORWARDED = "X-Runtime-Forwarded";
 
     private static final Pattern AUTOMATION = Pattern.compile("^/api/automation/projects/(\\d+)/data/.*");
+    private static final String RELEASE_HEADER = "X-Release-Version";
     private static final Pattern PROJECT_SCENES = Pattern.compile("^/api/runtime/projects/(\\d+)/scenes(/.*)?$");
     private static final Pattern SESSION = Pattern.compile("^/api/runtime/sessions/([A-Za-z0-9_-]+)\\.[^/]+(/.*)?$");
     private static final Set<String> COPIED_HEADERS = Set.of("x-username", "x-user-id", "content-type", "accept");
@@ -191,6 +192,11 @@ public class OwnerForwardingFilter extends OncePerRequestFilter {
             response.setStatus(answer.getStatusCode().value());
             if (answer.getHeaders().getContentType() != null) {
                 response.setContentType(answer.getHeaders().getContentType().toString());
+            }
+            // Номер выпуска у сцен монитора (ProjectScenesController) — часть ответа, а не транспорта.
+            String release = answer.getHeaders().getFirst(RELEASE_HEADER);
+            if (release != null) {
+                response.setHeader(RELEASE_HEADER, release);
             }
             if (answer.getBody() != null) {
                 response.getOutputStream().write(answer.getBody());

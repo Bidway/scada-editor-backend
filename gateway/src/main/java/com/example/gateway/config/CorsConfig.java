@@ -21,6 +21,8 @@ public class CorsConfig {
         corsConfig.addAllowedMethod("*");
         corsConfig.addAllowedHeader("*");
         corsConfig.setAllowCredentials(true);
+        // Номер prod-выпуска у сцен монитора: без явного разрешения браузер его скрипту не отдаст.
+        corsConfig.addExposedHeader("X-Release-Version");
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfig);

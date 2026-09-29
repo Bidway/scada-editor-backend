@@ -27,9 +27,25 @@ public class RuntimeSession {
     /** Прислала ли сессия SUBSCRIBE_TASKS: статусы задач нужны только открытой панели «Задачи». */
     private volatile boolean tasksSubscribed;
 
+    /**
+     * Выпуск, дерево которого у монитора: ответ POST /sessions, затем каждый TREE_CHANGED.
+     * Расходится с выпуском проекта, если смена случилась до подключения WS, — тогда подключение
+     * само шлёт TREE_CHANGED (RuntimeWebSocketHandler).
+     */
+    private volatile int shownVersionNo;
+
     public RuntimeSession(String id, ProjectRuntime project) {
         this.id = id;
         this.project = project;
+        this.shownVersionNo = project.getModel().versionNo();
+    }
+
+    public int getShownVersionNo() {
+        return shownVersionNo;
+    }
+
+    public void setShownVersionNo(int shownVersionNo) {
+        this.shownVersionNo = shownVersionNo;
     }
 
     public String getId() {

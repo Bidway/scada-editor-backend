@@ -96,7 +96,8 @@ class OwnerForwardingFilterTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://runtime-2:8085/api/runtime/projects/9000/scenes/5"))
-                .andRespond(withSuccess("{\"id\":5}", MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess("{\"id\":5}", MediaType.APPLICATION_JSON)
+                        .header("X-Release-Version", "3"));
         OwnerForwardingFilter filter = new OwnerForwardingFilter(new InstanceIdentity("runtime-1", "http://runtime-1:8085"),
                 instances, projects, mock(InstanceTopicPrefixRepository.class), mock(InstanceTopicRepository.class), builder);
 
@@ -109,5 +110,7 @@ class OwnerForwardingFilterTest {
         server.verify();
         assertThat(chain.getRequest()).isNull();
         assertThat(response.getContentAsString()).contains("\"id\":5");
+        // Номер выпуска монитору нужен и тогда, когда проект крутит другой экземпляр.
+        assertThat(response.getHeader("X-Release-Version")).isEqualTo("3");
     }
 }

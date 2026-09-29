@@ -157,13 +157,15 @@ public class RuntimeSessionService {
                 ActionRecord.KIND_ACTION, script.componentId(),
                 session.getIndex().componentName(script.componentId()), script.name(), null, null, null);
 
-        List<Long> propertyIds = session.getIndex().propertyIdsOfComponent(script.componentId());
+        // Индекс — один раз на действие: reload может сменить выпуск посреди скрипта.
+        TagSubscriptionIndex index = session.getIndex();
+        List<Long> propertyIds = index.propertyIdsOfComponent(script.componentId());
         // HashMap, а не ConcurrentHashMap: свойство может быть не задано (null), а скрипт
         // вправе присвоить props.x = null. Карта короткоживущая и однопоточная (одно
         // выполнение скрипта), поэтому потокобезопасность не нужна.
         Map<String, Object> props = new HashMap<>();
         for (Long propertyId : propertyIds) {
-            String name = session.getIndex().propertyName(propertyId);
+            String name = index.propertyName(propertyId);
             if (name != null) {
                 props.put(name, session.getProject().getPropertyValues().get(propertyId));
             }
@@ -186,13 +188,15 @@ public class RuntimeSessionService {
         long ts = System.currentTimeMillis();
         List<PropertyUpdate> changed = new ArrayList<>();
         for (Long propertyId : propertyIds) {
-            String name = session.getIndex().propertyName(propertyId);
+            String name = index.propertyName(propertyId);
             if (name == null) {
                 continue;
             }
             Object newValue = after.get(name);
             if (!Objects.equals(before.get(name), newValue)) {
-                session.getProject().putPropertyValue(propertyId, newValue);
+                if (!session.getProject().putPropertyValue(propertyId, newValue)) {
+                    continue;
+                }
                 changed.add(new PropertyUpdate(propertyId, name, newValue, ts));
             }
         }
