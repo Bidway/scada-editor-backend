@@ -82,7 +82,7 @@ public class RuntimeSessionService {
         log.info("Runtime session {} started for project {} ({} tags)",
                 sessionId, projectId, project.getIndex().getAllTagIds().size());
 
-        return new SessionBootstrap(session, project.getTree());
+        return new SessionBootstrap(session, project.getTree(), project.getModel().versionNo());
     }
 
     public void closeSession(String sessionId) {
@@ -228,6 +228,6 @@ public class RuntimeSessionService {
         return result;
     }
 
-    public record SessionBootstrap(RuntimeSession session, EditorComponentDto projectTree) {
+    public record SessionBootstrap(RuntimeSession session, EditorComponentDto projectTree, int versionNo) {
     }
 }

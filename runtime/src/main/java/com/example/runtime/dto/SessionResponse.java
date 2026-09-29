@@ -19,12 +19,16 @@ public class SessionResponse {
     @Schema(description = "Путь WebSocket (подключаться напрямую к runtime:8085)", example = "/ws/runtime/runtime-1/runtime-1.3fa85f64-5717-4562-b3fc-2c963f66afa6")
     private String wsPath;
 
-    @Schema(description = "Полное дерево проекта из editor")
+    @Schema(description = "Полное дерево prod-выпуска проекта")
     private EditorComponentDto projectTree;
 
-    public SessionResponse(String sessionId, String wsPath, EditorComponentDto projectTree) {
+    @Schema(description = "Номер prod-выпуска, по которому работает проект", example = "3")
+    private Integer versionNo;
+
+    public SessionResponse(String sessionId, String wsPath, EditorComponentDto projectTree, Integer versionNo) {
         this.sessionId = sessionId;
         this.wsPath = wsPath;
         this.projectTree = projectTree;
+        this.versionNo = versionNo;
     }
 }

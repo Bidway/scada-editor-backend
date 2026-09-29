@@ -1,6 +1,6 @@
 package com.example.runtime.client;
 
-import com.example.runtime.client.dto.EditorComponentDto;
+import com.example.runtime.client.dto.EditorRuntimeFlag;
 import com.example.runtime.client.dto.EditorRecipeDto;
 import com.example.runtime.config.RuntimeProperties;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -45,24 +45,28 @@ public class EditorClient {
                 .build();
     }
 
-    public EditorComponentDto getProjectTree(Long projectId) {
-        log.debug("Fetching project tree {} from editor", projectId);
-        return treeClient.get()
-                .uri("/api/editor/components/{id}", projectId)
+    /**
+     * Флаг и prod-выпуск — по таблице editor, а не по топику. Топик только сигнал: в нём может
+     * остаться запись, которой в editor уже нет (scada-ocqj).
+     */
+    public EditorRuntimeFlag getRuntime(Long projectId) {
+        EditorRuntimeFlag flag = restClient.get()
+                .uri("/api/editor/projects/{id}/runtime", projectId)
                 .retrieve()
-                .body(EditorComponentDto.class);
+                .body(EditorRuntimeFlag.class);
+        return flag != null ? flag : new EditorRuntimeFlag(false, null);
     }
 
     /**
-     * Введён ли проект в эксплуатацию — по таблице editor, а не по топику. Топик только сигнал:
-     * в нём может остаться запись, которой в editor уже нет (scada-ocqj).
+     * Дерево выпуска проекта как есть. Живое дерево ({@code /api/editor/components/{id}}) runtime
+     * не читает: монитор и логика работают по prod, черновик видит только редактор.
      */
-    public boolean isInOperation(Long projectId) {
-        JsonNode flag = restClient.get()
-                .uri("/api/editor/projects/{id}/runtime", projectId)
+    public JsonNode getProjectVersion(Long projectId, int versionNo) {
+        log.debug("Fetching project {} release {} from editor", projectId, versionNo);
+        return treeClient.get()
+                .uri("/api/editor/projects/{id}/versions/{n}", projectId, versionNo)
                 .retrieve()
                 .body(JsonNode.class);
-        return flag != null && flag.path("inOperation").asBoolean(false);
     }
 
     /** Таблицы данных проекта — ответ {@code GET /api/editor/projects/{id}/data} как есть. */

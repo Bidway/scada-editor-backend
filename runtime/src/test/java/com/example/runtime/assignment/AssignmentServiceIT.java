@@ -3,8 +3,12 @@ package com.example.runtime.assignment;
 import com.example.runtime.client.EditorClient;
 import com.example.runtime.client.dto.EditorComponentDto;
 import com.example.runtime.client.dto.EditorPropertyDto;
+import com.example.runtime.client.dto.EditorRuntimeFlag;
 import com.example.runtime.instance.InstanceEntity;
 import com.example.runtime.instance.InstanceRepository;
+import com.example.runtime.project.ProjectModel;
+import com.example.runtime.project.ProjectModelLoader;
+import com.example.runtime.session.TagSubscriptionIndex;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +59,9 @@ class AssignmentServiceIT {
     @MockBean
     EditorClient editorClient;
 
+    @MockBean
+    ProjectModelLoader modelLoader;
+
     @BeforeEach
     void instancesExist() {
         for (String id : List.of("runtime-1", "runtime-2")) {
@@ -83,8 +90,10 @@ class AssignmentServiceIT {
     void проект_с_непокрытым_путём_не_назначается_и_ответ_называет_пути() {
         service.assignTopic("runtime-1", "scada.tags.site1", "scada-commands.site1",
                 "scada-command-results.site1", List.of("Барановичи-1.BN1_MCA1"), "admin");
-        when(editorClient.getProjectTree(8501L)).thenReturn(projectWithTags(
-                "Барановичи-1.BN1_MCA1.V_ST_1.LINE1V0.ST", "Минск-1.PLC.X"));
+        EditorComponentDto tree = projectWithTags("Барановичи-1.BN1_MCA1.V_ST_1.LINE1V0.ST", "Минск-1.PLC.X");
+        when(editorClient.getRuntime(8501L)).thenReturn(new EditorRuntimeFlag(false, 1));
+        when(modelLoader.load(8501L, 1)).thenReturn(
+                new ProjectModel(1, null, tree, TagSubscriptionIndex.build(tree, 8501L)));
 
         assertThatThrownBy(() -> service.assignProject("runtime-1", 8501L, "admin"))
                 .isInstanceOfSatisfying(AssignmentConflictException.class,

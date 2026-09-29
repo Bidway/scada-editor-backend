@@ -1,7 +1,7 @@
 package com.example.runtime.assignment;
 
 import com.example.runtime.client.EditorClient;
-import com.example.runtime.client.dto.EditorComponentDto;
+import com.example.runtime.project.ProjectModelLoader;
 import com.example.runtime.instance.InstanceEntity;
 import com.example.runtime.instance.InstanceRepository;
 import com.example.runtime.session.TagSubscriptionIndex;
@@ -39,6 +39,7 @@ public class AssignmentService {
     private final InstanceTopicPrefixRepository prefixes;
     private final InstanceProjectRepository projects;
     private final EditorClient editorClient;
+    private final ProjectModelLoader modelLoader;
 
     @Transactional
     public void assignTopic(String instanceId, String telemetryTopic, String commandsTopic, String resultsTopic,
@@ -153,14 +154,16 @@ public class AssignmentService {
 
     /** Пути тегов проекта, не покрытые префиксами топиков экземпляра. Переменные {@code @var.*} — не теги ПЛК. */
     private List<String> uncoveredPaths(String instanceId, long projectId) {
-        EditorComponentDto tree = editorClient.getProjectTree(projectId);
-        if (tree == null) {
-            throw new IllegalArgumentException("Проект " + projectId + " не найден в editor");
+        Integer prod = editorClient.getRuntime(projectId).prodVersionNo();
+        if (prod == null) {
+            // Живое дерево runtime не читает, а без выпуска проверять покрытие нечем.
+            throw new IllegalArgumentException("У проекта " + projectId + " нет prod-выпуска — сначала выпустите проект");
         }
+        TagSubscriptionIndex index = modelLoader.load(projectId, prod).index();
         List<String> own = prefixes.findByTelemetryTopicIn(topics.findByInstanceId(instanceId).stream()
                         .map(InstanceTopicEntity::getTelemetryTopic).toList())
                 .stream().map(InstanceTopicPrefixEntity::getPathPrefix).toList();
-        return TagSubscriptionIndex.build(tree, projectId).getAllTagIds().stream()
+        return index.getAllTagIds().stream()
                 .filter(path -> !VariableTags.isVariableKey(path))
                 .filter(path -> own.stream().noneMatch(prefix -> PathPrefixes.covers(prefix, path)))
                 .sorted()

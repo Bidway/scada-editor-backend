@@ -25,12 +25,11 @@ public class ProjectRuntime {
 
     private final Long projectId;
     /**
-     * Дерево компонентов, из которого построен индекс. Отдаётся открывающему монитор: индекс и
-     * экран обязаны быть построены из одной версии проекта, а повторный запрос в editor мог бы
-     * вернуть уже пересохранённую.
+     * Дерево и индекс текущего выпуска. Заменяемые целиком (ProjectRuntimeService.reload): сессии
+     * читают через getIndex(), поэтому видят новый выпуск без переподключения. Кто читает индекс
+     * несколько раз за одно действие, берёт getModel() один раз — иначе на стыке смешает выпуски.
      */
-    private final EditorComponentDto tree;
-    private final TagSubscriptionIndex index;
+    private volatile ProjectModel model;
     /**
      * Снимок таблиц данных проекта. Заменяемый: правку таблиц скрипты кнопок и шаги процедур
      * обязаны увидеть без снятия флага «в эксплуатации» — иначе кнопка, подгружающая готовый
@@ -44,16 +43,33 @@ public class ProjectRuntime {
 
     /** Для тестов, которым дерево не нужно. */
     public ProjectRuntime(Long projectId, TagSubscriptionIndex index, ProjectData projectData) {
-        this(projectId, null, index, projectData);
+        this(projectId, new ProjectModel(0, null, null, index), projectData);
     }
 
     public ProjectRuntime(Long projectId, EditorComponentDto tree, TagSubscriptionIndex index,
                           ProjectData projectData) {
+        this(projectId, new ProjectModel(0, null, tree, index), projectData);
+    }
+
+    public ProjectRuntime(Long projectId, ProjectModel model, ProjectData projectData) {
         this.projectId = projectId;
-        this.tree = tree;
-        this.index = index;
+        this.model = model;
         this.projectData = projectData;
-        this.propertyValues = new ConcurrentHashMap<>(index.getInitialPropertyValues());
+        this.propertyValues = new ConcurrentHashMap<>(model.index().getInitialPropertyValues());
+    }
+
+    /** Дерево текущего выпуска — отдаётся открывающему монитор вместе с индексом из того же выпуска. */
+    public EditorComponentDto getTree() {
+        return model.tree();
+    }
+
+    public TagSubscriptionIndex getIndex() {
+        return model.index();
+    }
+
+    /** Только ProjectRuntimeService.reload: подмена после загрузки нового выпуска. */
+    void replaceModel(ProjectModel next) {
+        this.model = next;
     }
 
     /** Получатель изменений значений свойств — для сохранения в базу (scada-vrkf). */

@@ -39,7 +39,8 @@ public class RuntimeController {
                 bootstrap.session().getId(),
                 // Имя экземпляра в пути: по нему gateway соединяет WebSocket с экземпляром, где живёт сессия.
                 "/ws/runtime/" + identity.instanceId() + "/" + bootstrap.session().getId(),
-                bootstrap.projectTree());
+                bootstrap.projectTree(),
+                bootstrap.versionNo());
         return ResponseEntity.ok(response);
     }
 

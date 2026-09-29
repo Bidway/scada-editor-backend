@@ -3,6 +3,9 @@ package com.example.runtime.project;
 import com.example.runtime.assignment.AssignmentState;
 import com.example.runtime.automation.engine.AutomationEngine;
 import com.example.runtime.client.EditorClient;
+import com.example.runtime.client.dto.EditorComponentDto;
+import com.example.runtime.client.dto.EditorPropertyDto;
+import com.example.runtime.client.dto.EditorRuntimeFlag;
 import com.example.runtime.kafka.TagValueRouter;
 import com.example.runtime.recipe.ProcedureExecutionService;
 import com.example.runtime.session.RuntimeSessionService;
@@ -14,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,22 +33,14 @@ class ProjectRuntimeServiceTest {
     @Test
     void проект_выключенный_в_editor_не_поднимается_по_записи_топика() {
         EditorClient editor = mock(EditorClient.class);
-        when(editor.isInOperation(8501L)).thenReturn(false);
+        ProjectModelLoader loader = mock(ProjectModelLoader.class);
+        when(editor.getRuntime(8501L)).thenReturn(new EditorRuntimeFlag(false, 1));
         ProjectRuntimeStore store = new ProjectRuntimeStore();
-        ProcedureExecutionService procedures = mock(ProcedureExecutionService.class);
-        com.example.runtime.assignment.AssignmentState assignments = new com.example.runtime.assignment.AssignmentState();
-        assignments.update(java.util.List.of(), java.util.Set.of(8501L));
-        ProjectRuntimeService service = new ProjectRuntimeService(editor, mock(TagValueRouter.class), store,
-                procedures,
-                mock(com.example.runtime.session.RuntimeSessionService.class),
-                mock(com.example.runtime.automation.engine.AutomationEngine.class), assignments,
-                mock(PropertyValueStore.class));
 
-        service.activate(8501L);
+        service(editor, loader, store, assigned(8501L)).activate(8501L);
 
         assertThat(store.get(8501L)).isNull();
-        verify(editor, never()).getProjectTree(any());
-        verify(procedures, never()).restore(any());
+        verify(loader, never()).load(any(), anyInt());
     }
 
     /**
@@ -87,7 +83,7 @@ class ProjectRuntimeServiceTest {
     @Test
     void подъём_проекта_возвращает_сохранённые_значения_свойств() {
         EditorClient editor = mock(EditorClient.class);
-        when(editor.isInOperation(8501L)).thenReturn(true);
+        when(editor.getRuntime(8501L)).thenReturn(new EditorRuntimeFlag(true, 1));
         com.example.runtime.client.dto.EditorComponentDto root = new com.example.runtime.client.dto.EditorComponentDto();
         root.setId(1L);
         root.setType("project");
@@ -101,15 +97,18 @@ class ProjectRuntimeServiceTest {
         mode.setDefault_value("0");
         table.setProperties(java.util.List.of(mode));
         root.setChildren(java.util.List.of(table));
-        when(editor.getProjectTree(8501L)).thenReturn(root);
+        ProjectModelLoader loader = mock(ProjectModelLoader.class);
+        when(loader.load(8501L, 1)).thenReturn(
+                new ProjectModel(1, JSON.valueToTree(root), root, TagSubscriptionIndex.build(root, 8501L)));
         PropertyValueStore saved = mock(PropertyValueStore.class);
         when(saved.load(8501L)).thenReturn(java.util.Map.of(10L, "Щелочь", 99L, "удалённое свойство"));
         ProjectRuntimeStore store = new ProjectRuntimeStore();
         AssignmentState assignments = new AssignmentState();
         assignments.update(java.util.List.of(), java.util.Set.of(8501L));
 
-        new ProjectRuntimeService(editor, mock(TagValueRouter.class), store, mock(ProcedureExecutionService.class),
-                mock(RuntimeSessionService.class), mock(AutomationEngine.class), assignments, saved)
+        new ProjectRuntimeService(editor, loader, mock(TagValueRouter.class), store,
+                mock(ProcedureExecutionService.class), mock(RuntimeSessionService.class), mock(AutomationEngine.class),
+                assignments, saved, mock(org.springframework.context.ApplicationEventPublisher.class))
                 .activate(8501L);
 
         ProjectRuntime project = store.get(8501L);
@@ -121,9 +120,71 @@ class ProjectRuntimeServiceTest {
 
     private static ProjectRuntimeService service(EditorClient editor, ProjectRuntimeStore store,
                                                  AutomationEngine automation) {
-        return new ProjectRuntimeService(editor, mock(TagValueRouter.class), store,
+        return new ProjectRuntimeService(editor, mock(ProjectModelLoader.class), mock(TagValueRouter.class), store,
                 mock(ProcedureExecutionService.class), mock(RuntimeSessionService.class), automation,
-                new AssignmentState(), mock(PropertyValueStore.class));
+                new AssignmentState(), mock(PropertyValueStore.class),
+                mock(org.springframework.context.ApplicationEventPublisher.class));
+    }
+
+    @Test
+    void проект_поднимается_из_prod_выпуска_а_без_prod_не_поднимается() {
+        EditorClient editor = mock(EditorClient.class);
+        ProjectModelLoader loader = mock(ProjectModelLoader.class);
+        when(editor.getRuntime(8501L)).thenReturn(new EditorRuntimeFlag(true, null));
+        ProjectRuntimeStore store = new ProjectRuntimeStore();
+        ProjectRuntimeService service = service(editor, loader, store, assigned(8501L));
+
+        service.activate(8501L);
+        assertThat(store.get(8501L)).isNull();
+        verify(loader, never()).load(any(), anyInt());
+
+        when(editor.getRuntime(8501L)).thenReturn(new EditorRuntimeFlag(true, 3));
+        when(loader.load(8501L, 3)).thenReturn(model(3, table(2L, property(10L, "mode", "0"))));
+        service.activate(8501L);
+        assertThat(store.get(8501L).getModel().versionNo()).isEqualTo(3);
+    }
+
+    static ProjectModel model(int versionNo, EditorComponentDto... children) {
+        EditorComponentDto root = new EditorComponentDto();
+        root.setId(1L);
+        root.setType("project");
+        root.setChildren(java.util.List.of(children));
+        return new ProjectModel(versionNo, JSON.valueToTree(root), root, TagSubscriptionIndex.build(root, 8501L));
+    }
+
+    static EditorComponentDto table(long id, EditorPropertyDto... properties) {
+        EditorComponentDto c = new EditorComponentDto();
+        c.setId(id);
+        c.setType("table");
+        c.setName("Компонент " + id);
+        c.setProperties(java.util.List.of(properties));
+        return c;
+    }
+
+    static EditorPropertyDto property(long id, String name, String defaultValue) {
+        EditorPropertyDto p = new EditorPropertyDto();
+        p.setId(id);
+        p.setName(name);
+        p.setDefault_value(defaultValue);
+        return p;
+    }
+
+    static AssignmentState assigned(long projectId) {
+        AssignmentState a = new AssignmentState();
+        a.update(java.util.List.of(), java.util.Set.of(projectId));
+        return a;
+    }
+
+    static ProjectRuntimeService service(EditorClient editor, ProjectModelLoader loader, ProjectRuntimeStore store,
+                                         AssignmentState assignments) {
+        return service(editor, loader, store, assignments, mock(TagValueRouter.class));
+    }
+
+    static ProjectRuntimeService service(EditorClient editor, ProjectModelLoader loader, ProjectRuntimeStore store,
+                                         AssignmentState assignments, TagValueRouter router) {
+        return new ProjectRuntimeService(editor, loader, router, store, mock(ProcedureExecutionService.class),
+                mock(RuntimeSessionService.class), mock(AutomationEngine.class), assignments,
+                mock(PropertyValueStore.class), mock(org.springframework.context.ApplicationEventPublisher.class));
     }
 
     private static String tablesWithAlkali(String value) {
