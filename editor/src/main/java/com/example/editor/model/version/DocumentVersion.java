@@ -97,4 +97,8 @@ public class DocumentVersion {
     /** Для {@code kind = RESTORE}: номер восстановленной версии. */
     @Column(name = "restored_from")
     private Integer restoredFrom;
+
+    /** Комментарий выпуска проекта; у остальных версий null. */
+    @Column(columnDefinition = "text")
+    private String comment;
 }

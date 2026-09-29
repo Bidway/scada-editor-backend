@@ -16,5 +16,6 @@ public record DocumentVersionDto(
         VersionKind kind,
         @JsonProperty("user_name") String userName,
         @JsonProperty("created_at") LocalDateTime createdAt,
-        @JsonProperty("restored_from") Integer restoredFrom) {
+        @JsonProperty("restored_from") Integer restoredFrom,
+        String comment) {
 }

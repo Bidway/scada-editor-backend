@@ -242,7 +242,7 @@ public class DocumentVersionService {
                         PageRequest.of(0, effectiveLimit))
                 .stream()
                 .map(v -> new DocumentVersionDto(v.getVersionNo(), v.getKind(), v.getUserName(),
-                        v.getCreatedAt(), v.getRestoredFrom()))
+                        v.getCreatedAt(), v.getRestoredFrom(), v.getComment()))
                 .toList();
     }
 
