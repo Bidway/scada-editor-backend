@@ -15,6 +15,7 @@ import com.example.runtime.stream.PropertyUpdate;
 import com.example.runtime.stream.TagUpdate;
 import com.example.scriptcore.TelemetryEnvelope;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.runtime.session.TagSubscriptionIndex;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
@@ -100,6 +101,25 @@ public class TagValueRouter {
 
     public void unregisterProject(ProjectRuntime project) {
         for (String tagId : project.getIndex().getAllTagIds()) {
+            tagStates.computeIfPresent(tagId, (key, state) -> {
+                state.projectIds.remove(project.getProjectId());
+                return state.projectIds.isEmpty() ? null : state;
+            });
+        }
+    }
+
+    /**
+     * Смена выпуска у работающего проекта. Сначала интерес к тегам нового выпуска, потом снятие
+     * ушедших: обратный порядок на миг удалил бы состояние общего тега вместе с его последним
+     * значением, и условие шага процедуры прочитало бы null.
+     */
+    public void replaceProject(ProjectRuntime project, TagSubscriptionIndex previous) {
+        registerProject(project);
+        java.util.Set<String> current = project.getIndex().getAllTagIds();
+        for (String tagId : previous.getAllTagIds()) {
+            if (current.contains(tagId)) {
+                continue;
+            }
             tagStates.computeIfPresent(tagId, (key, state) -> {
                 state.projectIds.remove(project.getProjectId());
                 return state.projectIds.isEmpty() ? null : state;

@@ -272,4 +272,21 @@ class TagValueRouterTest {
     private List<TagUpdate> drainTags() {
         return buffer.drainAll().tags();
     }
+
+    @Test
+    void замена_выпуска_сохраняет_общий_тег_и_снимает_ушедший() {
+        TagSubscriptionIndex before = mock(TagSubscriptionIndex.class);
+        when(before.getAllTagIds()).thenReturn(Set.of("A.common", "A.gone"));
+        TagSubscriptionIndex after = mock(TagSubscriptionIndex.class);
+        when(after.getAllTagIds()).thenReturn(Set.of("A.common", "A.new"));
+        router.registerProject(new ProjectRuntime(8501L, before, null));
+
+        // Роутер работает по projectId, а не по объекту: объект с новым индексом и тем же id —
+        // то же, что проект после replaceModel (метод пакетный, из kafka-теста не виден).
+        router.replaceProject(new ProjectRuntime(8501L, after, null), before);
+
+        assertThat(router.isTracked("A.common")).isTrue();
+        assertThat(router.isTracked("A.new")).isTrue();
+        assertThat(router.isTracked("A.gone")).isFalse();
+    }
 }

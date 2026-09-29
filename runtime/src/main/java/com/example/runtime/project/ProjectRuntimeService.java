@@ -104,6 +104,51 @@ public class ProjectRuntimeService {
         return true;
     }
 
+    public boolean isActive(Long projectId) {
+        return store.get(projectId) != null;
+    }
+
+    /**
+     * Горячая смена prod-выпуска. Процедуры, автоматизация и сессии не трогаются: процедуры держатся
+     * за рецепт и пути тегов, а не за дерево. Любая ошибка оставляет проект на прежнем выпуске.
+     *
+     * @param announcedVersionNo номер из записи runtime.projects; совпал с текущим — в editor не
+     *                           ходим (editor пересылает реестр раз в минуту); null — сверка с editor
+     */
+    public void reload(Long projectId, Integer announcedVersionNo) {
+        ProjectRuntime project = store.get(projectId);
+        if (project == null) {
+            return;
+        }
+        ProjectModel previous = project.getModel();
+        if (announcedVersionNo != null && announcedVersionNo == previous.versionNo()) {
+            return;
+        }
+        ProjectModel next;
+        try {
+            EditorRuntimeFlag flag = editorClient.getRuntime(projectId);
+            if (!flag.inOperation() || flag.prodVersionNo() == null
+                    || flag.prodVersionNo() == previous.versionNo()) {
+                return; // снятие флага придёт tombstone-ом
+            }
+            next = modelLoader.load(projectId, flag.prodVersionNo());
+        } catch (Exception e) {
+            log.warn("Проект {}: выпуск не сменён, остаётся {}: {}", projectId, previous.versionNo(), e.toString());
+            return;
+        }
+        // Сначала модель, потом роутер: значение нового тега, пришедшее между строками, найдёт
+        // проект уже с новым индексом. Ушедшие теги роутер снимает следом.
+        project.replaceModel(next);
+        tagValueRouter.replaceProject(project, previous.index());
+        // Свойства ушедших компонентов — прочь (не через putPropertyValue: строки ушедших свойств и
+        // так отфильтруются при подъёме, писать сброс в базу незачем); новым — default_value.
+        project.getPropertyValues().keySet().removeIf(id -> next.index().propertyName(id) == null);
+        next.index().getInitialPropertyValues().forEach(project.getPropertyValues()::putIfAbsent);
+        log.info("Проект {}: выпуск {} → {}, {} тегов", projectId, previous.versionNo(), next.versionNo(),
+                next.index().getAllTagIds().size());
+        events.publishEvent(new ProjectModelReplaced(projectId, next.versionNo()));
+    }
+
     public void deactivate(Long projectId) {
         ProjectRuntime project = store.remove(projectId);
         if (project == null) {

@@ -144,6 +144,55 @@ class ProjectRuntimeServiceTest {
         assertThat(store.get(8501L).getModel().versionNo()).isEqualTo(3);
     }
 
+    @Test
+    void замена_выпуска_выбрасывает_удалённое_свойство_и_сохраняет_остальные() {
+        EditorClient editor = mock(EditorClient.class);
+        ProjectModelLoader loader = mock(ProjectModelLoader.class);
+        TagValueRouter router = mock(TagValueRouter.class);
+        ProjectRuntimeStore store = new ProjectRuntimeStore();
+        ProjectModel v1 = model(1, table(2L, property(10L, "mode", "0"), property(11L, "old", "0")));
+        ProjectRuntime project = new ProjectRuntime(8501L, v1, null);
+        project.putPropertyValue(10L, "Щелочь");
+        store.put(project);
+        when(editor.getRuntime(8501L)).thenReturn(new EditorRuntimeFlag(true, 2));
+        when(loader.load(8501L, 2)).thenReturn(
+                model(2, table(2L, property(10L, "mode", "0"), property(12L, "fresh", "5"))));
+
+        service(editor, loader, store, assigned(8501L), router).reload(8501L, 2);
+
+        assertThat(store.get(8501L)).isSameAs(project);
+        assertThat(project.getModel().versionNo()).isEqualTo(2);
+        assertThat(project.getPropertyValues())
+                .containsEntry(10L, "Щелочь").containsEntry(12L, "5").doesNotContainKey(11L);
+        verify(router).replaceProject(project, v1.index());
+    }
+
+    @Test
+    void ошибка_загрузки_выпуска_оставляет_прежнюю_модель() {
+        EditorClient editor = mock(EditorClient.class);
+        ProjectModelLoader loader = mock(ProjectModelLoader.class);
+        ProjectRuntimeStore store = new ProjectRuntimeStore();
+        ProjectRuntime project = new ProjectRuntime(8501L, model(1, table(2L)), null);
+        store.put(project);
+        when(editor.getRuntime(8501L)).thenReturn(new EditorRuntimeFlag(true, 2));
+        when(loader.load(8501L, 2)).thenThrow(new IllegalStateException("editor недоступен"));
+
+        service(editor, loader, store, assigned(8501L)).reload(8501L, 2);
+
+        assertThat(project.getModel().versionNo()).isEqualTo(1);
+    }
+
+    @Test
+    void тот_же_номер_из_топика_не_ходит_в_editor() {
+        EditorClient editor = mock(EditorClient.class);
+        ProjectRuntimeStore store = new ProjectRuntimeStore();
+        store.put(new ProjectRuntime(8501L, model(3, table(2L)), null));
+
+        service(editor, mock(ProjectModelLoader.class), store, assigned(8501L)).reload(8501L, 3);
+
+        verify(editor, never()).getRuntime(any());
+    }
+
     static ProjectModel model(int versionNo, EditorComponentDto... children) {
         EditorComponentDto root = new EditorComponentDto();
         root.setId(1L);

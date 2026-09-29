@@ -1,5 +1,7 @@
 package com.example.runtime.project;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.runtime.config.KafkaProperties;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -125,7 +127,8 @@ public class ProjectRegistryConsumer {
         }
         Map<Long, Boolean> latest = latestStates(history);
         List<Long> running = projectStore.all().stream().map(ProjectRuntime::getProjectId).toList();
-        withVanished(latest, running).forEach(this::apply);
+        // Итог без номера: у поднятого проекта reload сверится с editor сам.
+        withVanished(latest, running).forEach((projectId, inOperation) -> apply(projectId, inOperation, null));
         log.info("Реестр активных проектов прочитан: {} записей, {} проектов, в эксплуатации {}",
                 history.size(), latest.size(), latest.values().stream().filter(Boolean::booleanValue).count());
     }
@@ -173,22 +176,39 @@ public class ProjectRegistryConsumer {
             for (ConsumerRecord<String, String> record : c.poll(POLL)) {
                 Long projectId = parseProjectId(record.key());
                 if (projectId != null) {
-                    apply(projectId, record.value() != null);
+                    apply(projectId, record.value() != null, prodVersionNo(record.value()));
                 }
             }
         }
     }
 
-    /** Тело записи намеренно не разбирается: сам факт наличия записи и есть признак. */
-    private void apply(Long projectId, boolean inOperation) {
+    /** Вывод; ввод; у уже поднятого проекта — смена выпуска. */
+    private void apply(Long projectId, boolean inOperation, Integer prodVersionNo) {
         try {
-            if (inOperation) {
-                projectRuntimeService.activate(projectId);
-            } else {
+            if (!inOperation) {
                 projectRuntimeService.deactivate(projectId);
+            } else if (projectRuntimeService.isActive(projectId)) {
+                projectRuntimeService.reload(projectId, prodVersionNo);
+            } else {
+                projectRuntimeService.activate(projectId);
             }
         } catch (Exception e) {
             log.error("Не удалось применить запись реестра для проекта {}: {}", projectId, e.toString(), e);
+        }
+    }
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** Номер prod из тела записи; tombstone, нет или не число — null, и reload сверится с editor. */
+    static Integer prodVersionNo(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            JsonNode node = JSON.readTree(value).get("prodVersionNo");
+            return node != null && node.canConvertToInt() ? node.asInt() : null;
+        } catch (Exception e) {
+            return null;
         }
     }
 
