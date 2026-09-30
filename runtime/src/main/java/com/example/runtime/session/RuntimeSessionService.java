@@ -175,7 +175,8 @@ public class RuntimeSessionService {
         Map<String, Object> after;
         try {
             after = scriptEngineService.runAction(script.source(), props,
-                    tagCommandService.sinksFor(session.getProject(), script.componentId()), session.getProjectData());
+                    tagCommandService.sinksFor(session.getProject(), script.componentId()), session.getProjectData(),
+                    name -> readPropertyTag(index, script.componentId(), name));
         } catch (Exception e) {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
             failures.record(ScriptFailureRegistry.kindOf(e), session.getProject().getProjectId(),
@@ -208,6 +209,16 @@ public class RuntimeSessionService {
             }
         }
         return changed;
+    }
+
+    /**
+     * {@code readTag('ИмяСвойства')} в действии: последнее достоверное значение тега свойства
+     * этого компонента. Свойство без тега или тег без данных — {@code null}, как у
+     * {@code readTag} условий процедур.
+     */
+    private Object readPropertyTag(TagSubscriptionIndex index, Long componentId, String propertyName) {
+        String tagId = index.tagIdOfComponentProperty(componentId, propertyName);
+        return tagId == null ? null : TagValueRouter.coerceTagValue(tagValueRouter.lastValue(tagId));
     }
 
     /**

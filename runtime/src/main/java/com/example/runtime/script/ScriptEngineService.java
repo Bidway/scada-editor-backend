@@ -182,13 +182,25 @@ public class ScriptEngineService {
      */
     public Map<String, Object> runOnChange(String scriptSource, Object tagValue, Map<String, Object> props,
                                             ScriptWriteSinks writeSinks, ProjectData data) {
-        return execute(scriptSource, tagValue, props, writeSinks, false, data);
+        return execute(scriptSource, tagValue, props, writeSinks, false, data, null);
     }
 
-    /** Выполняет компонентный Script по действию с фронта (нажатие кнопки и т.п.). */
+    /**
+     * Выполняет компонентный Script по действию с фронта (нажатие кнопки и т.п.).
+     * <p>
+     * {@code readTag('ИмяСвойства')} — живое значение тега, привязанного к свойству этого же
+     * компонента. {@code props} живых значений не содержит: это состояние свойств
+     * ({@code default_value} и записи скриптов), и {@code props.NMR} у свойства-тега —
+     * {@code null}. Кнопка «NMR + 1» без чтения тега молча ничего не писала (scada-lmg7).
+     */
+    public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks,
+                                         ProjectData data, TagReader propertyTagReader) {
+        return execute(scriptSource, null, props, writeSinks, true, data, propertyTagReader);
+    }
+
     public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks,
                                          ProjectData data) {
-        return execute(scriptSource, null, props, writeSinks, true, data);
+        return runAction(scriptSource, props, writeSinks, data, null);
     }
 
     /** Без данных проекта — для тестов движка; сессия всегда передаёт свой снимок. */
@@ -322,6 +334,16 @@ public class ScriptEngineService {
         };
     }
 
+    private ProxyExecutable readPropertyTagFunction(TagReader reader) {
+        return arguments -> {
+            if (arguments.length < 1 || !arguments[0].isString()) {
+                log.warn("readTag(): first argument must be a property name of this component");
+                return null;
+            }
+            return reader.read(arguments[0].asString());
+        };
+    }
+
     private ProxyExecutable readProjectPropertyFunction(PropertyReader reader) {
         return arguments -> {
             if (arguments.length < 2 || !arguments[0].isString() || !arguments[1].isString()) {
@@ -333,7 +355,8 @@ public class ScriptEngineService {
     }
 
     private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
-                                        ScriptWriteSinks writeSinks, boolean forAction, ProjectData data) {
+                                        ScriptWriteSinks writeSinks, boolean forAction, ProjectData data,
+                                        TagReader propertyTagReader) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return props;
         }
@@ -357,7 +380,8 @@ public class ScriptEngineService {
                 // Контекст общий с runCondition: без сброса скрипту компонента достался бы ридер,
                 // замкнутый на сессию чужой процедуры (readProjectTag — тот же случай, scada-re9).
                 ctx.getBindings("js").putMember("readProjectTag", null);
-                ctx.getBindings("js").putMember("readTag", null);
+                ctx.getBindings("js").putMember("readTag",
+                        propertyTagReader != null ? readPropertyTagFunction(propertyTagReader) : null);
                 ctx.getBindings("js").putMember("readProjectProperty", null);
                 ctx.getBindings("js").putMember("data", new DataFunction(data));
                 ctx.eval(source);

@@ -86,7 +86,8 @@ class RuntimeSessionServiceTest {
         sessions.put(watching);
         ScriptEngineService engine = mock(ScriptEngineService.class);
         when(engine.runAction(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()))
                 .thenReturn(Map.of("mode", 1));
         ActionDedupGuard dedup = mock(ActionDedupGuard.class);
         when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
@@ -119,7 +120,8 @@ class RuntimeSessionServiceTest {
         sessions.put(pressing);
         ScriptEngineService engine = mock(ScriptEngineService.class);
         when(engine.runAction(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()))
                 .thenThrow(new IllegalStateException("таймаут скрипта"));
         ActionDedupGuard dedup = mock(ActionDedupGuard.class);
         when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);

@@ -1,6 +1,7 @@
 package com.example.runtime.script;
 
 import com.example.runtime.config.RuntimeProperties;
+import com.example.scriptcore.ProjectData;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -73,6 +74,21 @@ class ScriptWriteSinksTest {
 
         assertThat(projectTag.name).isEqualTo("FQT_ST.LINE1FQT1.ST");
         assertThat(((Number) projectTag.value).doubleValue()).isEqualTo(5.0);
+    }
+
+    @Test
+    @DisplayName("Действие читает живой тег своего свойства: readTag('NMR') + 1 уходит в writeTag")
+    void action_readsPropertyTag() {
+        Recorder property = new Recorder();
+        ScriptWriteSinks sinks = new ScriptWriteSinks(property, new Recorder(), new Recorder());
+
+        // Кнопка «>>» сцены «Рецепты» (scada-lmg7): props.NMR пуст, значение есть только у тега.
+        engine.runAction("const n = Number(readTag('NMR')); if (n < 15) writeTag('NMR', n + 1);",
+                new LinkedHashMap<>(), sinks, ProjectData.EMPTY,
+                name -> "NMR".equals(name) ? 6L : null);
+
+        assertThat(property.name).isEqualTo("NMR");
+        assertThat(((Number) property.value).intValue()).isEqualTo(7);
     }
 
     @Test
