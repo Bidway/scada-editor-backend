@@ -19,6 +19,7 @@ import com.example.editor.model.component.ComponentState;
 import com.example.editor.model.component.ComponentTypes;
 import com.example.editor.model.version.DocumentType;
 import com.example.editor.model.version.VersionKind;
+import com.example.editor.repository.ProjectRuntimeFlagRepository;
 import com.example.editor.repository.component.ComponentPropertyRepository;
 import com.example.editor.repository.component.ComponentRepository;
 import com.example.editor.service.ComponentService;
@@ -64,6 +65,7 @@ public class ComponentServiceImpl implements ComponentService {
     private final AutomationService automationService;
     private final ProjectDataService projectDataService;
     private final ScriptValidationService scriptValidationService;
+    private final ProjectRuntimeFlagRepository projectRuntimeRepository;
 
     /**
      * Проверка версии, запись данных и запись снимка — одна транзакция.
@@ -104,8 +106,13 @@ public class ComponentServiceImpl implements ComponentService {
 
     @Override
     public List<ProjectsResponseDto> getProjects() {
-        return componentMapper.toProjectsDtoList(
+        List<ProjectsResponseDto> projects = componentMapper.toProjectsDtoList(
                 repository.findByParentIsNullAndType(ComponentTypes.PROJECT));
+        // Проектов — единицы, строк project_runtime не больше: один запрос на всех.
+        Map<Long, JsonNode> images = new HashMap<>();
+        projectRuntimeRepository.findAll().forEach(flag -> images.put(flag.getProjectId(), flag.getImage()));
+        projects.forEach(project -> project.setImage(images.get(project.getId())));
+        return projects;
     }
 
     @Override

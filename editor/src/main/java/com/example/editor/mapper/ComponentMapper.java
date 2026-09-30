@@ -39,6 +39,7 @@ public interface ComponentMapper {
 
     List<ScenesResponseDto> toScenesDtoList(List<Component> entities);
 
+    @Mapping(target = "image", ignore = true) // из project_runtime, заполняет сервис
     ProjectsResponseDto toProjectsDto(Component entity);
 
     List<ProjectsResponseDto> toProjectsDtoList(List<Component> entities);
