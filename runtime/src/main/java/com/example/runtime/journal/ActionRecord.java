@@ -17,6 +17,8 @@ public record ActionRecord(Instant ts, String username, Long projectId, String k
     public static final String KIND_ACTION = "ACTION";
     public static final String KIND_PROCEDURE = "PROCEDURE";
     public static final String KIND_TAG_WRITE = "TAG_WRITE";
+    /** Оператор задал локальное свойство в инспекторе объектов; в {@code tags} — [{property, value}]. */
+    public static final String KIND_PROPERTY_WRITE = "PROPERTY_WRITE";
     public static final String OK = "OK";
     public static final String ERROR = "ERROR";
 
