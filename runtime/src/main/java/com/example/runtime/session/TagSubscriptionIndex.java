@@ -36,6 +36,8 @@ public class TagSubscriptionIndex {
     /** propertyId -> tag_id (путь узла). Нужен для обратного направления — записи тега. */
     private final Map<Long, String> propertyTagIds = new HashMap<>();
     private final Map<Long, Long> propertyComponentId = new HashMap<>();
+    /** propertyId -> value_type ({@code number}/{@code bool}/{@code string}); нет ключа — тип не задан. */
+    private final Map<Long, String> propertyValueTypes = new HashMap<>();
     private final Map<Long, List<Long>> componentPropertyIds = new HashMap<>();
     private final Map<Long, Object> initialPropertyValues = new ConcurrentHashMap<>();
     private final Set<String> allTagIds = new HashSet<>();
@@ -92,6 +94,9 @@ public class TagSubscriptionIndex {
                 Long propertyId = property.getId();
                 propertyNames.put(propertyId, property.getName());
                 propertyComponentId.put(propertyId, componentId);
+                if (property.getValue_type() != null) {
+                    propertyValueTypes.put(propertyId, property.getValue_type());
+                }
                 componentPropertyIds.computeIfAbsent(componentId, id -> new ArrayList<>()).add(propertyId);
                 // ConcurrentHashMap не принимает null, а default_value необязателен.
                 // Отсутствие ключа = «значение не задано» — так же трактуется дальше по цепочке.
@@ -223,6 +228,11 @@ public class TagSubscriptionIndex {
 
     public Long propertyComponentId(Long propertyId) {
         return propertyComponentId.get(propertyId);
+    }
+
+    /** Тип значения свойства — к нему приводится значение, введённое оператором в инспекторе. */
+    public String propertyValueType(Long propertyId) {
+        return propertyValueTypes.get(propertyId);
     }
 
     /** Путь тега (он же Kafka-key), к которому привязано свойство; {@code null} — свойство не теговое. */

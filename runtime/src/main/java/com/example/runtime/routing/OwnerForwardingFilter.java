@@ -50,7 +50,7 @@ public class OwnerForwardingFilter extends OncePerRequestFilter {
 
     private static final Pattern AUTOMATION = Pattern.compile("^/api/automation/projects/(\\d+)/data/.*");
     private static final String RELEASE_HEADER = "X-Release-Version";
-    private static final Pattern PROJECT_SCENES = Pattern.compile("^/api/runtime/projects/(\\d+)/scenes(/.*)?$");
+    private static final Pattern PROJECT_SCENES = Pattern.compile("^/api/runtime/projects/(\\d+)/(scenes|objects|properties)(/.*)?$");
     private static final Pattern SESSION = Pattern.compile("^/api/runtime/sessions/([A-Za-z0-9_-]+)\\.[^/]+(/.*)?$");
     private static final Set<String> COPIED_HEADERS = Set.of("x-username", "x-user-id", "content-type", "accept");
 
