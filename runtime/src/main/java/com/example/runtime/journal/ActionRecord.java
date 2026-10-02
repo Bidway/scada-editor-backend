@@ -8,7 +8,8 @@ import java.util.Map;
  * Строка журнала действий оператора.
  *
  * @param target имя скрипта (ACTION), «операция рецепт» (PROCEDURE); null у TAG_WRITE
- * @param tags   что пытались записать: [{tag, value}] у TAG_WRITE; у ACTION null — теги видны в архиве
+ * @param tags   что пытались записать: [{tag, value}] у TAG_WRITE; у ACTION — аргументы [{arg, value}]
+ *               (null без аргументов), сами записи тегов видны в архиве
  */
 public record ActionRecord(Instant ts, String username, Long projectId, String kind,
                            Long componentId, String component, String target,

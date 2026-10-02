@@ -87,7 +87,7 @@ class RuntimeSessionServiceTest {
         ScriptEngineService engine = mock(ScriptEngineService.class);
         when(engine.runAction(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(Map.of("mode", 1));
         ActionDedupGuard dedup = mock(ActionDedupGuard.class);
         when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
@@ -97,7 +97,7 @@ class RuntimeSessionServiceTest {
                 new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
                 mock(com.example.runtime.journal.ActionJournal.class));
 
-        assertThat(service.handleAction("pressing", 5L, "ivanov")).hasSize(1);
+        assertThat(service.handleAction("pressing", 5L, null, "ivanov")).hasSize(1);
 
         assertThat(watching.getOutboundBuffer().drainAll().properties())
                 .extracting(com.example.runtime.stream.PropertyUpdate::value).containsExactly(1);
@@ -121,7 +121,7 @@ class RuntimeSessionServiceTest {
         ScriptEngineService engine = mock(ScriptEngineService.class);
         when(engine.runAction(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
                 .thenThrow(new IllegalStateException("таймаут скрипта"));
         ActionDedupGuard dedup = mock(ActionDedupGuard.class);
         when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
@@ -132,7 +132,7 @@ class RuntimeSessionServiceTest {
                 new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
                 journal);
 
-        service.handleAction("pressing", 5L, "ivanov");
+        service.handleAction("pressing", 5L, null, "ivanov");
 
         ArgumentCaptor<com.example.runtime.journal.ActionRecord> captor =
                 ArgumentCaptor.forClass(com.example.runtime.journal.ActionRecord.class);
@@ -145,5 +145,46 @@ class RuntimeSessionServiceTest {
         assertThat(r.target()).isEqualTo("Открыть клапан");
         assertThat(r.outcome()).isEqualTo("ERROR");
         assertThat(r.error()).contains("таймаут скрипта");
+    }
+
+    /**
+     * scada-dscl: аргументы ACTION доходят до скрипта JSON-строкой, входят в ключ дедупликации
+     * (другой выбор следом — не дребезг) и пишутся в журнал как [{arg, value}].
+     */
+    @Test
+    void аргументы_действия_идут_в_скрипт_ключ_дедупликации_и_журнал() {
+        TagSubscriptionIndex index = mock(TagSubscriptionIndex.class);
+        when(index.getInitialPropertyValues()).thenReturn(Map.of());
+        when(index.getScript(5L)).thenReturn(new ScriptEntry(5L, 10L, "Загрузить рецепт", "x"));
+        when(index.propertyIdsOfComponent(10L)).thenReturn(java.util.List.of());
+        when(index.componentName(10L)).thenReturn("Танк_Продукт");
+        ProjectRuntime project = new ProjectRuntime(8501L, index, null);
+        RuntimeSessionStore sessions = new RuntimeSessionStore();
+        sessions.put(new RuntimeSession("pressing", project));
+        ScriptEngineService engine = mock(ScriptEngineService.class);
+        when(engine.runAction(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(Map.of());
+        ActionDedupGuard dedup = mock(ActionDedupGuard.class);
+        when(dedup.allow(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        com.example.runtime.journal.ActionJournal journal = mock(com.example.runtime.journal.ActionJournal.class);
+        RuntimeSessionService service = new RuntimeSessionService(sessions, mock(ProjectRuntimeStore.class),
+                mock(TagValueRouter.class), engine, mock(TagCommandService.class), dedup,
+                new com.example.runtime.instance.InstanceIdentity("test", "http://localhost:8085"),
+                new com.example.runtime.script.ScriptFailureRegistry(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+                journal);
+
+        service.handleAction("pressing", 5L, Map.of("recipe", 4), "ivanov");
+
+        verify(engine).runAction(org.mockito.ArgumentMatchers.eq("x"), org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("{\"recipe\":4}"));
+        verify(dedup).allow("pressing:5:{\"recipe\":4}");
+        ArgumentCaptor<com.example.runtime.journal.ActionRecord> captor =
+                ArgumentCaptor.forClass(com.example.runtime.journal.ActionRecord.class);
+        verify(journal).record(captor.capture());
+        assertThat(captor.getValue().tags()).containsExactly(Map.of("arg", "recipe", "value", 4));
+        assertThat(captor.getValue().outcome()).isEqualTo("OK");
     }
 }

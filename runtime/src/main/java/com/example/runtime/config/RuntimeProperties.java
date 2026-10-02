@@ -106,7 +106,7 @@ public class RuntimeProperties {
         private int actionReservePoolSize = 2;
 
         /**
-         * Минимальный интервал между двумя ACTION с одним и тем же (sessionId, scriptId),
+         * Минимальный интервал между двумя ACTION с одним и тем же (sessionId, scriptId, args),
          * см. {@code ActionDedupGuard} (scada-au4). Гасит дребезг клика и повторную отправку
          * с фронта — повтор раньше этого интервала молча отбрасывается, не доходя до скрипта.
          */

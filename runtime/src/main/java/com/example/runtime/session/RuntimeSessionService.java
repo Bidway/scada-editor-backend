@@ -6,6 +6,7 @@ import com.example.runtime.instance.InstanceIdentity;
 import com.example.runtime.journal.ActionJournal;
 import com.example.runtime.journal.ActionRecord;
 import com.example.runtime.kafka.TagValueRouter;
+import com.example.runtime.script.ActionArgs;
 import com.example.runtime.script.ActionDedupGuard;
 import com.example.runtime.script.ScriptEngineService;
 import com.example.runtime.script.ScriptFailureRegistry;
@@ -21,6 +22,7 @@ import org.springframework.web.socket.WebSocketSession;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -133,8 +135,11 @@ public class RuntimeSessionService {
      * Выполняет Script компонента по действию с фронта (например, нажатие кнопки).
      * Возвращает список изменившихся свойств — вызывающий (WS-хендлер) сразу шлёт их
      * фронту, не дожидаясь батч-флаша, так как это редкое дискретное событие.
+     * <p>
+     * {@code args} — выбор оператора (номер рецепта из меню и т.п.), в скрипте — объект {@code args}.
      */
-    public List<PropertyUpdate> handleAction(String sessionId, Long scriptId, String username) {
+    public List<PropertyUpdate> handleAction(String sessionId, Long scriptId, Map<String, Object> args,
+                                             String username) {
         RuntimeSession session = sessionStore.get(sessionId);
         if (session == null) {
             log.warn("ACTION for unknown session {}", sessionId);
@@ -145,17 +150,31 @@ public class RuntimeSessionService {
             log.warn("ACTION references unknown script {} in session {}", scriptId, sessionId);
             return List.of();
         }
-        if (!actionDedupGuard.allow(sessionId + ":" + scriptId)) {
+
+        // Журнал действий: кто нажал, на каком компоненте, какой скрипт и с какими аргументами;
+        // исход — ниже. Аргументы — в колонке tags, как [{arg, value}].
+        ActionRecord action = new ActionRecord(Instant.now(), username, session.getProjectId(),
+                ActionRecord.KIND_ACTION, script.componentId(),
+                session.getIndex().componentName(script.componentId()), script.name(), argsForJournal(args),
+                null, null);
+
+        String argsJson;
+        try {
+            argsJson = ActionArgs.toJson(args);
+        } catch (IllegalArgumentException e) {
+            log.warn("ACTION {} for session {} rejected: {}", scriptId, sessionId, e.getMessage());
+            failures.record(ScriptFailureRegistry.Kind.RUNTIME_ERROR, session.getProject().getProjectId(),
+                    "action script " + scriptId, e.getMessage());
+            journal.record(action.failed(e.getMessage()));
+            return List.of();
+        }
+        // Аргументы — часть ключа: другой выбор из меню следом за первым — не дребезг клика.
+        if (!actionDedupGuard.allow(sessionId + ":" + scriptId + ":" + argsJson)) {
             log.warn("ACTION {} for session {} dropped as a duplicate (dedup window)", scriptId, sessionId);
             failures.record(ScriptFailureRegistry.Kind.DEDUP_DROPPED, session.getProject().getProjectId(),
                     "action script " + scriptId, "повтор в окне дедупликации, сессия " + sessionId);
             return List.of();
         }
-
-        // Журнал действий: кто нажал, на каком компоненте, какой скрипт; исход — ниже.
-        ActionRecord action = new ActionRecord(Instant.now(), username, session.getProjectId(),
-                ActionRecord.KIND_ACTION, script.componentId(),
-                session.getIndex().componentName(script.componentId()), script.name(), null, null, null);
 
         // Индекс — один раз на действие: reload может сменить выпуск посреди скрипта.
         TagSubscriptionIndex index = session.getIndex();
@@ -176,7 +195,7 @@ public class RuntimeSessionService {
         try {
             after = scriptEngineService.runAction(script.source(), props,
                     tagCommandService.sinksFor(session.getProject(), script.componentId()), session.getProjectData(),
-                    name -> readPropertyTag(index, script.componentId(), name));
+                    name -> readPropertyTag(index, script.componentId(), name), argsJson);
         } catch (Exception e) {
             log.warn("Script {} execution failed for session {}: {}", scriptId, sessionId, e.getMessage());
             failures.record(ScriptFailureRegistry.kindOf(e), session.getProject().getProjectId(),
@@ -209,6 +228,21 @@ public class RuntimeSessionService {
             }
         }
         return changed;
+    }
+
+    /** Аргументы для журнала: [{arg, value}] — в той же колонке, где у записи тега [{tag, value}]. */
+    private static List<Map<String, Object>> argsForJournal(Map<String, Object> args) {
+        if (args == null || args.isEmpty()) {
+            return null;
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        args.forEach((name, value) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("arg", name);
+            row.put("value", value); // Map.of не принимает null
+            rows.add(row);
+        });
+        return rows;
     }
 
     /**
