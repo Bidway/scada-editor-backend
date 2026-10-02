@@ -182,7 +182,7 @@ public class ScriptEngineService {
      */
     public Map<String, Object> runOnChange(String scriptSource, Object tagValue, Map<String, Object> props,
                                             ScriptWriteSinks writeSinks, ProjectData data) {
-        return execute(scriptSource, tagValue, props, writeSinks, false, data, null);
+        return execute(scriptSource, tagValue, props, writeSinks, false, data, null, ActionArgs.EMPTY);
     }
 
     /**
@@ -195,7 +195,16 @@ public class ScriptEngineService {
      */
     public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks,
                                          ProjectData data, TagReader propertyTagReader) {
-        return execute(scriptSource, null, props, writeSinks, true, data, propertyTagReader);
+        return runAction(scriptSource, props, writeSinks, data, propertyTagReader, ActionArgs.EMPTY);
+    }
+
+    /**
+     * То же с аргументами действия: {@code argsJson} — JSON-объект ({@link ActionArgs#toJson}),
+     * в скрипте — объект {@code args} (свежий на каждый запуск, правка его ни на что не влияет).
+     */
+    public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks,
+                                         ProjectData data, TagReader propertyTagReader, String argsJson) {
+        return execute(scriptSource, null, props, writeSinks, true, data, propertyTagReader, argsJson);
     }
 
     public Map<String, Object> runAction(String scriptSource, Map<String, Object> props, ScriptWriteSinks writeSinks,
@@ -260,6 +269,7 @@ public class ScriptEngineService {
                 ctx.getBindings("js").putMember("writeProjectTag", writeTagFunction(TagWriteSink.NOOP));
                 ctx.getBindings("js").putMember("tag", null);
                 ctx.getBindings("js").putMember("props", null);
+                ctx.getBindings("js").putMember("args", null);
                 ctx.getBindings("js").putMember("elapsedMs", elapsedMs);
                 ctx.getBindings("js").putMember("confirmed", confirmed);
                 ctx.getBindings("js").putMember("readProjectTag", readProjectTagFunction(tagReader));
@@ -356,7 +366,7 @@ public class ScriptEngineService {
 
     private Map<String, Object> execute(String scriptSource, Object tagValue, Map<String, Object> props,
                                         ScriptWriteSinks writeSinks, boolean forAction, ProjectData data,
-                                        TagReader propertyTagReader) {
+                                        TagReader propertyTagReader, String argsJson) {
         if (scriptSource == null || scriptSource.isBlank()) {
             return props;
         }
@@ -384,6 +394,9 @@ public class ScriptEngineService {
                         propertyTagReader != null ? readPropertyTagFunction(propertyTagReader) : null);
                 ctx.getBindings("js").putMember("readProjectProperty", null);
                 ctx.getBindings("js").putMember("data", new DataFunction(data));
+                // Всегда заново: контекст общий с onChange, чужие аргументы не должны в него протечь.
+                Value bindings = ctx.getBindings("js");
+                bindings.putMember("args", bindings.getMember("JSON").getMember("parse").execute(argsJson));
                 ctx.eval(source);
             } catch (Throwable t) {
                 failure.set(t);

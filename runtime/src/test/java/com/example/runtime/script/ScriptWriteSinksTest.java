@@ -92,6 +92,22 @@ class ScriptWriteSinksTest {
     }
 
     @Test
+    @DisplayName("Действие видит args, а следующий запуск в том же контексте — уже пустой args")
+    void action_seesArgs_andNextRunDoesNotInheritThem() {
+        Recorder property = new Recorder();
+        ScriptWriteSinks sinks = new ScriptWriteSinks(property, new Recorder(), new Recorder());
+        String script = "writeTag('CMD', args.recipe === undefined ? -1 : 2000 + Number(args.recipe));";
+
+        // Выбор рецепта 4 для Танка 1 (scada-s7hu): номер приходит аргументом, а не зашит в скрипт.
+        engine.runAction(script, new LinkedHashMap<>(), sinks, ProjectData.EMPTY, null, "{\"recipe\":4}");
+        assertThat(((Number) property.value).intValue()).isEqualTo(2004);
+
+        // Пул из одного контекста: без сброса args второй запуск получил бы recipe = 4.
+        engine.runAction(script, new LinkedHashMap<>(), sinks);
+        assertThat(((Number) property.value).intValue()).isEqualTo(-1);
+    }
+
+    @Test
     @DisplayName("ScriptWriteSinks.NOOP игнорирует все три вызова без исключений")
     void noopSinks_swallowAllThreeCalls() {
         Map<String, Object> props = new LinkedHashMap<>();
